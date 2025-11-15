@@ -136,7 +136,7 @@
         updateUIForAuth();
     }
     
-    // --- GERENCIAMENTO DE USUÁRIOS ---
+    // --- GERENCIAMENTO DE USUÁRIOS (ATUALIZADO PARA DARK MODE) ---
 
     function setupUserManagement() {
         if (!isAdmin() && !isManager()) { return; }
@@ -147,22 +147,3 @@
         if (oldContainer) oldContainer.remove();
 
         const container = document.createElement('div');
-        container.id = 'userManagementContainer';
-        container.classList.add('auth-control');
-        
-        let roleOptions = '';
-        if (isAdmin()) {
-            roleOptions = `
-                <option value="user">Usuário Padrão</option>
-                <option value="manager">Gestor</option>
-                <option value="administrator">Administrador</option>
-            `;
-        } else if (isManager()) {
-            // Gestores só podem criar usuários comuns
-            roleOptions = `<option value="user">Usuário Padrão</option>`;
-        }
-
-
-        container.innerHTML = `
-            <div class="panel" style="margin-top: 12px; color: #111;">
-                <h3 style="margin: 0 0
