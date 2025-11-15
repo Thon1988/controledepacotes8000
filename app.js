@@ -1,5 +1,6 @@
-// app.js — Scanner aprimorado inspirado em scanners de apps (Shopee / Mercado Livre)
-// Requisitos: index.html no mesmo diretório. Abra via HTTPS (GitHub Pages) ou localhost.
+// app.js — Mobile-friendly scanner (iOS + Android)
+// Goals: robust permission flow, device selection, playsinline, avoid white frame, support torch when available,
+// central crop scan for performance, extract IDs, beep/vibrate, export CSV ready for Excel (BOM + ';').
 
 (() => {
   const video = document.getElementById('videoElement');
@@ -9,9 +10,9 @@
   const startButton = document.getElementById('startButton');
   const stopButton = document.getElementById('stopButton');
   const torchButton = document.getElementById('torchButton');
+  const deviceSelect = document.getElementById('deviceSelect');
   const exportBtn = document.getElementById('exportBtn');
   const clearBtn = document.getElementById('clearBtn');
-  const autoOpenCheckbox = document.getElementById('autoOpen');
   const scanPopup = document.getElementById('scanPopup');
   const overlayCtx = overlay.getContext('2d');
 
@@ -21,7 +22,7 @@
   let lastScanTime = 0;
   const SCAN_INTERVAL = 700;
   const DUPLICATE_WINDOW = 60 * 1000;
-  const STORAGE_KEY = 'scannedPackages_v1';
+  const STORAGE_KEY = 'scannedPackages_v1_mobile';
   let scannedData = loadScannedData();
 
   const tempCanvas = document.createElement('canvas');
@@ -30,7 +31,7 @@
   let currentVideoTrack = null;
   let torchOn = false;
 
-  // beep
+  // small beep
   function beep(duration = 90, freq = 1400, vol = 0.12) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -42,10 +43,8 @@
       o.connect(g);
       g.connect(ctx.destination);
       o.start();
-      setTimeout(() => {
-        try { o.stop(); ctx.close(); } catch (e) {}
-      }, duration);
-    } catch (e) { console.warn('Beep indisponível', e); }
+      setTimeout(() => { try { o.stop(); ctx.close(); } catch (e) {} }, duration);
+    } catch (e) { /* ignore on browsers blocking audio */ }
   }
 
   function showPopup(text, ms = 900) {
@@ -54,7 +53,10 @@
     setTimeout(() => { scanPopup.style.display = 'none'; }, ms);
   }
 
-  function logOutput(msg) { output.textContent = msg; console.info(msg); }
+  function logOutput(msg) {
+    output.textContent = msg;
+    console.info(msg);
+  }
 
   function saveScannedData() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); } catch (e) { console.warn('save fail', e); }
@@ -72,23 +74,21 @@
   function renderScans() {
     scansList.innerHTML = '';
     if (!scannedData.length) {
-      scansList.innerHTML = '<div style="color:var(--muted)">Nenhum registro ainda.</div>';
+      scansList.innerHTML = '<div style="color:#666">Nenhum registro ainda.</div>';
       return;
     }
     scannedData.forEach((item, idx) => {
       const el = document.createElement('div');
       el.className = 'item';
       const idBadge = item.extractedId && item.extractedId.value ? `<div class="badge">${escapeHtml(item.extractedId.type)}: ${escapeHtml(item.extractedId.value)}</div>` : '';
-      const qrBadge = item.qrId && item.qrId.value ? `<div class="badge" title="ID extraído do QR">QR: ${escapeHtml(item.qrId.value)}</div>` : '';
+      const qrBadge = item.qrId && item.qrId.value ? `<div class="badge">QR: ${escapeHtml(item.qrId.value)}</div>` : '';
       el.innerHTML = `
         <div style="display:flex;gap:8px;align-items:center">
           <div class="badge">${escapeHtml(item.plataforma)}</div>
           ${qrBadge}
           ${idBadge}
           <div style="font-size:14px;word-break:break-all">${escapeHtml(item.link)}</div>
-          <div class="actions" style="margin-left:auto">
-            <button data-idx="${idx}" style="background:#007bff;padding:6px 8px;border-radius:6px;font-size:13px">Abrir</button>
-          </div>
+          <div style="margin-left:auto"><button data-idx="${idx}" style="background:#00b4d8;color:#fff;padding:6px;border-radius:6px">Abrir</button></div>
         </div>
         <div class="meta">${escapeHtml(item.dataHora)}</div>
       `;
@@ -100,85 +100,127 @@
 
   function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 
-  // tenta forçar prompt de permissão (alguns browsers já mostram no getUserMedia)
-  async function requestPermissions() {
+  // --- mobile-friendly permission and device selection logic ---
+
+  // Request permission first without specifying facingMode on some devices (improves iOS reliability)
+  async function requestPermissionOnce() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia não suportado');
-    const s = await navigator.mediaDevices.getUserMedia({ video: true });
+    // If labels are not visible we need permission to enumerate devices with labels
+    const s = await navigator.mediaDevices.getUserMedia({ video: true }).catch(e => { throw e; });
     s.getTracks().forEach(t => t.stop());
     return true;
   }
 
+  async function enumerateVideoDevices() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter(d => d.kind === 'videoinput');
+    } catch (e) {
+      console.warn('enumerateDevices falhou', e);
+      return [];
+    }
+  }
+
+  function populateDeviceSelect(devices) {
+    deviceSelect.innerHTML = '';
+    if (!devices || devices.length === 0) { deviceSelect.style.display = 'none'; return; }
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      // label may be empty until permission; provide fallback label
+      opt.text = d.label || `Camera ${deviceSelect.length + 1}`;
+      deviceSelect.appendChild(opt);
+    });
+    deviceSelect.style.display = devices.length > 1 ? 'inline-block' : 'none';
+  }
+
+  // Try to start using several strategies:
+  // 1) Try a facingMode environment request (fast on many Androids).
+  // 2) If fails or on iOS, request generic permission then enumerate devices and pick a rear camera deviceId.
+  // 3) Fallback to {video:true}.
   async function startCamera() {
     if (scanning) return;
     logOutput('Solicitando permissão da câmera...');
     startButton.disabled = true;
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      logOutput('Seu navegador não suporta câmera via getUserMedia.');
+      logOutput('getUserMedia não suportado neste navegador.');
       startButton.disabled = false;
       return;
     }
 
     try {
-      try { await requestPermissions(); } catch (e) { console.warn('requestPermissions falhou, continua', e); }
-
-      // constraints preferindo câmera traseira
-      const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+      // Attempt 1: facingMode (works for many Android + modern browsers)
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        console.warn('getUserMedia com facingMode falhou:', err);
-        // tenta enumerar e usar deviceId
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        let success = false;
-        for (const dev of videoDevices) {
-          try {
-            mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: dev.deviceId } }, audio: false });
-            success = true;
-            break;
-          } catch (e) { console.warn('tentativa deviceId falhou', dev.deviceId, e); }
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      } catch (errFacing) {
+        console.warn('facingMode falhou (tentando permissão + deviceId):', errFacing);
+        // Attempt 2: ensure permission prompt and enumerate devices
+        try {
+          await requestPermissionOnce();
+        } catch (permErr) {
+          console.warn('requestPermissionOnce falhou:', permErr);
+          // If permission denied, bubble up
+          throw permErr;
         }
-        if (!success) {
-          // última tentativa genérica
-          mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await enumerateVideoDevices();
+        populateDeviceSelect(devices);
+        // Try to pick a rear camera by heuristics on label (common words)
+        const rear = devices.find(d => /rear|back|traseira|environment|facing back/i.test(d.label));
+        const chosen = deviceSelect.value || (rear ? rear.deviceId : (devices[0] && devices[0].deviceId));
+        if (chosen) {
+          try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: chosen } }, audio: false });
+          } catch (e) {
+            console.warn('deviceId specific request falhou:', e);
+            // fallback to generic
+            mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+        } else {
+          // no devices discovered -> fallback
+          mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
       }
 
-      // attach
+      // Attach stream and initialize video
       video.srcObject = mediaStream;
-      await video.play();
+      // ensure playsinline for iOS
+      video.setAttribute('playsinline', '');
+      await video.play().catch(e => { /* ignore - some browsers block autoplay but user gesture should allow */ });
 
-      // armazena track e checa torch
+      // Save track for torch control
       currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
       torchOn = false;
-      if (currentVideoTrack && currentVideoTrack.getCapabilities) {
+      if (currentVideoTrack && typeof currentVideoTrack.getCapabilities === 'function') {
         try {
           const caps = currentVideoTrack.getCapabilities();
-          if (caps && caps.torch) {
-            torchButton.style.display = 'inline-block';
-          } else {
-            torchButton.style.display = 'none';
-          }
+          if (caps && caps.torch) torchButton.style.display = 'inline-block';
+          else torchButton.style.display = 'none';
         } catch (e) { torchButton.style.display = 'none'; }
       } else {
         torchButton.style.display = 'none';
       }
 
+      // show device select if multiple devices available (labels now available after permission)
+      const devicesNow = await enumerateVideoDevices();
+      populateDeviceSelect(devicesNow);
+
       scanning = true;
       startButton.style.display = 'none';
       stopButton.style.display = 'inline-block';
-      logOutput('✅ Scanner ativo.');
-      fitCanvases();
+      logOutput('✅ Scanner ativo — aponte para o QR.');
+      // wait for metadata to set canvas size correctly
+      if (video.readyState >= 1) fitCanvases();
+      else video.addEventListener('loadedmetadata', fitCanvases, { once: true });
       rafId = requestAnimationFrame(scanLoop);
     } catch (err) {
-      console.error('Erro ao abrir câmera', err);
+      console.error('Erro ao abrir câmera:', err);
       startButton.disabled = false;
-      let msg = 'Erro ao acessar câmera. Ver console.';
+      let msg = 'Erro ao acessar a câmera. Ver console.';
       if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) msg = '🛑 Permissão negada. Permita a câmera nas configurações do navegador.';
       else if (err && err.name === 'NotFoundError') msg = 'Câmera não encontrada.';
       else if (err && err.name === 'OverconstrainedError') msg = 'Configurações de câmera não suportadas.';
-      else if (err && err.name === 'SecurityError') msg = 'Requer HTTPS ou localhost.';
+      else if (err && err.name === 'SecurityError') msg = 'Requer HTTPS (use GitHub Pages) ou localhost.';
       logOutput(msg);
     }
   }
@@ -190,7 +232,7 @@
       await currentVideoTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
       torchButton.textContent = torchOn ? '🔦 On' : '🔦 Flash';
     } catch (e) {
-      console.warn('torch não disponível', e);
+      console.warn('toggleTorch falhou', e);
       logOutput('Flash não suportado neste dispositivo.');
     }
   }
@@ -198,6 +240,7 @@
   function stopCamera() {
     if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
     mediaStream = null;
+    currentVideoTrack = null;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     scanning = false;
@@ -207,6 +250,7 @@
     startButton.style.display = 'inline-block';
     stopButton.style.display = 'none';
     torchButton.style.display = 'none';
+    deviceSelect.style.display = 'none';
     overlayCtx.clearRect(0,0,overlay.width,overlay.height);
     logOutput('Scanner parado.');
   }
@@ -214,29 +258,30 @@
   function fitCanvases() {
     const vw = video.videoWidth || video.clientWidth || 640;
     const vh = video.videoHeight || video.clientHeight || 480;
-    // usa canvas de leitura reduzido para desempenho
+    // temp canvas smaller for performance
     const targetW = Math.min(1024, Math.max(320, Math.round(vw * 0.6)));
     const targetH = Math.round((vh / vw) * targetW) || 480;
     tempCanvas.width = targetW;
     tempCanvas.height = targetH;
     overlay.width = vw;
     overlay.height = vh;
+    // draw initial guide box
+    drawBoundingBox(null);
   }
 
-  // desenha bounding box e uma mira central (como apps)
+  // draw overlay: center guide or bounding box if location provided
   function drawBoundingBox(location) {
     overlayCtx.clearRect(0,0,overlay.width,overlay.height);
     if (!location) {
-      // desenha a moldura central (transparente) para guiar o usuário
       const w = overlay.width, h = overlay.height;
-      const boxW = Math.round(w * 0.6), boxH = Math.round(h * 0.5);
+      const boxW = Math.round(w * 0.62), boxH = Math.round(h * 0.5);
       const x = Math.round((w - boxW) / 2), y = Math.round((h - boxH) / 2);
       overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)';
-      overlayCtx.lineWidth = 2;
+      overlayCtx.lineWidth = 3;
       overlayCtx.strokeRect(x, y, boxW, boxH);
       return;
     }
-    overlayCtx.strokeStyle = 'rgba(0,200,83,0.9)';
+    overlayCtx.strokeStyle = 'rgba(0,200,83,0.95)';
     overlayCtx.lineWidth = Math.max(2, overlay.width / 200);
     overlayCtx.beginPath();
     overlayCtx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y);
@@ -245,11 +290,11 @@
     overlayCtx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
     overlayCtx.closePath();
     overlayCtx.stroke();
-    overlayCtx.fillStyle = 'rgba(0,200,83,0.12)';
+    overlayCtx.fillStyle = 'rgba(0,200,83,0.14)';
     overlayCtx.fill();
   }
 
-  // loop: captura área central, detecta QR, faz mapeamento de coordenadas para overlay
+  // central crop scanning for performance
   function scanLoop() {
     if (!scanning) return;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -269,7 +314,6 @@
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
 
         if (code && code.data) {
-          // mapeia pontos para coordenadas do vídeo para desenhar overlay correto
           if (code.location) {
             const scaleX = sw / tempCanvas.width;
             const scaleY = sh / tempCanvas.height;
@@ -301,27 +345,21 @@
     rafId = requestAnimationFrame(scanLoop);
   }
 
-  // extração de IDs (Shopee/MercadoLivre e genérico)
+  // extraction helpers (keeps previous regexes)
   function extractIdFromLink(link) {
     if (!link || typeof link !== 'string') return { type: null, value: null };
     const l = link.trim();
     const shopeePattern1 = /-i\.(\d+)\.(\d+)/i;
-    const m1 = l.match(shopeePattern1);
-    if (m1) return { type: 'shopee_item', value: m1[2], shopId: m1[1] };
+    const m1 = l.match(shopeePattern1); if (m1) return { type: 'shopee_item', value: m1[2], shopId: m1[1] };
     const shopeePattern2 = /shopee\.[^\/]+\/(?:product|products|item)\/(\d+)/i;
-    const m2 = l.match(shopeePattern2);
-    if (m2) return { type: 'shopee_item', value: m2[1] };
+    const m2 = l.match(shopeePattern2); if (m2) return { type: 'shopee_item', value: m2[1] };
     const mlPattern1 = /ML[A-Z]*-?(\d+)/i;
-    const m3 = l.match(mlPattern1);
-    if (m3) return { type: 'mercadolivre_item', value: m3[1] };
+    const m3 = l.match(mlPattern1); if (m3) return { type: 'mercadolivre_item', value: m3[1] };
     const mlPattern2 = /\/(\d{6,})(?:[^\d]|$)/;
-    const m4 = l.match(mlPattern2);
-    if (m4) return { type: 'mercadolivre_item', value: m4[1] };
+    const m4 = l.match(mlPattern2); if (m4) return { type: 'mercadolivre_item', value: m4[1] };
     const orderPattern = /order[_\-\/]?(\d{6,})/i;
-    const m5 = l.match(orderPattern);
-    if (m5) return { type: 'order', value: m5[1] };
-    const fallback = l.match(/(\d{6,})/);
-    if (fallback) return { type: 'number', value: fallback[1] };
+    const m5 = l.match(orderPattern); if (m5) return { type: 'order', value: m5[1] };
+    const fallback = l.match(/(\d{6,})/); if (fallback) return { type: 'number', value: fallback[1] };
     return { type: null, value: null };
   }
 
@@ -357,24 +395,17 @@
     const entry = { plataforma, link: payload, dataHora: new Date().toLocaleString('pt-BR'), timestamp: Date.now(), extractedId, qrId };
     addScan(entry);
 
-    // feedback
+    // feedback: beep, vibration, popup, copy
     beep();
     try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
     showPopup(`OK • ${qrId.value || extractedId.value || 'salvo'}`);
 
-    // tenta copiar id para clipboard
-    try { await navigator.clipboard.writeText(qrId.value || extractedId.value || payload); logOutput('Conteúdo copiado para área de transferência.'); } catch (e) { console.warn('clipboard fail', e); }
+    try { await navigator.clipboard.writeText(qrId.value || extractedId.value || payload); logOutput('Copiado para área de transferência.'); } catch (e) { /* ignore */ }
 
-    // auto-open behavior (cuidado: pop-up blockers podem impedir)
-    if (autoOpenCheckbox.checked) {
-      if (/^https?:\/\//i.test(payload)) {
-        try { window.open(payload, '_blank'); } catch (e) { console.warn('auto-open bloqueado', e); }
-      }
-    }
     logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
   }
 
-  // CSV
+  // CSV export (BOM + ';' for Excel)
   function convertToCSV(data) {
     if (!data || data.length === 0) return '';
     const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan'];
@@ -413,7 +444,30 @@
     logOutput('Registros limpos.');
   }
 
-  // inicialização / eventos
+  // device selection change: restart with chosen device
+  deviceSelect.addEventListener('change', async () => {
+    const id = deviceSelect.value;
+    if (!id) return;
+    // restart stream with chosen device
+    try {
+      stopCamera();
+      mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id } }, audio: false });
+      video.srcObject = mediaStream;
+      await video.play();
+      currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
+      fitCanvases();
+      scanning = true;
+      rafId = requestAnimationFrame(scanLoop);
+      startButton.style.display = 'none';
+      stopButton.style.display = 'inline-block';
+      logOutput('Usando câmera selecionada.');
+    } catch (e) {
+      console.warn('Falha ao selecionar deviceId', e);
+      logOutput('Falha ao usar câmera selecionada.');
+    }
+  });
+
+  // init
   function init() {
     renderScans();
     startButton.addEventListener('click', startCamera);
@@ -422,12 +476,11 @@
     exportBtn.addEventListener('click', exportCSV);
     clearBtn.addEventListener('click', clearScans);
     window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
-    // mostra moldura central inicialmente
     drawBoundingBox(null);
-    // expose for debug
     window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
   }
 
   init();
 })();
+
 
