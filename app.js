@@ -1,5 +1,6 @@
-// app.js — Scanner com extração de ID do QR, beep, vibração e export CSV compatível Excel
-// Requisitos: colocar app.js ao lado do index.html
+// app.js — versão atualizada: fallback ao enumerar dispositivos se getUserMedia falhar,
+// mensagens de erro mais claras no output e remoção da mensagem visual desnecessária.
+// Colocar app.js ao lado de index.html
 
 (() => {
   const video = document.getElementById('videoElement');
@@ -110,6 +111,7 @@
     return (s + '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
   }
 
+  // startCamera com fallback: 1) facingMode ideal 2) enumerar devices e tentar deviceId 3) video:true
   async function startCamera() {
     if (scanning) return;
     logOutput('Solicitando permissão da câmera...');
@@ -121,10 +123,63 @@
       return;
     }
 
-    const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+    const tryConstraints = async (constraints) => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        return stream;
+      } catch (err) {
+        console.warn('getUserMedia falhou para constraints', constraints, err);
+        throw err;
+      }
+    };
 
+    // tentativa 1: facingMode ideal environment
+    const constraints1 = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
     try {
-      mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      mediaStream = await tryConstraints(constraints1);
+    } catch (err1) {
+      // tentativa 2: enumerar dispositivos e usar primeiro deviceId disponível
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        if (videoDevices.length > 0) {
+          // tenta cada device até achar um que funcione
+          let success = false;
+          for (const dev of videoDevices) {
+            try {
+              mediaStream = await tryConstraints({ video: { deviceId: { exact: dev.deviceId } }, audio: false });
+              success = true;
+              break;
+            } catch (e) {
+              console.warn('Falha ao tentar deviceId', dev.deviceId, e);
+            }
+          }
+          if (!success) throw new Error('Nenhuma câmera disponível aceitou a requisição.');
+        } else {
+          // tentativa 3: fallback simples
+          mediaStream = await tryConstraints({ video: true, audio: false });
+        }
+      } catch (err2) {
+        // tentativa 3: fallback simples (última chance)
+        try {
+          mediaStream = await tryConstraints({ video: true, audio: false });
+        } catch (err3) {
+          // falha definitiva
+          console.error('Todas as tentativas de acessar a câmera falharam', err1, err2, err3);
+          startButton.disabled = false;
+          let msg = 'Erro ao acessar a câmera. Ver console para detalhes.';
+          if (err1 && (err1.name === 'NotAllowedError' || err1.name === 'PermissionDeniedError')) msg = '🛑 Permissão negada. Permita o uso da câmera nas configurações do navegador.';
+          else if (err1 && err1.name === 'NotFoundError') msg = 'Câmera não encontrada.';
+          else if (err1 && err1.name === 'OverconstrainedError') msg = 'Configurações de câmera não suportadas no dispositivo.';
+          else if (err1 && err1.name === 'SecurityError') msg = 'Requer HTTPS ou localhost.';
+          logOutput(msg);
+          return;
+        }
+      }
+    }
+
+    // se aqui tem mediaStream, inicializa vídeo
+    try {
       video.srcObject = mediaStream;
       await video.play();
       scanning = true;
@@ -134,13 +189,9 @@
       fitCanvases();
       rafId = requestAnimationFrame(scanLoop);
     } catch (err) {
-      console.error('Erro ao abrir câmera', err);
+      console.error('Erro ao reproduzir o stream de vídeo', err);
       startButton.disabled = false;
-      let msg = 'Erro desconhecido ao acessar a câmera.';
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = '🛑 Permissão negada. Permita o uso da câmera.';
-      else if (err.name === 'NotFoundError') msg = 'Câmera não encontrada.';
-      else if (err.name === 'SecurityError') msg = 'Requer HTTPS ou localhost.';
-      logOutput(msg);
+      logOutput('Erro ao iniciar vídeo. Ver console para detalhes.');
     }
   }
 
@@ -347,6 +398,7 @@
     if (exportBtn) exportBtn.addEventListener('click', exportCSV);
     if (clearBtn) clearBtn.addEventListener('click', clearScans);
     window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
+    // expõe funções úteis para debug no console
     window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
   }
 
