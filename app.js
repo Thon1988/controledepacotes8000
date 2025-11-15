@@ -16,10 +16,9 @@
     const scanPopup = document.getElementById('scanPopup');
     const overlayCtx = overlay.getContext('2d');
     const controlsContainer = document.getElementById('controls');
-    const appContainer = document.querySelector('.app'); 
     const body = document.body;
     
-    // As referências de login nesta versão podem ser o ponto de falha
+    // Referências de Login (Ponto de falha se o HTML não estiver perfeito)
     const loginScreen = document.getElementById('loginScreen');
     const loginBtn = document.getElementById('loginBtn'); 
     const loginUserField = document.getElementById('loginUser');
@@ -118,14 +117,13 @@
         // Garante que o usuário administrador padrão sempre exista, caso tenha sido apagado ou o storage esteja vazio
         if (!loadedUsers['thon']) {
             loadedUsers['thon'] = defaultUsers['thon'];
-            if (!isDefault) { // Se existiam outros usuários, mas o thon foi apagado, salva de novo.
+            if (!isDefault) { 
                 saveUsers(); 
             }
         }
 
         // Se o storage estava vazio, salva a lista padrão completa
         if (isDefault && Object.keys(loadedUsers).length > 0) {
-             // Garante que todos os defaults estejam presentes se for a primeira carga
              loadedUsers = { ...defaultUsers, ...loadedUsers };
              saveUsers();
         }
@@ -926,10 +924,8 @@
     // --- INICIALIZAÇÃO ---
 
     function setupLoginListeners() {
-        // A lógica de login nesta versão pode ter problemas com o escopo ou timing do loginBtn
         if (loginBtn) { 
             const handleLoginAttempt = (e) => {
-                // Previne a submissão padrão do formulário se o botão estiver dentro de um <form>
                 if (e && e.type === 'click') {
                      e.preventDefault(); 
                 }
@@ -946,6 +942,7 @@
                 loginUser(user, pass);
             };
 
+            // Possível ponto de falha: Se o botão ou campos de login não forem encontrados no DOM imediatamente.
             loginBtn.addEventListener('click', handleLoginAttempt);
             
             if (loginPassField) {
