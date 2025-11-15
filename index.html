@@ -21,6 +21,8 @@
     .app{max-width:920px;margin:12px auto;padding:12px}
     /* Título com a versão */
     h1{margin:0 0 8px;font-size:18px;color:#111} 
+    
+    /* Esta classe 'controls' agora também pode conter elementos dinâmicos como o seletor de data */
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
     button{background:#00b4d8;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
     button.secondary{background:#6c757d}
@@ -28,18 +30,19 @@
     /* Estilo para Inputs/Selects (Alto contraste) */
     .controls input[type="text"], 
     .controls input[type="password"], 
+    .controls input[type="date"],
     .controls select {
       padding: 8px; 
       border-radius: 8px; 
       border: 1px solid #ccc; 
-      width: 120px;
+      width: auto; /* Deixa o JS definir a largura se necessário */
       color: #111; 
       background-color: #fff; 
     }
-    /* Estilos específicos para inputs no formulário de login inicial */
+    /* Estilos para inputs de login */
     #loginForm input[type="text"],
     #loginForm input[type="password"] {
-      width: 160px; /* Alargado para melhor toque no mobile */
+      width: 160px; 
     }
     
     .camera-wrap{position:relative;max-width:920px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;height:60vh;display:flex;align-items:center;justify-content:center}
@@ -74,8 +77,8 @@
   <div class="app">
         <h1>📦 Scanner 8000 v0.1</h1>
 
-        <div class="controls" id="controls">
-      <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
+            <div class="controls" id="controls">
+              <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
       <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
       <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
 
@@ -93,7 +96,7 @@
 
     <div class="panel">
       <div id="output">Por favor, faça login para começar.</div>
-      <div class="list" id="scansList" aria-live="polite"></div>
+            <div class="list" id="scansList" aria-live="polite"></div>
     </div>
   </div>
 
