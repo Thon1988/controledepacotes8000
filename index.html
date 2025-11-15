@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner de QR Code</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        /* Estilos básicos para mobile */
+        body { font-family: sans-serif; text-align: center; }
+        #videoElement { width: 100%; max-width: 400px; border: 1px solid black; }
+        #output { margin: 20px; padding: 10px; border: 1px dashed gray; }
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    /* Estilos básicos para garantir que o conteúdo preencha a tela */
+    body { 
+        font-family: sans-serif; 
+        text-align: center; 
+        margin: 0; /* Remove margens padrão */
+        padding: 20px;
+        background-color: #f0f0f0; 
+    }
+    
+    /* Garante que o vídeo nunca ultrapasse a largura do celular */
+    #videoElement { 
+        width: 100%; 
+        max-width: 450px; /* Limita o tamanho máximo em telas maiores */
+        height: auto;
+        border: 4px solid #333;
+        border-radius: 8px;
+        display: block; /* Garante que o vídeo seja um bloco completo */
+        margin: 15px auto; /* Centraliza */
+    }
+
+    #output { 
+        margin: 20px auto; 
+        padding: 15px; 
+        border: 1px dashed gray;
+        border-radius: 6px;
+        background-color: white;
+        max-width: 400px;
+    }
+
+    button {
+        padding: 10px 20px;
+        font-size: 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    button:hover {
+        background-color: #0056b3;
+    }
+</style>
+    </style>
+</head>
+<body>
+    <body>
+    <h1>📦 Scanner de Pacotes</h1>
+    <video id="videoElement" autoplay></video>
+    <div id="output">
+        <p>Aponte a câmera para um QR Code.</p>
+    </div>
+    <button onclick="exportCSV()">Exportar Dados para CSV</button>
+
+    <script src="app.js"></script>
+</body>
+</html>
