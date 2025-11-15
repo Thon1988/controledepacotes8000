@@ -1,63 +1,62 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner 8000 v0.1</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>📦 Scanner 8000 v0.1</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
-  <style>
-    :root{--bg:#111;--card:#fff;--accent:#00b4d8;--muted:#9aa0a6}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#fff}
-    .app{max-width:920px;margin:12px auto;padding:12px}
-    h1{margin:0 0 8px;font-size:18px;color:#fff}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
-    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
-    button.secondary{background:#6c757d}
-    .camera-wrap{position:relative;max-width:920px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;height:60vh;display:flex;align-items:center;justify-content:center}
-    video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
-    canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
-    .panel{background:var(--card);padding:10px;border-radius:8px;margin-top:12px;box-shadow:0 1px 6px rgba(0,0,0,.4);color:#111}
-    #output{min-height:36px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
-    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-    .item{padding:8px;border-bottom:1px solid #eee}
-    .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
-    .select-label { color: #fff; font-size: 14px; margin-left: 6px; }
-    #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
-    @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} .camera-wrap{height:50vh} }
-  </style>
+  <style>
+    :root{--bg:#111;--card:#fff;--accent:#00b4d8;--muted:#9aa0a6}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#fff}
+    .app{max-width:920px;margin:12px auto;padding:12px}
+    h1{margin:0 0 8px;font-size:18px;color:#fff}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.secondary{background:#6c757d}
+    .camera-wrap{position:relative;max-width:920px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;height:60vh;display:flex;align-items:center;justify-content:center}
+    video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+    canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+    .panel{background:var(--card);padding:10px;border-radius:8px;margin-top:12px;box-shadow:0 1px 6px rgba(0,0,0,.4);color:#111}
+    #output{min-height:36px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
+    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
+    .item{padding:8px;border-bottom:1px solid #eee}
+    .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
+    .select-label { color: #fff; font-size: 14px; margin-left: 6px; }
+    #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
+    @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} .camera-wrap{height:50vh} }
+  </style>
 </head>
 <body>
-  <div class="app">
-    <h1>📦 Scanner 8000</h1>
+  <div class="app">
+    <h1>📦 Scanner 8000</h1>
 
-    <div class="controls" id="controls">
-      <button id="startButton" aria-label="Iniciar câmera">▶️ Iniciar câmera</button>
-      <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
-      <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
+    <div class="controls" id="controls">
+      <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
+      <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
+      <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
 
-      <label for="deviceSelect" class="select-label" style="display:none" id="deviceSelectLabel">Câmera:</label>
-      <select id="deviceSelect" class="select-device" style="display:none" aria-labelledby="deviceSelectLabel"></select>
+      <label for="deviceSelect" class="select-label" style="display:none" id="deviceSelectLabel">Câmera:</label>
+      <select id="deviceSelect" class="select-device" style="display:none" aria-labelledby="deviceSelectLabel"></select>
 
-      <button id="exportBtn" class="secondary" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
-      <button id="clearBtn" class="secondary" aria-label="Limpar registros">🧹 Limpar</button>
-    </div>
+      <button id="exportBtn" class="secondary" style="display:none" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
+      <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
+    </div>
 
-    <div class="camera-wrap" id="cameraWrap">
-      <video id="videoElement" muted playsinline autoplay></video>
-      <canvas id="overlay"></canvas>
-    </div>
+    <div class="camera-wrap" id="cameraWrap">
+      <video id="videoElement" muted playsinline autoplay></video>
+      <canvas id="overlay"></canvas>
+    </div>
 
-    <div class="panel">
-      <div id="output">Pronto. Clique em "Iniciar câmera".</div>
-      <div class="list" id="scansList" aria-live="polite"></div>
-    </div>
-  </div>
+    <div class="panel">
+      <div id="output">Pronto. Por favor, faça login.</div>
+      <div class="list" id="scansList" aria-live="polite"></div>
+    </div>
+  </div>
 
-  <div id="scanPopup" role="status" aria-live="polite"></div>
+  <div id="scanPopup" role="status" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
-
