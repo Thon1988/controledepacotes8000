@@ -6,36 +6,41 @@ const startButton = document.getElementById('startButton');
 const canvas = document.createElement('canvas');
 const context = canvas.getContext('2d');
 
-let scannedData = []; // Array para armazenar os dados escaneados
+let scannedData = []; 
 let scannerActive = false;
 let lastScanTime = 0;
-const scanInterval = 3000; // Intervalo de 3 segundos para evitar múltiplos scans
+const scanInterval = 3000; // Intervalo de 3 segundos entre scans para o mesmo QR Code
 
 // ## 1. Inicialização e Controle da Câmera
 
 function startCamera() {
     if (scannerActive) return;
 
-    output.innerHTML = "Aguardando autorização... Por favor, **PERMITA** o acesso à câmera na janela pop-up.";
+    output.innerHTML = "Aguardando autorização... Por favor, **PERMITA** o acesso à câmera.";
     startButton.disabled = true;
 
+    // Verifica se o navegador suporta a API de mídia
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         
-        // Prioriza a câmera traseira (facingMode: "environment")
+        // Configuração para priorizar a câmera traseira (environment)
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(function(stream) {
                 // SUCESSO: Permissão concedida
                 video.srcObject = stream;
-                video.play();
-                scannerActive = true;
-                startButton.style.display = 'none'; 
-                output.innerHTML = "✅ Scanner ativo! Aponte para um QR Code.";
-                requestAnimationFrame(tick); // Inicia o loop de escaneamento
+                // O evento 'loadedmetadata' garante que o vídeo esteja pronto antes de iniciar o loop
+                video.addEventListener('loadedmetadata', () => {
+                    video.play();
+                    scannerActive = true;
+                    startButton.style.display = 'none'; 
+                    output.innerHTML = "✅ Scanner ativo! Aponte para um QR Code.";
+                    requestAnimationFrame(tick);
+                }, { once: true });
             })
             .catch(function(err) {
-                // FALHA: Trata erros de permissão ou segurança
+                // FALHA: Trata erros de permissão ou segurança de forma detalhada
                 startButton.disabled = false;
-                
+                startButton.style.display = 'block';
+
                 let errorMessage = "Erro desconhecido ao acessar a câmera. ";
 
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -62,12 +67,13 @@ function startCamera() {
 
 function tick() {
     if (video.readyState === video.HAVE_ENOUGH_DATA && scannerActive) {
-        // Desenha o frame do vídeo no canvas
+        // Redimensiona o canvas para o tamanho do vídeo
         canvas.height = video.videoHeight;
         canvas.width = video.videoWidth;
+        // Desenha o frame do vídeo no canvas
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Pega os dados de imagem e tenta decodificar o QR Code (usando jsQR)
+        // Tenta decodificar o QR Code
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height);
 
@@ -75,22 +81,24 @@ function tick() {
             handleScanResult(code.data);
         }
     }
+    // Continua o loop de animação
     requestAnimationFrame(tick);
 }
 
 function handleScanResult(link) {
     const now = Date.now();
     
-    // 1. Controle de tempo (Evita múltiplos scans em 3 segundos)
+    // 1. Controle de tempo (Evita scans repetidos rapidamente)
     if (now - lastScanTime < scanInterval) {
         return;
     }
     
-    // 2. Verifica se o link já foi escaneado no último minuto
+    // 2. Verifica se o link já foi escaneado no último minuto (60000ms)
     const isDuplicate = scannedData.some(item => item.link === link && (now - item.timestamp) < 60000); 
     
     if (isDuplicate) {
-        output.innerHTML = `Código ${link.substring(0, 20)}... já escaneado recentemente!`;
+        // Avisa que é duplicata sem salvar novamente
+        output.innerHTML = `⚠️ Código ${link.substring(0, 20)}... já escaneado recentemente!`;
         return;
     }
 
@@ -109,7 +117,7 @@ function handleScanResult(link) {
         plataforma: plataforma,
         link: link,
         dataHora: timestamp,
-        timestamp: now // Timestamp para controle interno
+        timestamp: now // Timestamp para controle interno de duplicatas
     };
 
     scannedData.push(scanEntry);
@@ -145,11 +153,26 @@ function exportCSV() {
         return;
     }
 
-    // Prepara os dados para exportação (removendo o timestamp interno)
+    // Prepara os dados para exportação (remove o timestamp interno)
     const dataToExport = scannedData.map(item => ({
         plataforma: item.plataforma,
         link: item.link,
         dataHora: item.dataHora
     }));
 
-    const csvContent = convert
+    const csvContent = convertToCSV(dataToExport);
+    
+    // Cria um Blob (arquivo) e inicia o download
+    const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' }); // Adiciona BOM para UTF-8 no Excel
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'scanner_pacotes_dados.csv');
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    alert(`Exportação concluída! ${dataToExport.length} itens salvos.`);
+}
