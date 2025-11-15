@@ -3,59 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  
-  <meta name="color-scheme" content="dark light"> 
   <title>📦 Scanner 8000 (com Admin/Gestor)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
-    /* Estilos base (DARK MODE FORÇADO COMO PADRÃO) */
-    :root{
-        --bg:#111; /* Fundo escuro */
-        --card:#222; /* Fundo de painel escuro */
-        --accent:#00b4d8; 
-        --muted:#9aa0a6; 
-        --text-primary:#fff; /* Texto branco */
-        --text-secondary:#adb5bd;
-    }
+    /* Estilos originais (Fundo Branco/Claro Fixo) */
     
-    /* Override para Light Mode, se o sistema forçar */
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg:#f4f4f7; /* Fundo claro padrão */
-        --card:#fff; /* Fundo de painel branco */
-        --text-primary:#111; /* Texto preto */
-        --text-secondary:#343a40;
-      }
-      .panel .list {
-          border: 1px solid #eee !important;
-      }
-      .panel .item {
-          border-bottom: 1px solid #eee !important;
-      }
-    }
-    
-
-    /* Estilos Globais */
     html,body{
         height:100%;
         margin:0;
         font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;
-        background:var(--bg); /* Fundo dinâmico */
-        color:var(--text-primary); /* Texto dinâmico */
-        
-        /* ⚠️ SOLUÇÃO DE FORÇA BRUTA: Adiciona alta prioridade */
-        background-color: #111 !important; 
+        background:#f4f4f7; /* Fundo claro fixo */
+        color:#111; /* Texto preto fixo */
     }
 
     .app{max-width:920px;margin:12px auto;padding:12px}
-    h1{margin:0 0 8px;font-size:18px;color:var(--text-primary)}
+    h1{margin:0 0 8px;font-size:18px;color:#111}
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
-    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
+    button{background:#00b4d8;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
     button.secondary{background:#6c757d}
     
-    /* Estilo para Inputs/Selects */
+    /* Estilo para Inputs/Selects (Mantido com alto contraste) */
     .controls input[type="text"], 
     .controls input[type="password"], 
     .controls select {
@@ -73,19 +42,20 @@
     
     /* Painel de Registros/Gerenciamento */
     .panel{
-        background:var(--card); 
+        background:#fff; /* Fundo de painel branco fixo */
         padding:10px;
         border-radius:8px;
         margin-top:12px;
-        box-shadow:0 1px 6px rgba(0,0,0,.4); 
-        color:var(--text-primary); 
+        box-shadow:0 1px 6px rgba(0,0,0,.1); 
+        color:#111; /* Texto preto fixo */
     }
     
-    #output{min-height:36px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
-    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #444;padding:8px}
-    .item{padding:8px;border-bottom:1px solid #333; color:var(--text-secondary);} 
+    #output{min-height:36px;display:flex;align-items:center;gap:8px;color:#6c757d;padding:4px}
+    /* Bordas voltaram a ser claras */
+    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
+    .item{padding:8px;border-bottom:1px solid #eee; color:#343a40;} 
     .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
-    .select-label { color: var(--text-primary); font-size: 14px; margin-left: 6px; }
+    .select-label { color: #111; font-size: 14px; margin-left: 6px; }
     #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
     
     /* Responsividade para celular */
