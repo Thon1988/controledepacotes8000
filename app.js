@@ -59,7 +59,7 @@
     function loadScannedData() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
     function addScan(entry) { scannedData.unshift(entry); saveScannedData(); renderScans(); }
     
-    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (MODIFICADO) ---
+    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS ---
     
     function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
@@ -67,9 +67,8 @@
         try { 
             const raw = localStorage.getItem(USER_KEY);
             if (raw) {
-                // Se já houver usuários salvos, apenas carrega
                 const savedUsers = JSON.parse(raw);
-                // Garante que o novo administrador thon exista se a lista estiver vazia ou ele não estiver presente
+                // Garante que o administrador padrão 'thon' sempre exista
                 if (!savedUsers['thon']) {
                     savedUsers['thon'] = { password: '882010', role: 'administrator' };
                     try { localStorage.setItem(USER_KEY, JSON.stringify(savedUsers)); } catch (e) {}
@@ -78,9 +77,9 @@
             }
         } catch (e) {}
 
-        // Usuários padrão atualizados
+        // Usuários padrão (incluindo o novo administrador 'thon')
         const defaultUsers = {
-            'thon': { password: '882010', role: 'administrator' }, // NOVO ADMINISTRADOR PADRÃO
+            'thon': { password: '882010', role: 'administrator' }, // ADMINISTRADOR PADRÃO
             'user1': { password: 'user1', role: 'user' }
         };
         try { localStorage.setItem(USER_KEY, JSON.stringify(defaultUsers)); } catch (e) {}
@@ -122,7 +121,12 @@
     function setupUserManagement() {
         if (!isAdmin()) { return; }
 
+        // Remove a interface antiga de gerenciamento se existir
+        const oldContainer = document.querySelector('#userManagementContainer');
+        if (oldContainer) oldContainer.remove();
+
         const container = document.createElement('div');
+        container.id = 'userManagementContainer';
         container.classList.add('auth-control');
         container.innerHTML = `
             <div class="panel" style="margin-top: 12px; color: #111;">
@@ -136,10 +140,11 @@
                     </select>
                     <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px;">➕ Adicionar</button>
                 </div>
-                <div id="userListDisplay" class="list" style="max-height: 120px;"></div>
+                <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
             </div>
         `;
-        controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling); // Insere após os controles
+        // Insere a nova interface após o painel de controles e antes da câmera
+        controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
 
         document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
         renderUserList();
@@ -164,6 +169,7 @@
                 </div>
             `;
             
+            // Não permite remover o próprio usuário logado
             if (username !== currentUsername) {
                  const deleteBtn = document.createElement('button');
                  deleteBtn.textContent = 'Remover';
@@ -171,16 +177,20 @@
                  deleteBtn.addEventListener('click', () => handleDeleteUser(username));
                  el.appendChild(deleteBtn);
             } else {
-                 el.innerHTML += '<span style="font-size:12px; color:#6c757d;">(Você)</span>';
+                 el.innerHTML += '<span style="font-size:12px; color:#6c757d; margin-left: 10px;">(Você)</span>';
             }
             listDiv.appendChild(el);
         });
     }
     
     function handleCreateUser() {
-        const username = document.getElementById('newUser').value.trim();
-        const password = document.getElementById('newPass').value;
-        const role = document.getElementById('newRole').value;
+        const usernameInput = document.getElementById('newUser');
+        const passwordInput = document.getElementById('newPass');
+        const roleInput = document.getElementById('newRole');
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        const role = roleInput.value;
 
         if (!username || !password) { alert('Usuário e Senha são obrigatórios.'); return; }
         if (users[username]) { alert(`O usuário '${username}' já existe.`); return; }
@@ -190,8 +200,8 @@
         logOutput(`Usuário ${username} (${role}) criado com sucesso.`);
         
         // Limpa campos e atualiza lista
-        document.getElementById('newUser').value = '';
-        document.getElementById('newPass').value = '';
+        usernameInput.value = '';
+        passwordInput.value = '';
         renderUserList();
     }
     
@@ -205,7 +215,7 @@
         }
     }
 
-    // --- RENDERIZAÇÃO E UI (MODIFICADO) ---
+    // --- RENDERIZAÇÃO E UI (CORRIGIDO) ---
 
     function renderScans() {
         scansList.innerHTML = '';
@@ -240,7 +250,7 @@
         // 2. Controlar botão Limpar (Apenas Admin)
         clearBtn.style.display = adminMode ? 'inline-block' : 'none';
 
-        // 3. Remover e re-adicionar elementos de Autenticação/Gerenciamento
+        // 3. Remover elementos dinâmicos antigos
         const authElements = document.querySelectorAll('.auth-control');
         authElements.forEach(el => el.remove());
 
@@ -263,7 +273,7 @@
             
             logOutput(`Bem-vindo(a), ${user.username}. Scanner pronto.`);
             
-            // NOVO: Adiciona a interface de Gerenciamento de Usuários
+            // Adiciona a interface de Gerenciamento de Usuários
             if (adminMode) {
                  setupUserManagement();
             }
@@ -277,11 +287,17 @@
                 <button id="loginBtn" style="background:#28a745;color:#fff;">🔑 Entrar</button>
             `;
             controlsContainer.appendChild(form);
-            document.getElementById('loginBtn').addEventListener('click', () => {
-                const user = document.getElementById('loginUser').value;
-                const pass = document.getElementById('loginPass').value;
-                loginUser(user, pass);
-            });
+            
+            // CORREÇÃO: Anexa o listener *após* o elemento ser injetado na DOM
+            const loginBtn = document.getElementById('loginBtn');
+            if (loginBtn) {
+                loginBtn.addEventListener('click', () => {
+                    const user = document.getElementById('loginUser').value;
+                    const pass = document.getElementById('loginPass').value;
+                    loginUser(user, pass);
+                });
+            }
+            
             logOutput('Pronto. Por favor, faça login.');
         }
 
@@ -565,6 +581,5 @@
 
     init();
 })();
-
 
 
