@@ -8,25 +8,52 @@
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
-    /* Estilos base */
-    :root{--bg:#111;--card:#fff;--accent:#00b4d8;--muted:#9aa0a6}
+    /* Estilos base (Light Mode / Padrão) */
+    :root{
+        --bg:#f4f4f7; /* Fundo claro padrão */
+        --card:#fff; /* Fundo de painel branco */
+        --accent:#00b4d8; 
+        --muted:#6c757d; 
+        --text-primary:#111; /* Texto preto */
+        --text-secondary:#343a40;
+    }
     
-    /* CORREÇÃO PRINCIPAL: Garante que o fundo da página é escuro */
+    /* Estilos do Dark Mode */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#111; /* Fundo escuro */
+        --card:#222; /* Fundo de painel escuro */
+        --muted:#9aa0a6; 
+        --text-primary:#fff; /* Texto branco */
+        --text-secondary:#adb5bd;
+      }
+      
+      /* Ajuste específico para garantir que os itens da lista fiquem visíveis no Dark Mode */
+      .panel .list {
+          border: 1px solid #444 !important;
+      }
+      .panel .item {
+          border-bottom: 1px solid #333 !important;
+      }
+    }
+    
+
+    /* Estilos Globais */
     html,body{
         height:100%;
         margin:0;
         font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;
-        background:var(--bg); /* Fundo preto/escuro */
-        color:#fff; /* Texto principal branco */
+        background:var(--bg); /* Fundo dinâmico */
+        color:var(--text-primary); /* Texto dinâmico */
     }
 
     .app{max-width:920px;margin:12px auto;padding:12px}
-    h1{margin:0 0 8px;font-size:18px;color:#fff}
+    h1{margin:0 0 8px;font-size:18px;color:var(--text-primary)}
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
     button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
     button.secondary{background:#6c757d}
     
-    /* CORREÇÃO PARA VISIBILIDADE DO TEXTO EM INPUTS */
+    /* Estilo para Inputs/Selects (CRUCIAL: Cor do texto e fundo fixos para contraste) */
     .controls input[type="text"], 
     .controls input[type="password"], 
     .controls select {
@@ -34,58 +61,17 @@
       border-radius: 8px; 
       border: 1px solid #ccc; 
       width: 120px;
-      color: #111; /* Texto preto */
-      background-color: #fff; /* Fundo do campo branco */
+      color: #111; /* Texto fixo preto para contraste máximo */
+      background-color: #fff; /* Fundo fixo branco para contraste máximo */
     }
-    /* Fim da correção dos inputs */
     
     .camera-wrap{position:relative;max-width:920px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;height:60vh;display:flex;align-items:center;justify-content:center}
     video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
     canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
-    .panel{background:var(--card);padding:10px;border-radius:8px;margin-top:12px;box-shadow:0 1px 6px rgba(0,0,0,.4);color:#111}
-    #output{min-height:36px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
-    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-    .item{padding:8px;border-bottom:1px solid #eee}
-    .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
-    .select-label { color: #fff; font-size: 14px; margin-left: 6px; }
-    #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
     
-    /* Responsividade para celular */
-    @media (max-width:520px){ 
-      .controls{flex-direction:column;align-items:stretch} 
-      .camera-wrap{height:50vh} 
-    }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <h1>📦 Scanner 8000</h1>
-
-    <div class="controls" id="controls">
-      <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
-      <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
-      <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
-
-      <label for="deviceSelect" class="select-label" style="display:none" id="deviceSelectLabel">Câmera:</label>
-      <select id="deviceSelect" class="select-device" style="display:none" aria-labelledby="deviceSelectLabel"></select>
-
-      <button id="exportBtn" class="secondary" style="display:none" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
-      <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
-    </div>
-
-    <div class="camera-wrap" id="cameraWrap">
-      <video id="videoElement" muted playsinline autoplay></video>
-      <canvas id="overlay"></canvas>
-    </div>
-
-    <div class="panel">
-      <div id="output">Pronto. Por favor, faça login.</div>
-      <div class="list" id="scansList" aria-live="polite"></div>
-    </div>
-  </div>
-
-  <div id="scanPopup" role="status" aria-live="polite"></div>
-
-    <script src="app.js"></script>
-</body>
-</html>
+    /* Painel de Registros/Gerenciamento */
+    .panel{
+        background:var(--card); /* Fundo de painel dinâmico */
+        padding:10px;
+        border-radius:8px;
+        margin-top:12
