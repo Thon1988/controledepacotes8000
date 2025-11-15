@@ -6,7 +6,7 @@
     <title>Scanner de Pacotes</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        /* CSS OMITIDO PARA BREVIDADE */
+        /* (Seu CSS aqui) */
         body { 
             font-family: sans-serif; 
             text-align: center; 
@@ -62,3 +62,19 @@
     <script src="app.js"></script>
 </body>
 </html>
+    <h1>📦 Scanner de Pacotes</h1>
+    
+    <button id="startButton" onclick="startCamera()">▶️ Abrir Câmera / Iniciar Scanner</button>
+    
+    <video id="videoElement" muted></video>
+    
+    <div id="output">
+        <p>Aguardando início do scanner.</p>
+    </div>
+    
+    <button onclick="exportCSV()">Exportar Dados para CSV</button>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
