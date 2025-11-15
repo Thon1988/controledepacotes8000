@@ -1,12 +1,13 @@
 // app.js — Mobile-friendly scanner (iOS + Android) with accessibility fixes
-// Notes: labels now correctly reference #deviceSelect; buttons have aria-labels.
+// Modified so it works when the "Iniciar" button is removed:
+// event listeners are attached only if elements exist.
 
 (() => {
   const video = document.getElementById('videoElement');
   const overlay = document.getElementById('overlay');
   const output = document.getElementById('output');
   const scansList = document.getElementById('scansList');
-  const startButton = document.getElementById('startButton');
+  const startButton = document.getElementById('startButton'); // may be null (removed)
   const stopButton = document.getElementById('stopButton');
   const torchButton = document.getElementById('torchButton');
   const deviceSelect = document.getElementById('deviceSelect');
@@ -65,7 +66,20 @@
       const el = document.createElement('div'); el.className = 'item';
       const idBadge = item.extractedId && item.extractedId.value ? `<div class="badge">${escapeHtml(item.extractedId.type)}: ${escapeHtml(item.extractedId.value)}</div>` : '';
       const qrBadge = item.qrId && item.qrId.value ? `<div class="badge">QR: ${escapeHtml(item.qrId.value)}</div>` : '';
-      el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><div class="badge">${escapeHtml(item.plataforma)}</div>${qrBadge}${idBadge}<div style="font-size:14px;word-break:break-all">${escapeHtml(item.link)}</div><div style="margin-left:auto"><button data-idx="${idx}" style="background:#00b4d8;color:#fff;padding:6px;border-radius:6px">Abrir</button></div></div><div class="meta">${escapeHtml(item.dataHora)}</div>`;
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="badge">${escapeHtml(item.plataforma)}</div>
+          ${qrBadge}
+          ${idBadge}
+          <div style="margin-left:8px;flex:1">
+            <div class="link-text" title="${escapeHtml(item.link)}">${escapeHtml(item.link)}</div>
+          </div>
+          <div style="margin-left:8px">
+            <button data-idx="${idx}" style="background:#00b4d8;color:#fff;padding:6px;border-radius:6px">Abrir</button>
+          </div>
+        </div>
+        <div class="meta">${escapeHtml(item.dataHora)}</div>
+      `;
       const btn = el.querySelector('button[data-idx]'); btn.addEventListener('click', () => window.open(item.link, '_blank'));
       scansList.appendChild(el);
     });
@@ -95,8 +109,8 @@
   async function startCamera() {
     if (scanning) return;
     logOutput('Solicitando permissão da câmera...');
-    startButton.disabled = true;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { logOutput('getUserMedia não suportado neste navegador.'); startButton.disabled = false; return; }
+    if (startButton) startButton.disabled = true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { logOutput('getUserMedia não suportado neste navegador.'); if (startButton) startButton.disabled = false; return; }
 
     try {
       try {
@@ -126,13 +140,13 @@
       const devicesNow = await enumerateVideoDevices();
       populateDeviceSelect(devicesNow);
 
-      scanning = true; startButton.style.display = 'none'; stopButton.style.display = 'inline-block';
+      scanning = true; if (startButton) startButton.style.display = 'none'; stopButton.style.display = 'inline-block';
       logOutput('✅ Scanner ativo — aponte para o QR.');
       if (video.readyState >= 1) fitCanvases(); else video.addEventListener('loadedmetadata', fitCanvases, { once: true });
       rafId = requestAnimationFrame(scanLoop);
     } catch (err) {
       console.error('Erro ao abrir câmera:', err);
-      startButton.disabled = false;
+      if (startButton) startButton.disabled = false;
       let msg = 'Erro ao acessar a câmera. Ver console.';
       if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) msg = '🛑 Permissão negada. Permita a câmera nas configurações do navegador.';
       else if (err && err.name === 'NotFoundError') msg = 'Câmera não encontrada.';
@@ -152,7 +166,8 @@
     mediaStream = null; currentVideoTrack = null;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null; scanning = false; video.pause(); video.srcObject = null;
-    startButton.disabled = false; startButton.style.display = 'inline-block';
+    if (startButton) startButton.disabled = false;
+    if (startButton) startButton.style.display = 'inline-block';
     stopButton.style.display = 'none'; torchButton.style.display = 'none'; deviceSelect.style.display = 'none'; deviceSelectLabel.style.display = 'none';
     overlayCtx.clearRect(0,0,overlay.width,overlay.height);
     logOutput('Scanner parado.');
@@ -236,43 +251,18 @@
     logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
   }
 
-  function convertToCSV(data) {
-    if (!data || data.length === 0) return '';
-    const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan'];
-    const rows = [headers.join(';')];
-    data.forEach(item => {
-      const safe = v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`;
-      const qrType = item.qrId && item.qrId.type ? item.qrId.type : '';
-      const qrValue = item.qrId && item.qrId.value ? item.qrId.value : '';
-      const idType = item.extractedId && item.extractedId.type ? item.extractedId.type : '';
-      const idValue = item.extractedId && item.extractedId.value ? item.extractedId.value : '';
-      rows.push([safe(item.plataforma), safe(item.link), safe(qrType), safe(qrValue), safe(idType), safe(idValue), safe(item.dataHora)].join(';'));
-    });
-    return rows.join('\r\n');
-  }
-
-  function exportCSV() {
-    if (!scannedData || scannedData.length === 0) { alert('Nenhum dado para exportar.'); return; }
-    const csv = convertToCSV(scannedData.map(({plataforma,link,dataHora,extractedId,qrId}) => ({plataforma,link,dataHora,extractedId,qrId})));
-    const bom = '\uFEFF'; const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `scans_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  }
-
-  function clearScans() { if (!confirm('Apagar todos os registros?')) return; scannedData = []; saveScannedData(); renderScans(); logOutput('Registros limpos.'); }
-
-  deviceSelect.addEventListener('change', async () => {
-    const id = deviceSelect.value; if (!id) return;
-    try { stopCamera(); mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id } }, audio: false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning = true; rafId = requestAnimationFrame(scanLoop); startButton.style.display = 'none'; stopButton.style.display = 'inline-block'; logOutput('Usando câmera selecionada.'); } catch (e) { console.warn('Falha ao selecionar deviceId', e); logOutput('Falha ao usar câmera selecionada.'); }
-  });
-
+  // attach only if elements exist (startButton may be removed)
   function init() {
     renderScans();
-    startButton.addEventListener('click', startCamera);
-    stopButton.addEventListener('click', stopCamera);
-    torchButton.addEventListener('click', toggleTorch);
-    exportBtn.addEventListener('click', exportCSV);
-    clearBtn.addEventListener('click', clearScans);
+    if (startButton) startButton.addEventListener('click', startCamera);
+    if (stopButton) stopButton.addEventListener('click', stopCamera);
+    if (torchButton) torchButton.addEventListener('click', toggleTorch);
+    if (exportBtn) exportBtn.addEventListener('click', exportCSV);
+    if (clearBtn) clearBtn.addEventListener('click', clearScans);
+    if (deviceSelect) deviceSelect.addEventListener('change', async () => {
+      const id = deviceSelect.value; if (!id) return;
+      try { stopCamera(); mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id } }, audio: false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning = true; rafId = requestAnimationFrame(scanLoop); if (startButton) startButton.style.display = 'none'; if (stopButton) stopButton.style.display = 'inline-block'; logOutput('Usando câmera selecionada.'); } catch (e) { console.warn('Falha ao selecionar deviceId', e); logOutput('Falha ao usar câmera selecionada.'); }
+    });
     window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
     drawBoundingBox(null);
     window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
@@ -280,5 +270,6 @@
 
   init();
 })();
+
 
 
