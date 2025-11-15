@@ -15,13 +15,13 @@
         font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;
         background:#f4f4f7; /* Fundo claro fixo */
         color:#111; /* Texto preto fixo */
-        display: flex; /* Para centralizar o conteúdo do login */
+        display: flex; 
         flex-direction: column; 
         justify-content: center; 
         align-items: center; 
     }
 
-    /* Container principal da aplicação (Ocultado quando a tela de login está ativa) */
+    /* Container principal da aplicação */
     .app{
         max-width:920px;
         margin:12px auto;
@@ -32,14 +32,34 @@
     
     h1{margin:0 0 8px;font-size:18px;color:#111; text-align: center;} 
     
+    /* Alinhamento e justificação dos controles */
     .controls{
         display:flex;
         gap:8px;
         flex-wrap:wrap;
         margin-bottom:10px;
         align-items:center;
-        justify-content: center; 
+        justify-content: flex-start; /* Alinha os botões à esquerda */
     }
+    /* Centraliza a data, se estiver separada */
+    #dateContainer {
+        justify-content: center !important; 
+    }
+    /* Estilo para inputs e selects */
+    .controls input[type="text"], 
+    .controls input[type="password"], 
+    .controls input[type="date"],
+    .controls select {
+      padding: 8px; 
+      border-radius: 8px; 
+      border: 1px solid #ccc; 
+      width: auto; 
+      color: #111; 
+      background-color: #fff; 
+      box-sizing: border-box;
+    }
+
+    /* Estilo para Botões */
     button{
         background:#00b4d8;
         color:#fff;
@@ -57,21 +77,7 @@
     button.secondary:hover {
         background: #5a6268;
     }
-    
-    /* Estilo para Inputs/Selects (Alto contraste) */
-    .controls input[type="text"], 
-    .controls input[type="password"], 
-    .controls input[type="date"],
-    .controls select {
-      padding: 8px; 
-      border-radius: 8px; 
-      border: 1px solid #ccc; 
-      width: auto; 
-      color: #111; 
-      background-color: #fff; 
-      box-sizing: border-box;
-    }
-
+    
     .camera-wrap{
         position:relative;
         max-width:920px;
@@ -105,7 +111,7 @@
     .select-label { color: #111; font-size: 14px; margin-left: 6px; }
     #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
     
-    /* --- NOVOS ESTILOS PARA A TELA DE LOGIN --- */
+    /* --- ESTILOS PARA A TELA DE LOGIN --- */
     .login-container {
         display: flex;
         flex-direction: column;
@@ -164,31 +170,34 @@
         background: #0096c7;
     }
     
-    /* Novo estilo para a mensagem de erro/status */
     .login-status-message {
         font-size: 12px; 
         color: #999; 
         margin-bottom: 0; 
-        min-height: 18px; /* Mantém o espaço para evitar pulos de layout */
+        min-height: 18px; 
     }
 
-    /* Oculta a aplicação principal quando o login está ativo */
-    body.login-active .app {
-        display: none;
-    }
-
-    /* Oculta os elementos do scanner quando a tela de login está ativa */
-    body.login-active #dateContainer,
-    body.login-active #output, 
-    body.login-active #scansList {
-        display: none;
+    /* Por padrão, o login fica visível e o app fica escondido */
+    .app {
+        display: none; 
     }
     
-    /* Regras de Layout para quando o APP está ativo (Logado) */
-    body:not(.login-active) {
-        /* Desfaz o flex centralizado do body quando logado, para o layout normal */
+    /* Quando o usuário está logado (classe 'logged-in' no body), a lógica é invertida */
+    body.logged-in .app {
+        display: block; /* Mostra o app */
         align-items: flex-start; 
         justify-content: flex-start;
+    }
+    
+    body.logged-in #loginScreen {
+        display: none; /* Esconde a tela de login */
+    }
+    
+    /* Ajusta o layout do body quando logado */
+    body.logged-in {
+        align-items: flex-start; 
+        justify-content: flex-start;
+        height: auto; 
     }
 
     /* Responsividade para celular */
@@ -204,10 +213,20 @@
 </head>
 <body>
   
+    <div id="loginScreen" class="login-container">
+        <div id="loginForm">
+            <h2 style="margin-top: 0; color: #343a40;">🔑 Acesso do Scanner</h2>
+            <input type="text" id="loginUser" placeholder="Nome de Usuário" required>
+            <input type="password" id="loginPass" placeholder="Senha" required>
+            <button id="loginBtn">Entrar</button>
+            <p id="loginStatus" class="login-status-message">Insira suas credenciais.</p>
+        </div>
+    </div>
+
   <div class="app">
     <h1>📦 Scanner 8000 v0.1</h1>
 
-            <div class="controls" id="controls">
+            <div class="controls" id="controls">
       <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
       <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
       <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
@@ -217,3 +236,21 @@
 
       <button id="exportBtn" class="secondary" style="display:none" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
       <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
+    </div>
+
+        <div class="camera-wrap" id="cameraWrap">
+      <video id="videoElement" muted playsinline autoplay></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div class="panel">
+      <div id="output"></div>
+            <div class="list" id="scansList" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div id="scanPopup" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
