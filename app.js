@@ -59,23 +59,34 @@
     function loadScannedData() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
     function addScan(entry) { scannedData.unshift(entry); saveScannedData(); renderScans(); }
     
-    // --- AUTENTICAÇÃO (NOVO) ---
+    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (MODIFICADO) ---
+    
+    function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
     function loadUsers() {
         try { 
             const raw = localStorage.getItem(USER_KEY);
-            if (raw) return JSON.parse(raw);
+            if (raw) {
+                // Se já houver usuários salvos, apenas carrega
+                const savedUsers = JSON.parse(raw);
+                // Garante que o novo administrador thon exista se a lista estiver vazia ou ele não estiver presente
+                if (!savedUsers['thon']) {
+                    savedUsers['thon'] = { password: '882010', role: 'administrator' };
+                    try { localStorage.setItem(USER_KEY, JSON.stringify(savedUsers)); } catch (e) {}
+                }
+                return savedUsers;
+            }
         } catch (e) {}
 
-        // Usuários padrão para a primeira execução
+        // Usuários padrão atualizados
         const defaultUsers = {
-            'admin': { password: 'admin', role: 'administrator' },
+            'thon': { password: '882010', role: 'administrator' }, // NOVO ADMINISTRADOR PADRÃO
             'user1': { password: 'user1', role: 'user' }
         };
         try { localStorage.setItem(USER_KEY, JSON.stringify(defaultUsers)); } catch (e) {}
         return defaultUsers;
     }
-
+    
     function getLoggedInUser() {
         try {
             const userStr = sessionStorage.getItem(LOGIN_SESSION_KEY);
@@ -106,7 +117,95 @@
         updateUIForAuth();
     }
     
-    // --- RENDERIZAÇÃO E UI ---
+    // --- NOVO: GERENCIAMENTO DE USUÁRIOS ---
+
+    function setupUserManagement() {
+        if (!isAdmin()) { return; }
+
+        const container = document.createElement('div');
+        container.classList.add('auth-control');
+        container.innerHTML = `
+            <div class="panel" style="margin-top: 12px; color: #111;">
+                <h3 style="margin: 0 0 8px; font-size: 16px;">👤 Gerenciar Usuários</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="newUser" placeholder="Nome de Usuário" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px;">
+                    <input type="password" id="newPass" placeholder="Senha" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px;">
+                    <select id="newRole" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc;">
+                        <option value="user">Usuário Padrão</option>
+                        <option value="administrator">Administrador</option>
+                    </select>
+                    <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px;">➕ Adicionar</button>
+                </div>
+                <div id="userListDisplay" class="list" style="max-height: 120px;"></div>
+            </div>
+        `;
+        controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling); // Insere após os controles
+
+        document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
+        renderUserList();
+    }
+    
+    function renderUserList() {
+        const listDiv = document.getElementById('userListDisplay');
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
+        
+        const currentUsername = getLoggedInUser().username;
+        Object.keys(users).forEach(username => {
+            const user = users[username];
+            const el = document.createElement('div'); el.className = 'item';
+            el.style.display = 'flex'; el.style.justifyContent = 'space-between'; el.style.alignItems = 'center';
+            
+            const badgeColor = user.role === 'administrator' ? '#dc3545' : '#17a2b8';
+            el.innerHTML = `
+                <div style="font-size:14px;">
+                    <strong>${escapeHtml(username)}</strong> 
+                    (<span style="color:${badgeColor}">${user.role === 'administrator' ? 'Admin' : 'Padrão'}</span>)
+                </div>
+            `;
+            
+            if (username !== currentUsername) {
+                 const deleteBtn = document.createElement('button');
+                 deleteBtn.textContent = 'Remover';
+                 deleteBtn.style.background = '#dc3545'; deleteBtn.style.marginLeft = '8px'; deleteBtn.style.padding = '4px 8px';
+                 deleteBtn.addEventListener('click', () => handleDeleteUser(username));
+                 el.appendChild(deleteBtn);
+            } else {
+                 el.innerHTML += '<span style="font-size:12px; color:#6c757d;">(Você)</span>';
+            }
+            listDiv.appendChild(el);
+        });
+    }
+    
+    function handleCreateUser() {
+        const username = document.getElementById('newUser').value.trim();
+        const password = document.getElementById('newPass').value;
+        const role = document.getElementById('newRole').value;
+
+        if (!username || !password) { alert('Usuário e Senha são obrigatórios.'); return; }
+        if (users[username]) { alert(`O usuário '${username}' já existe.`); return; }
+        
+        users[username] = { password: password, role: role };
+        saveUsers();
+        logOutput(`Usuário ${username} (${role}) criado com sucesso.`);
+        
+        // Limpa campos e atualiza lista
+        document.getElementById('newUser').value = '';
+        document.getElementById('newPass').value = '';
+        renderUserList();
+    }
+    
+    function handleDeleteUser(username) {
+        if (!isAdmin()) { return; }
+        if (confirm(`Tem certeza que deseja remover o usuário '${username}'?`)) {
+            delete users[username];
+            saveUsers();
+            logOutput(`Usuário ${username} removido.`);
+            renderUserList();
+        }
+    }
+
+    // --- RENDERIZAÇÃO E UI (MODIFICADO) ---
 
     function renderScans() {
         scansList.innerHTML = '';
@@ -121,6 +220,14 @@
         });
     }
 
+    function createButton(text, className, onClick) {
+        const btn = document.createElement('button');
+        btn.textContent = text;
+        btn.classList.add(className);
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
     function updateUIForAuth() {
         const loggedIn = isAuthenticated();
         const adminMode = isAdmin();
@@ -133,9 +240,9 @@
         // 2. Controlar botão Limpar (Apenas Admin)
         clearBtn.style.display = adminMode ? 'inline-block' : 'none';
 
-        // 3. Atualizar o painel de controles
+        // 3. Remover e re-adicionar elementos de Autenticação/Gerenciamento
         const authElements = document.querySelectorAll('.auth-control');
-        authElements.forEach(el => el.remove()); // Remove controles antigos
+        authElements.forEach(el => el.remove());
 
         if (loggedIn) {
             // Adiciona botão de Logout
@@ -155,10 +262,15 @@
             controlsContainer.appendChild(reportMensalBtn);
             
             logOutput(`Bem-vindo(a), ${user.username}. Scanner pronto.`);
+            
+            // NOVO: Adiciona a interface de Gerenciamento de Usuários
+            if (adminMode) {
+                 setupUserManagement();
+            }
 
         } else {
             // Adiciona formulário de Login
-            const form = document.createElement('div'); form.classList.add('auth-control'); form.style.display = 'flex'; form.style.gap = '8px'; form.style.alignItems = 'center';
+            const form = document.createElement('div'); form.classList.add('auth-control'); form.style.display = 'flex'; form.style.gap = '8px'; form.style.flexWrap = 'wrap'; form.style.alignItems = 'center';
             form.innerHTML = `
                 <input type="text" id="loginUser" placeholder="Usuário" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 120px;">
                 <input type="password" id="loginPass" placeholder="Senha" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 120px;">
@@ -174,17 +286,9 @@
         }
 
         // Garante que o estado de start/stop e torch seja refletido
-        if (!loggedIn) { stopButton.style.display = 'none'; torchButton.style.display = 'none'; }
+        if (!loggedIn) { stopCamera(); }
     }
     
-    function createButton(text, className, onClick) {
-        const btn = document.createElement('button');
-        btn.textContent = text;
-        btn.classList.add(className);
-        btn.addEventListener('click', onClick);
-        return btn;
-    }
-
     // --- LÓGICA DA CÂMERA (Mantida) ---
 
     async function requestPermissionOnce() {
@@ -321,7 +425,7 @@
         }
         rafId = requestAnimationFrame(scanLoop);
     }
-
+    
     // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Mantida) ---
     
     function extractIdFromLink(link) {
@@ -359,19 +463,14 @@
         logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
     }
 
-    // --- FUNÇÕES DE RELATÓRIO (NOVO) ---
+    // --- FUNÇÕES DE RELATÓRIO (Mantida) ---
     
-    /**
-     * Calcula a data de início para filtragem (em milissegundos).
-     * @param {'daily'|'quinzenal'|'mensal'} period 
-     * @returns {number} Timestamp do início do período
-     */
     function getDateRange(period) {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         if (period === 'daily') {
-            // Já definido para o início do dia
+            // Início do dia
         } else if (period === 'quinzenal') {
             start.setDate(start.getDate() - 14);
         } else if (period === 'mensal') {
@@ -381,10 +480,6 @@
         return start.getTime();
     }
     
-    /**
-     * Gera um relatório CSV com os dados escaneados dentro de um período específico.
-     * @param {'daily'|'quinzenal'|'mensal'} period 
-     */
     function generateReport(period) {
         const startTime = getDateRange(period);
         const filteredData = scannedData.filter(item => item.timestamp >= startTime);
@@ -411,7 +506,7 @@
         logOutput(`Relatório ${periodName} gerado com ${filteredData.length} registros.`);
     }
 
-    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Modificadas) ---
+    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Mantida) ---
     
     function convertToCSV(data) {
         if (!data || data.length === 0) return '';
@@ -444,7 +539,7 @@
         scannedData = []; saveScannedData(); renderScans(); logOutput('Registros limpos.'); 
     }
 
-    // --- SELEÇÃO DE DEVICE E INICIALIZAÇÃO ---
+    // --- INICIALIZAÇÃO ---
 
     deviceSelect.addEventListener('change', async () => {
         if (!isAuthenticated()) return;
@@ -470,5 +565,6 @@
 
     init();
 })();
+
 
 
