@@ -1,64 +1,484 @@
+// app.js — versão aprimorada: solicita permissão explicitamente, fallback por deviceId,
+// suporte a torch (quando disponível), cópia automática do ID, popup de sucesso,
+// escaneamento otimizado (área central) e CSV pronto para Excel.
+//
+// Coloque app.js ao lado de index.html e abra via HTTPS (GitHub Pages) ou localhost.
 
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner de Pacotes</title>
+(() => {
+  const video = document.getElementById('videoElement');
+  const overlay = document.getElementById('overlay');
+  const output = document.getElementById('output');
+  const scansList = document.getElementById('scansList');
+  const startButton = document.getElementById('startButton');
+  const stopButton = document.getElementById('stopButton');
+  const torchButton = document.getElementById('torchButton');
+  const exportBtn = document.getElementById('exportBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const scanPopup = document.getElementById('scanPopup');
+  const overlayCtx = overlay.getContext('2d');
 
-  <!-- jsQR -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  let mediaStream = null;
+  let rafId = null;
+  let scanning = false;
+  let lastScanTime = 0;
+  const SCAN_INTERVAL = 700; // menor intervalo para sensação de "app"
+  const DUPLICATE_WINDOW = 60 * 1000;
+  const STORAGE_KEY = 'scannedPackages_v1';
+  let scannedData = loadScannedData();
 
-  <style>
-    :root{--bg:#f4f6f8;--card:#fff;--accent:#007bff;--muted:#666}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#111}
-    .app{max-width:920px;margin:18px auto;padding:18px}
-    h1{margin:0 0 12px;font-size:20px}
-    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
-    button{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:6px;cursor:pointer}
-    button.secondary{background:#6c757d}
-    button.warn{background:#d9534f}
-    button:disabled{opacity:.6;cursor:default}
-    .camera-wrap{position:relative;max-width:720px;margin:0 auto;border-radius:10px;overflow:hidden;background:#000}
-    video#videoElement{width:100%;height:auto;display:block}
-    canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
-    .panel{background:var(--card);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    #output{min-height:44px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
-    .list{max-height:260px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-    .item{padding:8px;border-radius:6px;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:6px}
-    .item:last-child{border-bottom:0}
-    .meta{font-size:12px;color:var(--muted)}
-    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eee;font-size:12px}
-    .actions{margin-left:auto;display:flex;gap:8px}
-    #scanPopup { position: fixed; right: 16px; bottom: 16px; background: #0b6; color: white; padding: 10px 14px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.2); display: none; z-index: 9999; }
-    @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <h1>📦 Scanner de Pacotes</h1>
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
 
-    <div class="controls">
-      <button id="startButton">▶️ Abrir Câmera / Iniciar</button>
-      <button id="stopButton" class="secondary" style="display:none">⏹️ Parar</button>
-      <button id="torchButton" class="secondary" style="display:none">🔦 Flash</button>
-      <button id="exportBtn" class="secondary">⬇️ Exportar CSV</button>
-      <button id="clearBtn" class="warn">🧹 Limpar registros</button>
-    </div>
+  // torch state
+  let torchSupported = false;
+  let torchOn = false;
+  let currentVideoTrack = null;
 
-    <div class="camera-wrap" id="cameraWrap">
-      <video id="videoElement" muted autoplay playsinline></video>
-      <canvas id="overlay"></canvas>
-    </div>
+  // beep
+  function beep(duration = 120, frequency = 1200, volume = 0.12) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = frequency;
+      g.gain.value = volume;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      setTimeout(() => {
+        try { o.stop(); ctx.close(); } catch (e) {}
+      }, duration);
+    } catch (e) { console.warn('Beep não disponível:', e); }
+  }
 
-    <div class="panel">
-      <div id="output">Aguardando início do scanner.</div>
-      <div class="list" id="scansList" aria-live="polite"></div>
-    </div>
-  </div>
+  // UI helpers
+  function logOutput(msg) { output.textContent = msg; console.info(msg); }
+  function showPopup(text, ms = 900) {
+    scanPopup.textContent = text;
+    scanPopup.style.display = 'block';
+    setTimeout(() => { scanPopup.style.display = 'none'; }, ms);
+  }
 
-  <div id="scanPopup" role="status" aria-live="polite"></div>
+  function saveScannedData() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); } catch (e) { console.warn('Falha ao salvar localStorage', e); }
+  }
 
-  <script src="app.js"></script>
-</body>
-</html>
+  function loadScannedData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch (e) { console.warn('Falha ao carregar localStorage', e); return []; }
+  }
+
+  function addScan(entry) {
+    scannedData.unshift(entry);
+    saveScannedData();
+    renderScans();
+  }
+
+  function isLinkFromPlatform(link) {
+    if (!link) return 'Outra';
+    const l = link.toLowerCase();
+    if (l.includes('shopee.')) return 'Shopee';
+    if (l.includes('mercadolivre.') || l.includes('mercadolibre')) return 'Mercado Livre';
+    return 'Outra';
+  }
+
+  function isDuplicate(link) {
+    const now = Date.now();
+    return scannedData.some(item => item.link === link && (now - item.timestamp) < DUPLICATE_WINDOW);
+  }
+
+  function renderScans() {
+    scansList.innerHTML = '';
+    if (scannedData.length === 0) {
+      scansList.innerHTML = '<div style="color:var(--muted)">Nenhum registro ainda.</div>';
+      return;
+    }
+    scannedData.forEach((item, idx) => {
+      const el = document.createElement('div');
+      el.className = 'item';
+      const idBadge = item.extractedId && item.extractedId.value ? `<div class="badge">${escapeHtml(item.extractedId.type)}: ${escapeHtml(item.extractedId.value)}</div>` : '';
+      const qrBadge = item.qrId && item.qrId.value ? `<div class="badge" title="ID extraído do conteúdo do QR">QR: ${escapeHtml(item.qrId.value)}</div>` : '';
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="badge">${item.plataforma}</div>
+          ${qrBadge}
+          ${idBadge}
+          <div style="font-size:14px;word-break:break-all">${escapeHtml(item.link)}</div>
+          <div class="actions" style="margin-left:auto">
+            <button data-idx="${idx}" style="background:#007bff;padding:6px 8px;border-radius:6px;font-size:13px">Abrir</button>
+          </div>
+        </div>
+        <div class="meta">${item.dataHora}</div>
+      `;
+      const btn = el.querySelector('button[data-idx]');
+      btn.addEventListener('click', () => window.open(item.link, '_blank'));
+      scansList.appendChild(el);
+    });
+  }
+
+  function escapeHtml(s) {
+    return (s + '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+
+  // solicita permissão explícita para câmera (e opcionalmente microfone se quiser)
+  async function requestPermissions() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('getUserMedia não suportado');
+    }
+    // Requisita apenas vídeo para forçar o prompt de permissão
+    const s = await navigator.mediaDevices.getUserMedia({ video: true });
+    // parando imediatamente — só queríamos forçar a permissão prompt
+    s.getTracks().forEach(t => t.stop());
+    return true;
+  }
+
+  // tentativa robusta de abrir câmera
+  async function startCamera() {
+    if (scanning) return;
+    logOutput('Solicitando permissão da câmera...');
+    startButton.disabled = true;
+
+    try {
+      // primeiro, tente garantir que o usuário será solicitado a permitir
+      try {
+        await requestPermissions();
+      } catch (permErr) {
+        // pode falhar silenciosamente em alguns browsers; vamos continuar para tentar getUserMedia direto
+        console.warn('requestPermissions falhou (prossegue):', permErr);
+      }
+
+      // tentativa 1: facingMode environment
+      const constraints1 = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints1);
+      } catch (err1) {
+        console.warn('constraints1 falhou:', err1);
+        // tentativa 2: enumerar devices e tentar por deviceId
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(d => d.kind === 'videoinput');
+          if (videoDevices.length > 0) {
+            let success = false;
+            for (const dev of videoDevices) {
+              try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: dev.deviceId } }, audio: false });
+                success = true;
+                break;
+              } catch (e) {
+                console.warn('tentativa deviceId falhou', dev.deviceId, e);
+              }
+            }
+            if (!success) {
+              // fallback final
+              mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+          } else {
+            // sem devices encontrados, fallback
+            mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+        } catch (err2) {
+          console.error('Todas as tentativas falharam', err1, err2);
+          throw err2 || err1;
+        }
+      }
+
+      // attach stream
+      video.srcObject = mediaStream;
+      await video.play();
+
+      // store track and check torch
+      currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
+      torchSupported = false;
+      torchOn = false;
+      if (currentVideoTrack) {
+        try {
+          const caps = currentVideoTrack.getCapabilities ? currentVideoTrack.getCapabilities() : {};
+          if (caps && caps.torch) {
+            torchSupported = true;
+            torchButton.style.display = 'inline-block';
+            torchButton.textContent = '🔦 Flash';
+          } else {
+            torchButton.style.display = 'none';
+          }
+        } catch (e) {
+          console.warn('Erro ao verificar capacidades da camera:', e);
+          torchButton.style.display = 'none';
+        }
+      }
+
+      scanning = true;
+      startButton.style.display = 'none';
+      stopButton.style.display = 'inline-block';
+      logOutput('✅ Scanner ativo. Aponte a câmera para um QR code.');
+      fitCanvases();
+      rafId = requestAnimationFrame(scanLoop);
+    } catch (err) {
+      console.error('Erro ao abrir câmera:', err);
+      startButton.disabled = false;
+      let msg = 'Erro ao acessar a câmera. Veja console para detalhes.';
+      if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) msg = '🛑 Permissão negada. Permita a câmera nas configurações do navegador.';
+      else if (err && err.name === 'NotFoundError') msg = 'Câmera não encontrada.';
+      else if (err && err.name === 'OverconstrainedError') msg = 'Configurações de câmera não suportadas no dispositivo.';
+      else if (err && err.name === 'SecurityError') msg = 'Requer HTTPS ou localhost.';
+      logOutput(msg);
+    }
+  }
+
+  async function toggleTorch() {
+    if (!currentVideoTrack) return;
+    try {
+      torchOn = !torchOn;
+      await currentVideoTrack.applyConstraints({ advanced: [{ torch: torchOn }] });
+      torchButton.textContent = torchOn ? '🔦 Flash On' : '🔦 Flash';
+    } catch (e) {
+      console.warn('toggleTorch falhou:', e);
+      logOutput('Torch não suportada neste navegador/dispositivo.');
+    }
+  }
+
+  function stopCamera() {
+    if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    scanning = false;
+    video.pause();
+    video.srcObject = null;
+    startButton.disabled = false;
+    startButton.style.display = 'inline-block';
+    stopButton.style.display = 'none';
+    torchButton.style.display = 'none';
+    overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+    logOutput('Scanner parado.');
+  }
+
+  function fitCanvases() {
+    const vw = video.videoWidth || video.clientWidth || 640;
+    const vh = video.videoHeight || video.clientHeight || 480;
+    // Usamos canvas de leitura com largura fixa para desempenho (mantemos proporção)
+    const targetW = Math.min(1280, vw);
+    const targetH = Math.round((vh / vw) * targetW);
+    tempCanvas.width = targetW;
+    tempCanvas.height = targetH;
+    overlay.width = vw;
+    overlay.height = vh;
+  }
+
+  function drawBoundingBox(location) {
+    overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+    if (!location) return;
+    overlayCtx.strokeStyle = 'rgba(0,200,83,0.9)';
+    overlayCtx.lineWidth = Math.max(2, overlay.width / 200);
+    overlayCtx.beginPath();
+    overlayCtx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y);
+    overlayCtx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
+    overlayCtx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y);
+    overlayCtx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
+    overlayCtx.closePath();
+    overlayCtx.stroke();
+    overlayCtx.fillStyle = 'rgba(0,200,83,0.12)';
+    overlayCtx.fill();
+  }
+
+  // scan loop otimizado: captura área central do vídeo escalada para tempCanvas
+  function scanLoop() {
+    if (!scanning) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      try {
+        // calcula área central (crop) do vídeo para desenhar no tempCanvas
+        const vw = video.videoWidth || video.clientWidth;
+        const vh = video.videoHeight || video.clientHeight;
+        if (!vw || !vh) { rafId = requestAnimationFrame(scanLoop); return; }
+
+        // central crop factor (reduz área processada para acelerar)
+        const cropFactor = 0.6; // 60% central area
+        const sw = Math.floor(vw * cropFactor);
+        const sh = Math.floor(vh * cropFactor);
+        const sx = Math.floor((vw - sw) / 2);
+        const sy = Math.floor((vh - sh) / 2);
+
+        // desenha a área central escalada para tempCanvas
+        tempCtx.drawImage(video, sx, sy, sw, sh, 0, 0, tempCanvas.width, tempCanvas.height);
+
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+
+        if (code && code.data) {
+          // traduz coordinates from tempCanvas back to overlay (video) coordinates to draw bounding box
+          if (code.location) {
+            // compute scale and offset
+            const scaleX = sw / tempCanvas.width;
+            const scaleY = sh / tempCanvas.height;
+            const mapCorner = (pt) => ({
+              x: Math.round((pt.x * scaleX) + sx),
+              y: Math.round((pt.y * scaleY) + sy)
+            });
+            const location = {
+              topLeftCorner: mapCorner(code.location.topLeftCorner),
+              topRightCorner: mapCorner(code.location.topRightCorner),
+              bottomLeftCorner: mapCorner(code.location.bottomLeftCorner),
+              bottomRightCorner: mapCorner(code.location.bottomRightCorner)
+            };
+            drawBoundingBox(location);
+          }
+
+          const now = Date.now();
+          if (now - lastScanTime >= SCAN_INTERVAL) {
+            lastScanTime = now;
+            const payload = (code.data || '').trim();
+            handleScanResult(payload);
+          }
+        } else {
+          overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+        }
+      } catch (e) {
+        console.error('Erro no processamento do frame', e);
+      }
+    }
+    rafId = requestAnimationFrame(scanLoop);
+  }
+
+  // extrações (mantidas)
+  function extractIdFromLink(link) {
+    if (!link || typeof link !== 'string') return { type: null, value: null };
+    const l = link.trim();
+    const shopeePattern1 = /-i\.(\d+)\.(\d+)/i;
+    const match1 = l.match(shopeePattern1);
+    if (match1) return { type: 'shopee_item', value: match1[2], shopId: match1[1] };
+    const shopeePattern2 = /shopee\.[^\/]+\/(?:product|products|item)\/(\d+)/i;
+    const match2 = l.match(shopeePattern2);
+    if (match2) return { type: 'shopee_item', value: match2[1] };
+    const shopeePattern3 = /i\.(\d+)\.(\d+)/i;
+    const match3 = l.match(shopeePattern3);
+    if (match3) return { type: 'shopee_item', value: match3[2], shopId: match3[1] };
+    const mlPattern1 = /ML[A-Z]*-?(\d+)/i;
+    const matchMl1 = l.match(mlPattern1);
+    if (matchMl1) return { type: 'mercadolivre_item', value: matchMl1[1] };
+    const mlPattern2 = /\/(\d{6,})(?:[^\d]|$)/;
+    const matchMl2 = l.match(mlPattern2);
+    if (matchMl2) return { type: 'mercadolivre_item', value: matchMl2[1] };
+    const orderPattern = /order[_\-\/]?(\d{6,})/i;
+    const matchOrder = l.match(orderPattern);
+    if (matchOrder) return { type: 'order', value: matchOrder[1] };
+    const fallback = l.match(/(\d{6,})/);
+    if (fallback) return { type: 'number', value: fallback[1] };
+    return { type: null, value: null };
+  }
+
+  function extractQrId(payload) {
+    if (!payload || typeof payload !== 'string') return { type: null, value: null };
+    const p = payload.trim();
+    const kvPatterns = [
+      /(?:qr[_\-]?id|qrid|id|codigo|cod|codigo_id|qrCodeId)[:=]\s*([A-Za-z0-9\-_]+)/i,
+      /(?:idPedido|pedido_id|order_id|order)[:=]\s*([A-Za-z0-9\-_]+)/i
+    ];
+    for (const re of kvPatterns) {
+      const m = p.match(re);
+      if (m) return { type: 'qr_field', value: m[1] };
+    }
+    try {
+      const url = new URL(p);
+      const qp = ['id','qrid','qr_id','codigo','code','itemId','orderId','order_id'];
+      for (const k of qp) {
+        if (url.searchParams.has(k)) {
+          const v = url.searchParams.get(k);
+          if (v) return { type: `qr_param:${k}`, value: v };
+        }
+      }
+    } catch (e) {}
+    const numMatch = p.match(/([0-9]{6,})/);
+    if (numMatch) return { type: 'numeric', value: numMatch[1] };
+    if (p.length <= 64 && /[A-Za-z0-9\-_]{4,}/.test(p)) {
+      const simple = p.split(/\s|;|,|\|/)[0];
+      return { type: 'text', value: simple };
+    }
+    return { type: null, value: null };
+  }
+
+  async function handleScanResult(payload) {
+    if (!payload) { logOutput('QR detectado, mas vazio; ignorando.'); return; }
+    if (isDuplicate(payload)) { logOutput('Código já escaneado recentemente.'); showPopup('Já escaneado'); return; }
+
+    const plataforma = isLinkFromPlatform(payload);
+    const extractedId = extractIdFromLink(payload);
+    const qrId = extractQrId(payload);
+
+    const entry = {
+      plataforma,
+      link: payload,
+      dataHora: new Date().toLocaleString('pt-BR'),
+      timestamp: Date.now(),
+      extractedId,
+      qrId
+    };
+
+    addScan(entry);
+
+    // feedback: som, vibração, popup, copiar para clipboard
+    beep(90, 1400, 0.12);
+    try { if (navigator.vibrate) navigator.vibrate([50, 20, 50]); } catch (e) {}
+    showPopup(`OK • ${qrId.value || (extractedId.value || 'salvo')}`);
+    try { await navigator.clipboard.writeText(qrId.value || extractedId.value || payload); logOutput('Conteúdo copiado para área de transferência.'); } catch (e) { console.warn('Falha ao copiar para clipboard', e); }
+
+    logOutput(`✅ Lido: ${plataforma} — QR_ID: ${qrId.value || 'N/A'} — salvo (${scannedData.length})`);
+  }
+
+  // CSV pronto para Excel: BOM + ponto-e-vírgula
+  function convertToCSV(data) {
+    if (!data || data.length === 0) return '';
+    const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan'];
+    const rows = [headers.join(';')];
+    data.forEach(item => {
+      const safe = v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`;
+      const qrType = item.qrId && item.qrId.type ? item.qrId.type : '';
+      const qrValue = item.qrId && item.qrId.value ? item.qrId.value : '';
+      const idType = item.extractedId && item.extractedId.type ? item.extractedId.type : '';
+      const idValue = item.extractedId && item.extractedId.value ? item.extractedId.value : '';
+      rows.push([safe(item.plataforma), safe(item.link), safe(qrType), safe(qrValue), safe(idType), safe(idValue), safe(item.dataHora)].join(';'));
+    });
+    return rows.join('\r\n');
+  }
+
+  function exportCSV() {
+    if (!scannedData || scannedData.length === 0) { alert('Nenhum dado para exportar.'); return; }
+    const data = scannedData.map(({plataforma,link,dataHora,extractedId,qrId}) => ({plataforma,link,dataHora,extractedId,qrId}));
+    const csv = convertToCSV(data);
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    a.download = `scans_${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function clearScans() {
+    if (!confirm('Deseja apagar todos os registros salvos?')) return;
+    scannedData = [];
+    saveScannedData();
+    renderScans();
+    logOutput('Registros limpos.');
+  }
+
+  // events + init
+  function init() {
+    renderScans();
+    startButton.addEventListener('click', startCamera);
+    stopButton.addEventListener('click', stopCamera);
+    torchButton.addEventListener('click', toggleTorch);
+    exportBtn.addEventListener('click', exportCSV);
+    clearBtn.addEventListener('click', clearScans);
+    window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
+    window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
+  }
+
+  init();
+})();
