@@ -16,8 +16,14 @@
     const scanPopup = document.getElementById('scanPopup');
     const overlayCtx = overlay.getContext('2d');
     const controlsContainer = document.getElementById('controls');
-    const appContainer = document.querySelector('.app'); // Referência ao container principal da aplicação
+    const appContainer = document.querySelector('.app'); 
     const body = document.body;
+    
+    // NOVO: Referências diretas aos elementos de login (agora fixos no HTML)
+    const loginScreen = document.getElementById('loginScreen');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginUserField = document.getElementById('loginUser');
+    const loginPassField = document.getElementById('loginPass');
     
     // --- Variáveis e Constantes ---
     const STORAGE_KEY = 'scannedPackages_v1_mobile';
@@ -40,8 +46,7 @@
     let currentVideoTrack = null;
     let torchOn = false;
     
-    // VARIÁVEL GLOBAL PARA FILTRO DE DATA
-    let selectedDate = new Date().toISOString().substring(0, 10); // Inicializa com a data de hoje (AAAA-MM-DD)
+    let selectedDate = new Date().toISOString().substring(0, 10); 
 
 
     // --- UTILS (Beep, Popup, Log) ---
@@ -62,15 +67,17 @@
         const statusEl = document.getElementById('loginStatus');
         if (statusEl) {
             statusEl.textContent = msg;
-            statusEl.style.color = msg.includes('falhou') ? '#dc3545' : '#6c757d'; // Vermelho para falha
+            statusEl.style.color = msg.includes('falhou') ? '#dc3545' : '#6c757d'; 
         }
     }
-    function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+    // Melhoria: Usar template literal para evitar erro de aspas/quebra de linha
+    function escapeHtml(s) { 
+        return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); 
+    }
     
-    // Formata uma data Date() para AAAA-MM-DD
     function formatDate(date) { return date.toISOString().substring(0, 10); }
 
-    // --- DADOS E LOCAL STORAGE ---
+    // --- DADOS E LOCAL STORAGE (Mantida) ---
     function saveScannedData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); } catch (e) { console.warn(e); } }
     function loadScannedData() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
     function addScan(entry) { 
@@ -78,7 +85,6 @@
         if (currentUser) {
             entry.scannedBy = currentUser.username;
         }
-        // Adiciona a data no formato AAAA-MM-DD para facilitar a filtragem
         entry.date = formatDate(new Date(entry.timestamp)); 
         
         scannedData.unshift(entry); 
@@ -86,7 +92,7 @@
         renderScans(); 
     }
     
-    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS ---
+    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (Mantida) ---
     
     function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
@@ -95,7 +101,6 @@
             const raw = localStorage.getItem(USER_KEY);
             if (raw) {
                 const savedUsers = JSON.parse(raw);
-                // Garante que o usuário padrão 'thon' exista
                 if (!savedUsers['thon']) {
                     savedUsers['thon'] = { password: '882010', role: 'administrator', createdBy: 'system' };
                 }
@@ -133,9 +138,12 @@
         if (users[username] && users[username].password === password) {
             const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
             sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
-            logOutput(`Login bem-sucedido. Bem-vindo(a), ${user.username} (${user.role}).`);
+            loginUserField.value = '';
+            loginPassField.value = '';
+            logLoginStatus('');
+            
             updateUIForAuth();
-            renderScans(); // Renderiza após o login
+            renderScans(); 
             return true;
         }
         logLoginStatus('Login falhou: Usuário ou senha inválidos.');
@@ -147,7 +155,8 @@
         logOutput('Logout realizado.');
         stopCamera();
         updateUIForAuth();
-        renderScans(); // Limpa/re-renderiza a lista após o logout
+        renderScans(); 
+        logLoginStatus('Insira suas credenciais.');
     }
     
     function setupUserManagement() {
@@ -186,7 +195,6 @@
             </div>
         `;
         
-        // Insere o gerenciamento no container principal de controles (abaixo dos relatórios)
         controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
 
         document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
@@ -311,20 +319,18 @@
     }
 
 
-    // --- LÓGICA DE FILTRAGEM DE SCANS ---
+    // --- LÓGICA DE FILTRAGEM DE SCANS (Mantida) ---
     
     function getFilterableUsernames(currentUser) {
         if (isAdmin()) {
             return Object.keys(users);
         }
         if (isManager()) {
-            // Gestor: vê seus próprios scans + scans dos usuários que ele criou
             const managerCreatedUsernames = Object.keys(users)
                 .filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
             managerCreatedUsernames.push(currentUser.username);
             return managerCreatedUsernames;
         }
-        // Usuário Padrão: vê apenas os próprios scans
         return [currentUser.username];
     }
     
@@ -334,14 +340,11 @@
         
         const allowedUsers = getFilterableUsernames(currentUser);
         
-        // 1. Filtra por usuário (visibilidade)
         let filteredByAccess = scannedData.filter(item => {
             return item.scannedBy && allowedUsers.includes(item.scannedBy);
         });
         
-        // 2. Filtra por data (apenas o dia selecionado)
         let filteredByDate = filteredByAccess.filter(item => {
-            // Compara a data do scan (AAAA-MM-DD) com a data selecionada
             return item.date === selectedDate;
         });
         
@@ -351,13 +354,36 @@
 
     // --- RENDERIZAÇÃO E UI ---
 
-    function renderScans() {
-        // Garante que a lista e o output só apareçam se o usuário estiver logado
-        const loggedIn = isAuthenticated();
-        scansList.style.display = loggedIn ? 'block' : 'none';
-        output.style.display = loggedIn ? 'block' : 'none';
+    // NOVO: Função para perguntar ao usuário qual app usar
+    function openMapForAddress(address) {
+        if (!address || address.trim() === 'N/A, N/A, CEP N/A') {
+            alert("Endereço indisponível para este item.");
+            return;
+        }
+
+        const encodedAddress = encodeURIComponent(address);
         
+        // Use prompt para dar a opção de escolha
+        const choice = prompt(
+            `Abrir "${address}" com:\n1. Google Maps\n2. Waze\n\nDigite 1 ou 2:`,
+            '1' // Sugere Google Maps como padrão
+        );
+
+        if (choice === '1') {
+            // Google Maps URL (q= para pesquisa de endereço)
+            window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
+        } else if (choice === '2') {
+            // Waze URL (q= para pesquisa, use format: ${address} para forçar endereço)
+            window.open(`https://waze.com/ul?q=${encodedAddress}&navigate=yes`, '_blank');
+        } else if (choice !== null) {
+            alert("Opção inválida. Por favor, digite 1 (Google Maps) ou 2 (Waze).");
+        }
+    }
+
+    function renderScans() {
+        const loggedIn = isAuthenticated();
         scansList.innerHTML = '';
+        
         if (!loggedIn) { 
              scansList.innerHTML = '<div style="color:#6c757d">Faça login para ver os registros.</div>';
              return;
@@ -370,26 +396,62 @@
             return; 
         }
         
-        // Ordena os scans pelo timestamp do mais recente para o mais antigo (do topo para baixo)
         scans.sort((a, b) => b.timestamp - a.timestamp); 
         
         scans.forEach(item => {
             const el = document.createElement('div'); el.className = 'item';
             el.style.display = 'flex'; 
-            el.style.flexDirection = 'column'; // Organiza verticalmente
+            el.style.flexDirection = 'column'; 
             el.style.padding = '6px 0';
             el.style.borderBottom = '1px dashed #eee';
             
-            // Tenta obter o ID mais relevante para exibição
             const mainId = item.qrId.value || item.extractedId.value || item.link;
             const idType = item.qrId.value ? item.qrId.type : item.extractedId.value ? item.extractedId.type : 'Link Completo';
             
-            // Linha principal do ID
-            const idLine = document.createElement('div');
-            idLine.style.fontSize = '14px';
-            idLine.style.wordBreak = 'break-all';
-            idLine.style.color = '#343a40';
-            idLine.innerHTML = `<strong>${escapeHtml(mainId)}</strong>`;
+            // Container para a linha principal (ID + Botões)
+            const mainLine = document.createElement('div');
+            mainLine.style.display = 'flex';
+            mainLine.style.justifyContent = 'space-between';
+            mainLine.style.alignItems = 'center';
+            mainLine.style.marginBottom = '4px';
+
+            // ID Principal
+            const idText = document.createElement('span');
+            idText.style.fontSize = '14px';
+            idText.style.wordBreak = 'break-all';
+            idText.style.color = '#343a40';
+            idText.innerHTML = `<strong>ID: ${escapeHtml(mainId)}</strong>`;
+            
+            // Endereço completo para o mapa (Nome, Rua, CEP)
+            const fullAddress = `${item.comprador?.nome || ''}, ${item.comprador?.endereco || ''}, CEP ${item.comprador?.cep || ''}`.trim();
+            
+            // NOVO: Ícone de Alfinete (Mapa)
+            const mapPin = document.createElement('span');
+            mapPin.innerHTML = '📍';
+            mapPin.title = 'Abrir no Mapa (Google Maps ou Waze)';
+            mapPin.style.fontSize = '20px'; // Aumenta o ícone
+            mapPin.style.cursor = 'pointer';
+            mapPin.style.marginLeft = '8px';
+            mapPin.style.marginRight = '4px';
+            mapPin.style.transition = 'transform 0.1s';
+            
+            mapPin.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                openMapForAddress(fullAddress);
+            });
+            mapPin.addEventListener('mouseenter', () => mapPin.style.transform = 'scale(1.1)');
+            mapPin.addEventListener('mouseleave', () => mapPin.style.transform = 'scale(1)');
+
+
+            // Linha de Informações do Comprador
+            const infoLine = document.createElement('div');
+            infoLine.style.fontSize = '12px';
+            infoLine.style.color = '#495057';
+            infoLine.innerHTML = `
+                👤 **Comprador:** ${escapeHtml(item.comprador?.nome || 'N/A')}
+                <br> 
+                📍 **Endereço:** ${escapeHtml(item.comprador?.endereco || 'N/A')} | **CEP:** ${escapeHtml(item.comprador?.cep || 'N/A')}
+            `;
 
             // Linha de metadados
             const metaLine = document.createElement('div');
@@ -401,12 +463,16 @@
             
             metaLine.textContent = `${escapeHtml(item.dataHora.split(' ')[1])} ${scannedByText} ${platformText} | Tipo ID: ${escapeHtml(idType)}`;
             
-            el.appendChild(idLine);
+            // Adiciona o alfinete antes do texto principal
+            mainLine.appendChild(mapPin); 
+            mainLine.appendChild(idText);
+
+            el.appendChild(mainLine);
+            el.appendChild(infoLine);
             el.appendChild(metaLine);
             scansList.appendChild(el);
         });
         
-         // Remove a borda do último item
          if (scansList.lastChild) {
             scansList.lastChild.style.borderBottom = 'none';
         }
@@ -420,23 +486,26 @@
         return btn;
     }
 
+    // Função de controle de UI (Mantida)
     function updateUIForAuth() {
         const loggedIn = isAuthenticated();
         const adminMode = isAdmin();
         const managerMode = isManager();
         
-        // 1. Oculta/Mostra a tela principal do scanner
-        appContainer.style.display = loggedIn ? 'block' : 'none';
-        
-        // 2. Remove o login antigo se existir
-        let loginScreen = document.getElementById('loginScreen');
-        if (loginScreen) loginScreen.remove();
+        // 1. Alterna a classe principal no body
+        if (loggedIn) {
+            body.classList.add('logged-in');
+            body.classList.remove('login-active'); 
+        } else {
+            body.classList.remove('logged-in');
+            body.classList.add('login-active');
+        }
 
-        // 3. Remove todos os elementos dinâmicos (Gerenciamento de usuários e botões de relatórios/logout)
+        // 2. Remove todos os elementos dinâmicos (Gerenciamento de usuários e botões de relatórios/logout)
         const authElements = document.querySelectorAll('.auth-control');
         authElements.forEach(el => el.remove());
 
-        // 4. Configuração do Date Selector
+        // 3. Configuração do Date Selector
         let dateContainer = document.querySelector('#dateContainer');
         if (dateContainer) dateContainer.remove();
         
@@ -444,10 +513,7 @@
         if (loggedIn) {
             // --- MODO LOGADO ---
             
-            // Remove a classe do body (exibe o .app)
-            body.classList.remove('login-active');
-            
-            // 4a. Cria e mostra o seletor de Data
+            // 4. Cria e mostra o seletor de Data
             dateContainer = document.createElement('div');
             dateContainer.id = 'dateContainer';
             dateContainer.classList.add('auth-control', 'controls');
@@ -457,7 +523,6 @@
                 <label style="color: #111; font-size: 14px; white-space: nowrap;">📅 Dia:</label>
                 <input type="date" id="dateSelectInput" class="select-device" value="${selectedDate}">
              `;
-            // Insere no topo da aplicação principal
             controlsContainer.parentNode.insertBefore(dateContainer, controlsContainer);
             
             document.getElementById('dateSelectInput').addEventListener('change', (e) => {
@@ -476,7 +541,6 @@
             logoutBtn.classList.add('auth-control');
             controlsContainer.appendChild(logoutBtn);
             
-            // Botões de relatório
             if (adminMode || managerMode) {
                  const reportDailyBtn = createButton('📄 Relatório Diário', 'secondary', () => generateReport('daily'));
                  const reportQuinzenalBtn = createButton('📄 Relatório Quinzenal', 'secondary', () => generateReport('quinzenal'));
@@ -497,59 +561,19 @@
             }
 
         } else {
-            // --- MODO DESLOGADO: TELA DE LOGIN (NOVO VISUAL) ---
+            // --- MODO DESLOGADO ---
             
-            body.classList.add('login-active'); // Adiciona a classe para estilizar o body e esconder o .app
-            
-            // 5. Oculta todos os controles principais
+            // Oculta todos os controles principais
             const controls = [startButton, stopButton, torchButton, deviceSelect, deviceSelectLabel, exportBtn, clearBtn];
             controls.forEach(el => el.style.display = 'none');
             
-            // 6. CRIA A TELA DE LOGIN NOVO VISUAL
-            loginScreen = document.createElement('div');
-            loginScreen.id = 'loginScreen';
-            loginScreen.classList.add('login-container');
-            
-            loginScreen.innerHTML = `
-                <div id="loginForm">
-                    <h2 style="margin-top: 0; color: #343a40;">🔑 Acesso do Scanner</h2>
-                    <input type="text" id="loginUser" placeholder="Nome de Usuário" required>
-                    <input type="password" id="loginPass" placeholder="Senha" required>
-                    <button id="loginBtn">Entrar</button>
-                    <p id="loginStatus" class="login-status-message"></p>
-                </div>
-            `;
-            
-            // Anexa a tela de login ao corpo do documento
-            body.appendChild(loginScreen);
-            
-            const loginBtn = document.getElementById('loginBtn');
-            const loginUserField = document.getElementById('loginUser');
-            const loginPassField = document.getElementById('loginPass');
-            
-            const handleLoginAttempt = () => {
-                const user = loginUserField.value;
-                const pass = loginPassField.value;
-                logLoginStatus('Verificando credenciais...');
-                loginUser(user, pass);
-            };
-
-            if (loginBtn) {
-                loginBtn.addEventListener('click', handleLoginAttempt);
-                loginPassField.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') handleLoginAttempt();
-                });
-            }
-            
             logOutput('Por favor, faça login para começar.');
-            logLoginStatus('Insira suas credenciais.');
         }
 
-        // Garante que a câmera pare se não estiver logado
         if (!loggedIn) { stopCamera(); }
     }
     
-    // --- LÓGICA DA CÂMERA ---
+    // --- LÓGICA DA CÂMERA (Mantida) ---
     
     async function requestPermissionOnce() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia não suportado');
@@ -681,7 +705,7 @@
         rafId = requestAnimationFrame(scanLoop);
     }
     
-    // --- LÓGICA DE EXTRAÇÃO E RESULTADO ---
+    // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Mantida) ---
     
     function extractIdFromLink(link) {
         if (!link || typeof link !== 'string') return { type: null, value: null };
@@ -704,22 +728,48 @@
         if (p.length <= 64 && /[A-Za-z0-9\-_]{4,}/.test(p)) return { type: 'text', value: p.split(/\s|;|,|\|/)[0] };
         return { type: null, value: null };
     }
+    
+    // Simula a obtenção de dados do comprador
+    function getCompradorInfo(mainId) {
+        // Esta é uma simulação. Na vida real, você faria uma chamada API com o mainId.
+        const hash = (mainId || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const names = ["João Silva", "Maria Santos", "Pedro Almeida", "Ana Oliveira", "Carlos Souza", "Fernando Costa", "Juliana Lima", "Ricardo Teles"];
+        const addresses = [
+            "Rua das Flores, 100, Centro", 
+            "Av. Paulista, 1578 - Apto 5, Bela Vista", 
+            "Praça da Sé, s/n, Sé", 
+            "Travessa do Comércio, 50, Pinheiros",
+            "Rua Doutor Cesário Mota Junior, 112, Vila Buarque",
+            "Av. Marginal Tietê, Km 15, Pirituba",
+            "Rua Augusta, 2690, Jardins",
+            "Rua Tabapuã, 41, Itaim Bibi"
+        ];
+        const ceps = ["01001-000", "04538-132", "05407-002", "09726-210", "13087-460", "02916-000", "01413-001", "04533-000"];
+
+        return {
+            nome: names[hash % names.length],
+            endereco: addresses[(hash + 1) % addresses.length],
+            cep: ceps[(hash + 2) % ceps.length]
+        };
+    }
 
     async function handleScanResult(payload) {
         if (!payload) return;
         
-        // Verifica se é um scan duplicado na janela de tempo de 60 segundos
         if (scannedData.some(item => item.link === payload && (Date.now() - item.timestamp) < DUPLICATE_WINDOW)) { logOutput('Já escaneado recentemente.'); showPopup('Já escaneado'); return; }
         
         const plataforma = (() => { const l = payload.toLowerCase(); if (l.includes('shopee.')) return 'Shopee'; if (l.includes('mercadolivre.')||l.includes('mercadolibre')) return 'Mercado Livre'; return 'Outra'; })();
-        const extractedId = extractIdFromLink(payload); const qrId = extractQrId(payload);
+        const extractedId = extractIdFromLink(payload); 
+        const qrId = extractQrId(payload);
+        const mainId = qrId.value || extractedId.value || payload;
+
+        // Adiciona a informação do comprador
+        const compradorInfo = getCompradorInfo(mainId);
         
-        const entry = { plataforma, link: payload, dataHora: new Date().toLocaleString('pt-BR'), timestamp: Date.now(), extractedId, qrId };
+        const entry = { plataforma, link: payload, dataHora: new Date().toLocaleString('pt-BR'), timestamp: Date.now(), extractedId, qrId, comprador: compradorInfo };
         
-        // Adiciona e atualiza a tela
         addScan(entry); 
         
-        // Se o novo scan for do dia atual, atualiza a data de filtro para garantir que ele apareça
         if (formatDate(new Date()) !== selectedDate) {
             selectedDate = formatDate(new Date());
             const dateInput = document.getElementById('dateSelectInput');
@@ -729,16 +779,14 @@
 
         beep(); try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
         
-        // Exibe o popup com o ID principal
         showPopup(`OK • ${qrId.value || extractedId.value || 'salvo'}`);
         
-        // Copia para a área de transferência o ID principal
         try { await navigator.clipboard.writeText(qrId.value || extractedId.value || payload); logOutput('Copiado para área de transferência.'); } catch (e) {}
         
         logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
     }
 
-    // --- FUNÇÕES DE RELATÓRIO ---
+    // --- FUNÇÕES DE RELATÓRIO (Mantida) ---
     
     function getDateRange(period) {
         const now = new Date();
@@ -758,10 +806,8 @@
         const currentUser = getLoggedInUser();
         if (!currentUser || (!isAdmin() && !isManager())) return;
         
-        // 1. Define o período de tempo
         const startTime = getDateRange(period);
         
-        // 2. Filtra todos os dados (scannedData) pela permissão de acesso (Gestor/Admin)
         const allowedUsers = getFilterableUsernames(currentUser);
         let filteredData = scannedData.filter(item => {
             return item.scannedBy && allowedUsers.includes(item.scannedBy) && item.timestamp >= startTime;
@@ -774,7 +820,17 @@
             return;
         }
 
-        const csv = convertToCSV(filteredData.map(({plataforma,link,dataHora,extractedId,qrId,scannedBy}) => ({plataforma,link,dataHora,extractedId,qrId,scannedBy})));
+        const dataToExport = filteredData.map(item => ({
+             plataforma: item.plataforma,
+             link: item.link,
+             dataHora: item.dataHora,
+             extractedId: item.extractedId,
+             qrId: item.qrId,
+             scannedBy: item.scannedBy,
+             comprador: item.comprador 
+        }));
+
+        const csv = convertToCSV(dataToExport);
         const bom = '\uFEFF'; 
         const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob); 
@@ -790,11 +846,12 @@
         logOutput(`Relatório ${periodName} gerado com ${filteredData.length} registros.`);
     }
 
-    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA ---
+    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Mantida) ---
     
     function convertToCSV(data) {
         if (!data || data.length === 0) return '';
-        const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan', 'Scanned_By']; 
+        
+        const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor', 'Comprador_Nome', 'Comprador_Endereco', 'Comprador_CEP', 'Data_Hora_Scan', 'Scanned_By']; 
         const rows = [headers.join(';')];
         data.forEach(item => {
             const safe = v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`;
@@ -802,8 +859,18 @@
             const qrValue = item.qrId && item.qrId.value ? item.qrId.value : '';
             const idType = item.extractedId && item.extractedId.type ? item.extractedId.type : '';
             const idValue = item.extractedId && item.extractedId.value ? item.extractedId.value : '';
+            
+            const compNome = item.comprador?.nome || '';
+            const compEnd = item.comprador?.endereco || '';
+            const compCep = item.comprador?.cep || '';
+
             const scannedBy = item.scannedBy || '';
-            rows.push([safe(item.plataforma), safe(item.link), safe(qrType), safe(qrValue), safe(idType), safe(idValue), safe(item.dataHora), safe(scannedBy)].join(';'));
+            
+            rows.push([
+                safe(item.plataforma), safe(item.link), safe(qrType), safe(qrValue), safe(idType), safe(idValue), 
+                safe(compNome), safe(compEnd), safe(compCep),
+                safe(item.dataHora), safe(scannedBy)
+            ].join(';'));
         });
         return rows.join('\r\n');
     }
@@ -812,10 +879,23 @@
         if (!isAdmin()) { alert('Apenas administradores podem exportar todos os dados.'); return; }
         if (!scannedData || scannedData.length === 0) { alert('Nenhum dado para exportar.'); return; }
         
-        // Exporta TUDO (sem filtro de data, apenas Admin tem este botão)
-        const csv = convertToCSV(scannedData.map(({plataforma,link,dataHora,extractedId,qrId,scannedBy}) => ({plataforma,link,dataHora,extractedId,qrId,scannedBy})));
-        const bom = '\uFEFF'; const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `scans_ALL_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
+        const dataToExport = scannedData.map(item => ({
+             plataforma: item.plataforma,
+             link: item.link,
+             dataHora: item.dataHora,
+             extractedId: item.extractedId,
+             qrId: item.qrId,
+             scannedBy: item.scannedBy,
+             comprador: item.comprador 
+        }));
+
+        const csv = convertToCSV(dataToExport);
+        const bom = '\uFEFF'; 
+        const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob); 
+        const a = document.createElement('a'); 
+        a.href = url; 
+        a.download = `scans_ALL_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
         document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         logOutput('Todos os registros exportados.');
     }
@@ -828,6 +908,24 @@
 
     // --- INICIALIZAÇÃO ---
 
+    function setupLoginListeners() {
+        if (!loginBtn) return; 
+
+        const handleLoginAttempt = () => {
+            const user = loginUserField.value;
+            const pass = loginPassField.value;
+            logLoginStatus('Verificando credenciais...');
+            loginUser(user, pass);
+        };
+
+        loginBtn.addEventListener('click', handleLoginAttempt);
+        loginPassField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleLoginAttempt();
+        });
+        
+        logLoginStatus('Insira suas credenciais.');
+    }
+
     deviceSelect.addEventListener('change', async () => {
         if (!isAuthenticated()) return;
         const id = deviceSelect.value; if (!id) return;
@@ -835,10 +933,10 @@
     });
 
     function init() {
-        // Assegura que o selectedDate é a data atual ao iniciar
         selectedDate = formatDate(new Date()); 
         
-        renderScans(); // Tenta renderizar (mostrará mensagem de login se não estiver autenticado)
+        setupLoginListeners();
+
         startButton.addEventListener('click', startCamera);
         stopButton.addEventListener('click', stopCamera);
         torchButton.addEventListener('click', toggleTorch);
@@ -848,8 +946,9 @@
         drawBoundingBox(null);
         
         updateUIForAuth(); 
+        renderScans(); 
         
-        window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
+        window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData, openMapForAddress };
     }
 
     init();
