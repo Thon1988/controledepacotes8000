@@ -99,4 +99,121 @@
     }
     
     #output{min-height:36px;display:flex;align-items:center;gap:8px;color:#6c757d;padding:4px}
-    .list{max-height:180px;overflow:auto;margin-top:8px;border-
+    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
+    .item{padding:8px;border-bottom:1px solid #eee; color:#343a40;} 
+    .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
+    .select-label { color: #111; font-size: 14px; margin-left: 6px; }
+    #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
+    
+    /* --- NOVOS ESTILOS PARA A TELA DE LOGIN --- */
+    .login-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh; 
+        width: 100%;
+        max-width: 400px; 
+        margin: auto; 
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    #loginForm {
+        background: #ffffff;
+        padding: 30px 25px;
+        border-radius: 12px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        width: 100%; 
+        box-sizing: border-box;
+        display: flex; 
+        flex-direction: column;
+        gap: 15px; 
+    }
+
+    #loginForm input[type="text"],
+    #loginForm input[type="password"] {
+        width: 100%; 
+        padding: 12px;
+        margin-bottom: 0; 
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.2s ease;
+    }
+    #loginForm input[type="text"]:focus,
+    #loginForm input[type="password"]:focus {
+        border-color: #00b4d8; 
+        outline: none;
+    }
+
+    #loginForm button {
+        width: 100%;
+        padding: 12px 20px;
+        font-size: 16px;
+        font-weight: bold;
+        background: #00b4d8;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+    #loginForm button:hover {
+        background: #0096c7;
+    }
+    
+    /* Novo estilo para a mensagem de erro/status */
+    .login-status-message {
+        font-size: 12px; 
+        color: #999; 
+        margin-bottom: 0; 
+        min-height: 18px; /* Mantém o espaço para evitar pulos de layout */
+    }
+
+    /* Oculta a aplicação principal quando o login está ativo */
+    body.login-active .app {
+        display: none;
+    }
+
+    /* Oculta os elementos do scanner quando a tela de login está ativa */
+    body.login-active #dateContainer,
+    body.login-active #output, 
+    body.login-active #scansList {
+        display: none;
+    }
+    
+    /* Regras de Layout para quando o APP está ativo (Logado) */
+    body:not(.login-active) {
+        /* Desfaz o flex centralizado do body quando logado, para o layout normal */
+        align-items: flex-start; 
+        justify-content: flex-start;
+    }
+
+    /* Responsividade para celular */
+    @media (max-width:520px){ 
+      .controls{flex-direction:column;align-items:stretch} 
+      .camera-wrap{height:50vh} 
+      .login-container {
+            padding: 10px;
+            max-width: 95%; 
+        }
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="app">
+    <h1>📦 Scanner 8000 v0.1</h1>
+
+            <div class="controls" id="controls">
+      <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
+      <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
+      <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
+
+      <label for="deviceSelect" class="select-label" style="display:none" id="deviceSelectLabel">Câmera:</label>
+      <select id="deviceSelect" class="select-device" style="display:none" aria-labelledby="deviceSelectLabel"></select>
+
+      <button id="exportBtn" class="secondary" style="display:none" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
+      <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
