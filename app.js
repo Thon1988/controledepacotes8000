@@ -1,9 +1,8 @@
 // app.js — Mobile-friendly scanner (iOS + Android) with authentication and reporting (Admin, Manager, User)
 
-// Envolve todo o código em uma IIFE para isolamento, mas o ponto crítico é o listener DOMContentLoaded no final.
+// Envolve todo o código em uma IIFE para isolamento
 (() => {
-    // --- Referências de Elementos Existentes ---
-    // Estas referências são declaradas no topo do escopo do módulo.
+    // --- Referências de Elementos (Inicializadas em setupDOMLinks) ---
     let video;
     let overlay;
     let output;
@@ -45,6 +44,7 @@
     let currentVideoTrack = null;
     let torchOn = false;
     
+    // Variável que armazena a data selecionada/atual para o filtro de scans
     let selectedDate = new Date().toISOString().substring(0, 10); 
 
 
@@ -121,11 +121,13 @@
             }
         }
 
-        if (isDefault && Object.keys(loadedUsers).length > 0) {
-             loadedUsers = { ...defaultUsers, ...loadedUsers };
-             saveUsers();
+        // Garante que o usuário padrão 'thon' sempre exista
+        if (!loadedUsers['thon']) {
+            loadedUsers['thon'] = defaultUsers['thon'];
+            saveUsers();
         }
-
+        
+        // Garante que os campos de metadados existam para todos os usuários
         Object.keys(loadedUsers).forEach(username => {
             if (!loadedUsers[username].createdBy) {
                 loadedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
@@ -177,7 +179,11 @@
     }
     
     function setupUserManagement() {
-        if (!isAdmin() && !isManager()) { return; }
+        if (!isAdmin() && !isManager()) { 
+             const oldContainer = document.querySelector('#userManagementContainer');
+             if (oldContainer) oldContainer.remove();
+             return; 
+        }
 
         const oldContainer = document.querySelector('#userManagementContainer');
         if (oldContainer) oldContainer.remove();
@@ -198,20 +204,21 @@
         }
         
         container.innerHTML = `
-            <div class="panel" style="margin-top: 12px; background: #fff; color: #111;">
+            <div class="panel" style="margin-top: 12px; background: #fff; color: #111; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
                 <h3 style="margin: 0 0 8px; font-size: 16px; color: #111;">👤 Gerenciar Usuários</h3>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
-                    <input type="text" id="newUser" placeholder="Nome de Usuário" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
-                    <input type="password" id="newPass" placeholder="Senha" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
+                    <input type="text" id="newUser" placeholder="Nome de Usuário" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; flex-grow: 1; min-width: 100px; color: #111; background-color: #fff;">
+                    <input type="password" id="newPass" placeholder="Senha" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; flex-grow: 1; min-width: 100px; color: #111; background-color: #fff;">
                     <select id="newRole" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; color: #111; background-color: #fff;">
                         ${roleOptions}
                     </select>
-                    <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px;">➕ Adicionar</button>
+                    <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer;">➕ Adicionar</button>
                 </div>
                 <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
             </div>
         `;
         
+        // Insere o container de gerenciamento após os controles
         controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
 
         document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
@@ -230,7 +237,8 @@
         const usersToShow = Object.keys(users).filter(username => {
             if (isAdminUser) return true;
             const user = users[username];
-            return user.createdBy === currentUser.username;
+            // O gestor vê a si mesmo e os usuários que ele criou
+            return username === currentUser.username || user.createdBy === currentUser.username;
         });
         
         if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:#6c757d">Nenhum usuário gerenciável.</div>'; return; }
@@ -253,8 +261,10 @@
             `;
             
             let canDelete = false;
+            // Admin pode deletar todos, exceto a si mesmo
             if (isAdminUser && username !== currentUser.username) {
                 canDelete = true;
+            // Gestor só pode deletar usuários padrão que ele criou
             } else if (isManagerUser) {
                 if (user.createdBy === currentUser.username && user.role === 'user' && username !== currentUser.username) {
                     canDelete = true;
@@ -264,7 +274,8 @@
             if (canDelete) {
                  const deleteBtn = document.createElement('button');
                  deleteBtn.textContent = 'Remover';
-                 deleteBtn.style.background = '#dc3545'; deleteBtn.style.marginLeft = '8px'; deleteBtn.style.padding = '4px 8px';
+                 deleteBtn.style.background = '#dc3545'; deleteBtn.style.color = '#fff'; deleteBtn.style.marginLeft = '8px'; deleteBtn.style.padding = '4px 8px';
+                 deleteBtn.style.border = 'none'; deleteBtn.style.borderRadius = '3px';
                  deleteBtn.addEventListener('click', () => handleDeleteUser(username));
                  el.appendChild(deleteBtn);
             } else if (username === currentUser.username) {
@@ -339,15 +350,18 @@
     // --- LÓGICA DE FILTRAGEM DE SCANS ---
     
     function getFilterableUsernames(currentUser) {
+        // Administradores veem todos
         if (isAdmin()) {
             return Object.keys(users);
         }
+        // Gestores veem a si mesmos e os que criaram
         if (isManager()) {
             const managerCreatedUsernames = Object.keys(users)
                 .filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
             managerCreatedUsernames.push(currentUser.username);
             return managerCreatedUsernames;
         }
+        // Usuários padrão veem apenas os seus
         return [currentUser.username];
     }
     
@@ -357,10 +371,12 @@
         
         const allowedUsers = getFilterableUsernames(currentUser);
         
+        // 1. Filtra por acesso de usuário
         let filteredByAccess = scannedData.filter(item => {
             return item.scannedBy && allowedUsers.includes(item.scannedBy);
         });
         
+        // 2. Filtra pela data selecionada
         let filteredByDate = filteredByAccess.filter(item => {
             return item.date === selectedDate;
         });
@@ -538,14 +554,18 @@
 
             // 5. Oculta/Mostra Controles Principais (Scanner/Exportar)
             startButton.style.display = 'inline-block';
+            // Os outros botões do scanner são gerenciados em stopCamera/startCamera
             exportBtn.style.display = adminMode ? 'inline-block' : 'none';
             clearBtn.style.display = adminMode ? 'inline-block' : 'none';
 
             // 6. Adiciona Logout e Relatórios (dentro de #controls)
             const user = getLoggedInUser();
-            const logoutBtn = createButton(`👋 ${user.username} - Sair`, 'secondary', logoutUser);
+            const logoutBtn = createButton(`👋 ${user.username} - Sair`, 'secondary');
             logoutBtn.classList.add('auth-control');
             controlsContainer.appendChild(logoutBtn);
+            
+            // Adiciona listener de logout aqui para o botão recém-criado
+            logoutBtn.addEventListener('click', logoutUser);
             
             if (adminMode || managerMode) {
                  const reportDailyBtn = createButton('📄 Relatório Diário', 'secondary', () => generateReport('daily'));
@@ -609,6 +629,7 @@
         try {
             try { mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); } 
             catch (errFacing) {
+                // Tenta fallback se a câmera 'environment' não funcionar
                 await requestPermissionOnce();
                 const devices = await enumerateVideoDevices();
                 populateDeviceSelect(devices);
@@ -624,6 +645,7 @@
             currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
             
             torchOn = false;
+            // Configura o botão do flash
             if (currentVideoTrack && typeof currentVideoTrack.getCapabilities === 'function') {
                 try { const caps = currentVideoTrack.getCapabilities(); if (caps && caps.torch) torchButton.style.display = 'inline-block'; else torchButton.style.display = 'none'; } catch (e) { torchButton.style.display = 'none'; }
             } else { torchButton.style.display = 'none'; }
@@ -657,6 +679,7 @@
         rafId = null; scanning = false; video.pause(); video.srcObject = null;
         
         startButton.disabled = false; 
+        // Reexibe o botão Iniciar se estiver logado
         if (isAuthenticated()) { startButton.style.display = 'inline-block'; } else { startButton.style.display = 'none'; }
         
         stopButton.style.display = 'none'; torchButton.style.display = 'none'; deviceSelect.style.display = 'none'; deviceSelectLabel.style.display = 'none';
@@ -672,9 +695,11 @@
     
     function drawBoundingBox(location) {
         overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+        // Desenha a caixa de foco central (mesmo sem código detectado)
         if (!location) { const w = overlay.width, h = overlay.height; const boxW = Math.round(w * 0.62), boxH = Math.round(h * 0.5); const x = Math.round((w - boxW) / 2), y = Math.round((h - boxH) / 2);
             overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x, y, boxW, boxH); return;
         }
+        // Desenha a caixa de detecção do QR Code
         overlayCtx.strokeStyle = 'rgba(0,200,83,0.95)'; overlayCtx.lineWidth = Math.max(2, overlay.width / 200);
         overlayCtx.beginPath(); overlayCtx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y); overlayCtx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
         overlayCtx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y); overlayCtx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
@@ -736,6 +761,7 @@
     }
     
     function getCompradorInfo(mainId) {
+        // Função de simulação de dados mantida
         if (mainId === 'BR2559436650945') {
             return {
                  nome: "Fulano da Silva",
@@ -782,6 +808,7 @@
         
         addScan(entry); 
         
+        // Se o scan for de um dia diferente do que está sendo exibido, atualiza o filtro para o dia atual
         if (formatDate(new Date()) !== selectedDate) {
             selectedDate = formatDate(new Date());
             const dateInput = document.getElementById('dateSelectInput');
@@ -805,6 +832,7 @@
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         if (period === 'daily') {
+             // O relatório diário cobre apenas o dia atual, então "start" já está correto.
         } else if (period === 'quinzenal') {
             start.setDate(start.getDate() - 14);
         } else if (period === 'mensal') {
@@ -843,7 +871,7 @@
         }));
 
         const csv = convertToCSV(dataToExport);
-        const bom = '\uFEFF'; 
+        const bom = '\uFEFF'; // BOM para garantir compatibilidade com caracteres especiais no Excel
         const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob); 
         const a = document.createElement('a');
@@ -866,6 +894,7 @@
         const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor', 'Comprador_Nome', 'Comprador_Endereco', 'Comprador_CEP', 'Data_Hora_Scan', 'Scanned_By']; 
         const rows = [headers.join(';')];
         data.forEach(item => {
+            // Função para envolver o valor em aspas e escapar aspas internas, para CSV
             const safe = v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`;
             const qrType = item.qrId && item.qrId.type ? item.qrId.type : '';
             const qrValue = item.qrId && item.qrId.value ? item.qrId.value : '';
@@ -1016,7 +1045,20 @@
         window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData, openMapForAddress };
     }
 
-    // PONTO CRÍTICO CORRIGIDO: Só inicia o JS após o DOM estar totalmente carregado.
-    document.addEventListener('DOMContentLoaded', init);
+    // PONTO CRÍTICO CORRIGIDO: Esta função garante que a inicialização só ocorra após
+    // todo o documento estar carregado, prevenindo o problema de "tela branca" ou 
+    // "elemento não encontrado" (null reference error).
+    function runInitSafely() {
+        if (document.readyState === 'loading') {
+             // O DOM ainda está carregando, espera pelo evento.
+             document.addEventListener('DOMContentLoaded', init);
+        } else {
+             // O DOM já está carregado (pode acontecer se o script estiver no final do body).
+             init();
+        }
+    }
+
+    // Chama a função de inicialização segura
+    runInitSafely();
 
 })();
