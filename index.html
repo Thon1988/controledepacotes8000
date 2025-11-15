@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
+    /* Estilos base (Mantidos) */
     :root{--bg:#111;--card:#fff;--accent:#00b4d8;--muted:#9aa0a6}
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#fff}
     .app{max-width:920px;margin:12px auto;padding:12px}
@@ -33,7 +34,7 @@
     <h1>📦 Scanner 8000</h1>
 
     <div class="controls" id="controls">
-      <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
+            <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
       <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
       <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
 
@@ -42,15 +43,14 @@
 
       <button id="exportBtn" class="secondary" style="display:none" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
       <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
-    </div>
-
-    <div class="camera-wrap" id="cameraWrap">
+          </div>
+        <div class="camera-wrap" id="cameraWrap">
       <video id="videoElement" muted playsinline autoplay></video>
       <canvas id="overlay"></canvas>
     </div>
 
     <div class="panel">
-      <div id="output">Pronto. Por favor, faça login.</div>
+            <div id="output">Pronto. Por favor, faça login.</div>
       <div class="list" id="scansList" aria-live="polite"></div>
     </div>
   </div>
@@ -60,3 +60,4 @@
   <script src="app.js"></script>
 </body>
 </html>
+
