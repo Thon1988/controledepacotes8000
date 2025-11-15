@@ -82,3 +82,87 @@
                 if (!savedUsers['thon']) {
                     savedUsers['thon'] = { password: '882010', role: 'administrator', createdBy: 'system' };
                 }
+                
+                // Garante o createdBy para usuários antigos
+                Object.keys(savedUsers).forEach(username => {
+                    if (!savedUsers[username].createdBy) {
+                        // Tenta inferir se foi criado por admin ou é usuário padrão antigo
+                        savedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
+                    }
+                });
+                return savedUsers;
+            }
+        } catch (e) {}
+
+        // Usuários padrão
+        const defaultUsers = {
+            'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, // ADMINISTRADOR PADRÃO
+            'manager1': { password: '123', role: 'manager', createdBy: 'system' },     // GESTOR PADRÃO
+            'user1': { password: 'user1', role: 'user', createdBy: 'manager1' }        // USUÁRIO COMUM PADRÃO
+        };
+        try { localStorage.setItem(USER_KEY, JSON.stringify(defaultUsers)); } catch (e) {}
+        return defaultUsers;
+    }
+    
+    function getLoggedInUser() {
+        try {
+            const userStr = sessionStorage.getItem(LOGIN_SESSION_KEY);
+            if (userStr) return JSON.parse(userStr);
+        } catch (e) {}
+        return null;
+    }
+
+    function isAuthenticated() { return !!getLoggedInUser(); }
+    function isAdmin() { const user = getLoggedInUser(); return user && user.role === 'administrator'; }
+    function isManager() { const user = getLoggedInUser(); return user && user.role === 'manager'; }
+
+    function loginUser(username, password) {
+        if (users[username] && users[username].password === password) {
+            // Salva também o createdBy na sessão para facilitar
+            const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
+            sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
+            logOutput(`Login bem-sucedido. Bem-vindo(a), ${user.username} (${user.role}).`);
+            updateUIForAuth();
+            return true;
+        }
+        logOutput('Login falhou: Usuário ou senha inválidos.');
+        return false;
+    }
+
+    function logoutUser() {
+        sessionStorage.removeItem(LOGIN_SESSION_KEY);
+        logOutput('Logout realizado.');
+        stopCamera();
+        updateUIForAuth();
+    }
+    
+    // --- GERENCIAMENTO DE USUÁRIOS ---
+
+    function setupUserManagement() {
+        if (!isAdmin() && !isManager()) { return; }
+
+        const currentUser = getLoggedInUser();
+        
+        const oldContainer = document.querySelector('#userManagementContainer');
+        if (oldContainer) oldContainer.remove();
+
+        const container = document.createElement('div');
+        container.id = 'userManagementContainer';
+        container.classList.add('auth-control');
+        
+        let roleOptions = '';
+        if (isAdmin()) {
+            roleOptions = `
+                <option value="user">Usuário Padrão</option>
+                <option value="manager">Gestor</option>
+                <option value="administrator">Administrador</option>
+            `;
+        } else if (isManager()) {
+            // Gestores só podem criar usuários comuns
+            roleOptions = `<option value="user">Usuário Padrão</option>`;
+        }
+
+
+        container.innerHTML = `
+            <div class="panel" style="margin-top: 12px; color: #111;">
+                <h3 style="margin: 0 0
