@@ -131,12 +131,10 @@
             gap: 8px;
             flex-grow: 1;
         }
-
-        /* --- Estilos de Login (Removidos no JS, mas mantidos no HTML para compatibilidade) --- */
-        .login-active .app-main { display: none; }
-        .logged-in .login-screen { display: none; }
+        
+        /* --- Estilos de Login --- */
         .login-screen {
-            display: flex;
+            display: none; /* Escondido por JS, mas aqui está o fallback */
             flex-direction: column;
             gap: 15px;
             padding: 20px;
@@ -151,7 +149,7 @@
         #loginBtn { background-color: #28a745; color: white; }
         #loginStatus { margin-top: 10px; font-size: 14px; color: #dc3545; }
         
-        /* Oculta o conteúdo principal até que o login seja feito, por padrão */
+        /* Controle de visibilidade via classes do Body */
         .app-main { display: none; } 
         .logged-in .app-main { display: block; }
         .login-active .login-screen { display: flex; }
@@ -166,7 +164,7 @@
             <input type="text" id="loginUser" placeholder="Usuário" required>
             <input type="password" id="loginPass" placeholder="Senha" required>
             <button id="loginBtn">Entrar</button>
-            <div id="loginStatus">Faça login para começar a escanear.</div>
+            <div id="loginStatus"></div>
         </div>
         
         <div class="app-main">
