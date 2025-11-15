@@ -16,6 +16,7 @@
     const scanPopup = document.getElementById('scanPopup');
     const overlayCtx = overlay.getContext('2d');
     const controlsContainer = document.getElementById('controls');
+    const appContainer = document.querySelector('.app'); // Referência ao container principal da aplicação
     
     // --- Variáveis e Constantes ---
     const STORAGE_KEY = 'scannedPackages_v1_mobile';
@@ -175,60 +176,4 @@
                     </select>
                     <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px;">➕ Adicionar</button>
                 </div>
-                <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
-            </div>
-        `;
-        
-        controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
-
-        document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
-        renderUserList();
-    }
-    
-    function renderUserList() {
-        const listDiv = document.getElementById('userListDisplay');
-        if (!listDiv) return;
-        listDiv.innerHTML = '';
-        
-        const currentUser = getLoggedInUser();
-        const isAdminUser = isAdmin();
-        const isManagerUser = isManager();
-        
-        const usersToShow = Object.keys(users).filter(username => {
-            if (isAdminUser) return true;
-            const user = users[username];
-            return user.createdBy === currentUser.username;
-        });
-        
-        if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:#6c757d">Nenhum usuário gerenciável.</div>'; return; }
-
-
-        usersToShow.forEach(username => {
-            const user = users[username];
-            const el = document.createElement('div'); el.className = 'item';
-            el.style.display = 'flex'; el.style.justifyContent = 'space-between'; el.style.alignItems = 'center';
-            
-            const roleColor = { 'administrator': '#dc3545', 'manager': '#ffc107', 'user': '#17a2b8' }[user.role];
-            const roleText = { 'administrator': 'Admin', 'manager': 'Gestor', 'user': 'Padrão' }[user.role];
-
-            el.innerHTML = `
-                <div style="font-size:14px;">
-                    <strong>${escapeHtml(username)}</strong> 
-                    (<span style="color:${roleColor}">${roleText}</span>)
-                    <span style="font-size:12px; color:#6c757d; margin-left: 5px;">${user.createdBy && user.createdBy !== 'system' ? `(Criado por: ${user.createdBy})` : ''}</span>
-                </div>
-            `;
-            
-            let canDelete = false;
-            if (isAdminUser && username !== currentUser.username) {
-                canDelete = true;
-            } else if (isManagerUser) {
-                if (user.createdBy === currentUser.username && user.role === 'user' && username !== currentUser.username) {
-                    canDelete = true;
-                }
-            }
-
-            if (canDelete) {
-                 const deleteBtn = document.createElement('button');
-                 deleteBtn.textContent = 'Remover';
-                 deleteBtn.style.background
+                <div id="userListDisplay" class="list" style="max-height:
