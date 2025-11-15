@@ -58,6 +58,13 @@
 
     function showPopup(text, ms = 900) { scanPopup.textContent = text; scanPopup.style.display = 'block'; setTimeout(() => { scanPopup.style.display = 'none'; }, ms); }
     function logOutput(msg) { output.textContent = msg; console.info(msg); }
+    function logLoginStatus(msg) { 
+        const statusEl = document.getElementById('loginStatus');
+        if (statusEl) {
+            statusEl.textContent = msg;
+            statusEl.style.color = msg.includes('falhou') ? '#dc3545' : '#6c757d'; // Vermelho para falha
+        }
+    }
     function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
     
     // Formata uma data Date() para AAAA-MM-DD
@@ -79,7 +86,7 @@
         renderScans(); 
     }
     
-    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (Sem Alterações na Lógica Base) ---
+    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS ---
     
     function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
@@ -88,6 +95,7 @@
             const raw = localStorage.getItem(USER_KEY);
             if (raw) {
                 const savedUsers = JSON.parse(raw);
+                // Garante que o usuário padrão 'thon' exista
                 if (!savedUsers['thon']) {
                     savedUsers['thon'] = { password: '882010', role: 'administrator', createdBy: 'system' };
                 }
@@ -130,7 +138,7 @@
             renderScans(); // Renderiza após o login
             return true;
         }
-        logOutput('Login falhou: Usuário ou senha inválidos.');
+        logLoginStatus('Login falhou: Usuário ou senha inválidos.');
         return false;
     }
 
@@ -341,7 +349,7 @@
     }
 
 
-    // --- RENDERIZAÇÃO E UI (Atualizado) ---
+    // --- RENDERIZAÇÃO E UI ---
 
     function renderScans() {
         // Garante que a lista e o output só apareçam se o usuário estiver logado
@@ -428,7 +436,7 @@
         const authElements = document.querySelectorAll('.auth-control');
         authElements.forEach(el => el.remove());
 
-        // 4. Configuração do Date Selector (Sempre visível quando logado)
+        // 4. Configuração do Date Selector
         let dateContainer = document.querySelector('#dateContainer');
         if (dateContainer) dateContainer.remove();
         
@@ -436,7 +444,7 @@
         if (loggedIn) {
             // --- MODO LOGADO ---
             
-            // Adiciona a classe ao body (embora o 'app' esteja sendo controlado pelo display)
+            // Remove a classe do body (exibe o .app)
             body.classList.remove('login-active');
             
             // 4a. Cria e mostra o seletor de Data
@@ -489,7 +497,7 @@
             }
 
         } else {
-            // --- MODO DESLOGADO: TELA DE LOGIN ---
+            // --- MODO DESLOGADO: TELA DE LOGIN (NOVO VISUAL) ---
             
             body.classList.add('login-active'); // Adiciona a classe para estilizar o body e esconder o .app
             
@@ -508,7 +516,7 @@
                     <input type="text" id="loginUser" placeholder="Nome de Usuário" required>
                     <input type="password" id="loginPass" placeholder="Senha" required>
                     <button id="loginBtn">Entrar</button>
-                    <p style="font-size: 12px; color: #999; margin-bottom: 0;">Use 'thon' e '882010' para Admin.</p>
+                    <p id="loginStatus" class="login-status-message"></p>
                 </div>
             `;
             
@@ -522,6 +530,7 @@
             const handleLoginAttempt = () => {
                 const user = loginUserField.value;
                 const pass = loginPassField.value;
+                logLoginStatus('Verificando credenciais...');
                 loginUser(user, pass);
             };
 
@@ -533,13 +542,14 @@
             }
             
             logOutput('Por favor, faça login para começar.');
+            logLoginStatus('Insira suas credenciais.');
         }
 
         // Garante que a câmera pare se não estiver logado
         if (!loggedIn) { stopCamera(); }
     }
     
-    // --- LÓGICA DA CÂMERA (Mantida) ---
+    // --- LÓGICA DA CÂMERA ---
     
     async function requestPermissionOnce() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia não suportado');
@@ -671,7 +681,7 @@
         rafId = requestAnimationFrame(scanLoop);
     }
     
-    // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Mantida) ---
+    // --- LÓGICA DE EXTRAÇÃO E RESULTADO ---
     
     function extractIdFromLink(link) {
         if (!link || typeof link !== 'string') return { type: null, value: null };
@@ -728,7 +738,7 @@
         logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
     }
 
-    // --- FUNÇÕES DE RELATÓRIO (Atualizada para usar a mesma lógica de acesso do getFilteredScans) ---
+    // --- FUNÇÕES DE RELATÓRIO ---
     
     function getDateRange(period) {
         const now = new Date();
@@ -780,7 +790,7 @@
         logOutput(`Relatório ${periodName} gerado com ${filteredData.length} registros.`);
     }
 
-    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Mantidas) ---
+    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA ---
     
     function convertToCSV(data) {
         if (!data || data.length === 0) return '';
