@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner 8000 (com Admin/Gestor)</title>
+  <title>📦 Scanner 8000 v0.1</title>
 
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
@@ -19,12 +19,13 @@
     }
 
     .app{max-width:920px;margin:12px auto;padding:12px}
-    h1{margin:0 0 8px;font-size:18px;color:#111}
+    /* Título com a versão */
+    h1{margin:0 0 8px;font-size:18px;color:#111} 
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
     button{background:#00b4d8;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;}
     button.secondary{background:#6c757d}
     
-    /* Estilo para Inputs/Selects (Mantido com alto contraste) */
+    /* Estilo para Inputs/Selects (Alto contraste) */
     .controls input[type="text"], 
     .controls input[type="password"], 
     .controls select {
@@ -34,6 +35,11 @@
       width: 120px;
       color: #111; 
       background-color: #fff; 
+    }
+    /* Estilos específicos para inputs no formulário de login inicial */
+    #loginForm input[type="text"],
+    #loginForm input[type="password"] {
+      width: 160px; /* Alargado para melhor toque no mobile */
     }
     
     .camera-wrap{position:relative;max-width:920px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;height:60vh;display:flex;align-items:center;justify-content:center}
@@ -51,7 +57,6 @@
     }
     
     #output{min-height:36px;display:flex;align-items:center;gap:8px;color:#6c757d;padding:4px}
-    /* Bordas voltaram a ser claras */
     .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
     .item{padding:8px;border-bottom:1px solid #eee; color:#343a40;} 
     .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
@@ -67,9 +72,9 @@
 </head>
 <body>
   <div class="app">
-    <h1>📦 Scanner 8000</h1>
+        <h1>📦 Scanner 8000 v0.1</h1>
 
-    <div class="controls" id="controls">
+        <div class="controls" id="controls">
       <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
       <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
       <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
@@ -81,13 +86,13 @@
       <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
     </div>
 
-    <div class="camera-wrap" id="cameraWrap">
+        <div class="camera-wrap" id="cameraWrap">
       <video id="videoElement" muted playsinline autoplay></video>
       <canvas id="overlay"></canvas>
     </div>
 
     <div class="panel">
-      <div id="output">Pronto. Por favor, faça login.</div>
+      <div id="output">Por favor, faça login para começar.</div>
       <div class="list" id="scansList" aria-live="polite"></div>
     </div>
   </div>
