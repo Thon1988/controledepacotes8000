@@ -1,28 +1,28 @@
 // app.js — Mobile-friendly scanner (iOS + Android) with authentication and reporting (Admin, Manager, User)
 
+// Envolve todo o código em uma IIFE para isolamento, mas o ponto crítico é o listener DOMContentLoaded no final.
 (() => {
     // --- Referências de Elementos Existentes ---
-    const video = document.getElementById('videoElement');
-    const overlay = document.getElementById('overlay');
-    const output = document.getElementById('output');
-    const scansList = document.getElementById('scansList');
-    const startButton = document.getElementById('startButton');
-    const stopButton = document.getElementById('stopButton');
-    const torchButton = document.getElementById('torchButton');
-    const deviceSelect = document.getElementById('deviceSelect');
-    const deviceSelectLabel = document.getElementById('deviceSelectLabel');
-    const exportBtn = document.getElementById('exportBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const scanPopup = document.getElementById('scanPopup');
-    const overlayCtx = overlay.getContext('2d');
-    const controlsContainer = document.getElementById('controls');
-    const body = document.body;
-    
-    // Referências de Login (Ponto de falha se o HTML não estiver perfeito)
-    const loginScreen = document.getElementById('loginScreen');
-    const loginBtn = document.getElementById('loginBtn'); 
-    const loginUserField = document.getElementById('loginUser');
-    const loginPassField = document.getElementById('loginPass');
+    // Estas referências são declaradas no topo do escopo do módulo.
+    let video;
+    let overlay;
+    let output;
+    let scansList;
+    let startButton;
+    let stopButton;
+    let torchButton;
+    let deviceSelect;
+    let deviceSelectLabel;
+    let exportBtn;
+    let clearBtn;
+    let scanPopup;
+    let overlayCtx;
+    let controlsContainer;
+    let body;
+    let loginScreen;
+    let loginBtn; 
+    let loginUserField;
+    let loginPassField;
     
     // --- Variáveis e Constantes ---
     const STORAGE_KEY = 'scannedPackages_v1_mobile';
@@ -114,7 +114,6 @@
             console.error("Erro ao carregar usuários salvos, usando padrões.", e);
         }
         
-        // Garante que o usuário administrador padrão sempre exista, caso tenha sido apagado ou o storage esteja vazio
         if (!loadedUsers['thon']) {
             loadedUsers['thon'] = defaultUsers['thon'];
             if (!isDefault) { 
@@ -122,13 +121,11 @@
             }
         }
 
-        // Se o storage estava vazio, salva a lista padrão completa
         if (isDefault && Object.keys(loadedUsers).length > 0) {
              loadedUsers = { ...defaultUsers, ...loadedUsers };
              saveUsers();
         }
 
-        // Adiciona metadados se faltarem
         Object.keys(loadedUsers).forEach(username => {
             if (!loadedUsers[username].createdBy) {
                 loadedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
@@ -921,14 +918,38 @@
         scannedData = []; saveScannedData(); renderScans(); logOutput('Registros limpos.'); 
     }
 
-    // --- INICIALIZAÇÃO ---
+    // --- INICIALIZAÇÃO E LISTENERS ---
+    
+    // 1. Funções para configurar todas as referências do DOM após o carregamento
+    function setupDOMLinks() {
+        video = document.getElementById('videoElement');
+        overlay = document.getElementById('overlay');
+        output = document.getElementById('output');
+        scansList = document.getElementById('scansList');
+        startButton = document.getElementById('startButton');
+        stopButton = document.getElementById('stopButton');
+        torchButton = document.getElementById('torchButton');
+        deviceSelect = document.getElementById('deviceSelect');
+        deviceSelectLabel = document.getElementById('deviceSelectLabel');
+        exportBtn = document.getElementById('exportBtn');
+        clearBtn = document.getElementById('clearBtn');
+        scanPopup = document.getElementById('scanPopup');
+        overlayCtx = overlay.getContext('2d');
+        controlsContainer = document.getElementById('controls');
+        body = document.body;
+        
+        loginScreen = document.getElementById('loginScreen');
+        loginBtn = document.getElementById('loginBtn'); 
+        loginUserField = document.getElementById('loginUser');
+        loginPassField = document.getElementById('loginPass');
+    }
+
 
     function setupLoginListeners() {
         if (loginBtn) { 
             const handleLoginAttempt = (e) => {
-                if (e && e.type === 'click') {
-                     e.preventDefault(); 
-                }
+                // Previne o comportamento padrão (ex: recarregar a página se estiver em um form)
+                if (e) e.preventDefault(); 
 
                 const user = loginUserField.value.trim(); 
                 const pass = loginPassField.value;
@@ -942,9 +963,10 @@
                 loginUser(user, pass);
             };
 
-            // Possível ponto de falha: Se o botão ou campos de login não forem encontrados no DOM imediatamente.
+            // Listener de clique no botão
             loginBtn.addEventListener('click', handleLoginAttempt);
             
+            // Listeners para a tecla ENTER nos campos de senha e usuário
             if (loginPassField) {
                  loginPassField.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') handleLoginAttempt(e);
@@ -960,30 +982,41 @@
         logLoginStatus('Insira suas credenciais.');
     }
 
-    deviceSelect.addEventListener('change', async () => {
-        if (!isAuthenticated()) return;
-        const id = deviceSelect.value; if (!id) return;
-        try { stopCamera(); mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id } }, audio: false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning = true; rafId = requestAnimationFrame(scanLoop); startButton.style.display = 'none'; stopButton.style.display = 'inline-block'; logOutput('Usando câmera selecionada.'); } catch (e) { console.warn('Falha ao selecionar deviceId', e); logOutput('Falha ao usar câmera selecionada.'); }
-    });
-
-    function init() {
-        selectedDate = formatDate(new Date()); 
-        
-        setupLoginListeners();
-
+    function setupOtherListeners() {
         startButton.addEventListener('click', startCamera);
         stopButton.addEventListener('click', stopCamera);
         torchButton.addEventListener('click', toggleTorch);
         exportBtn.addEventListener('click', exportCSV);
         clearBtn.addEventListener('click', clearScans);
         window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
-        drawBoundingBox(null);
         
+        deviceSelect.addEventListener('change', async () => {
+            if (!isAuthenticated()) return;
+            const id = deviceSelect.value; if (!id) return;
+            try { stopCamera(); mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id } }, audio: false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning = true; rafId = requestAnimationFrame(scanLoop); startButton.style.display = 'none'; stopButton.style.display = 'inline-block'; logOutput('Usando câmera selecionada.'); } catch (e) { console.warn('Falha ao selecionar deviceId', e); logOutput('Falha ao usar câmera selecionada.'); }
+        });
+    }
+
+    function init() {
+        // 1. Carrega as referências do DOM (necessário antes de adicionar listeners)
+        setupDOMLinks();
+        
+        // 2. Configura a data
+        selectedDate = formatDate(new Date()); 
+        
+        // 3. Configura os listeners de login e outros
+        setupLoginListeners();
+        setupOtherListeners();
+
+        // 4. Desenha a área de foco inicial e atualiza a UI
+        drawBoundingBox(null);
         updateUIForAuth(); 
         renderScans(); 
         
         window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData, openMapForAddress };
     }
 
-    init();
+    // PONTO CRÍTICO CORRIGIDO: Só inicia o JS após o DOM estar totalmente carregado.
+    document.addEventListener('DOMContentLoaded', init);
+
 })();
