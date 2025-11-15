@@ -128,7 +128,7 @@
         updateUIForAuth();
     }
     
-    // --- GERENCIAMENTO DE USUÁRIOS (CORES FIXAS RESTAURADAS) ---
+    // --- GERENCIAMENTO DE USUÁRIOS ---
 
     function setupUserManagement() {
         if (!isAdmin() && !isManager()) { return; }
@@ -151,7 +151,6 @@
             roleOptions = `<option value="user">Usuário Padrão</option>`;
         }
         
-        // REVERTEU: Estilos inline para cores fixas (BRANCO)
         container.innerHTML = `
             <div class="panel" style="margin-top: 12px; background: #fff; color: #111;">
                 <h3 style="margin: 0 0 8px; font-size: 16px; color: #111;">👤 Gerenciar Usuários</h3>
@@ -166,7 +165,6 @@
                 <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
             </div>
         `;
-        // FIM DA REVERSÃO
         
         controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
 
@@ -189,7 +187,6 @@
             return user.createdBy === currentUser.username;
         });
         
-        // REVERTEU: Cor do texto para #6c757d (cor original)
         if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:#6c757d">Nenhum usuário gerenciável.</div>'; return; }
 
 
@@ -296,14 +293,12 @@
 
     function renderScans() {
         scansList.innerHTML = '';
-        // REVERTEU: Cor do texto para #6c757d (cor original)
         if (!scannedData.length) { scansList.innerHTML = '<div style="color:#6c757d">Nenhum registro ainda.</div>'; return; }
         
         scannedData.slice(0, 20).forEach((item, idx) => {
             const el = document.createElement('div'); el.className = 'item';
             const idBadge = item.extractedId && item.extractedId.value ? `<div class="badge">${escapeHtml(item.extractedId.type)}: ${escapeHtml(item.extractedId.value)}</div>` : '';
             const qrBadge = item.qrId && item.qrId.value ? `<div class="badge">QR: ${escapeHtml(item.qrId.value)}</div>` : '';
-            // REVERTEU: Cor do texto secundário e meta
             const scannedByTag = item.scannedBy ? `<span style="font-size:12px; color:#6c757d; margin-left: 5px;">por: ${escapeHtml(item.scannedBy)}</span>` : '';
             
             el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><div class="badge">${escapeHtml(item.plataforma)}</div>${qrBadge}${idBadge}<div style="font-size:14px;word-break:break-all; color: #343a40;">${escapeHtml(item.link)}</div><div style="margin-left:auto; display:flex; align-items:center;">${scannedByTag}<button data-idx="${idx}" style="background:#00b4d8;color:#fff;padding:6px;border-radius:6px; margin-left: 8px;">Abrir</button></div></div><div class="meta" style="color:#6c757d;">${escapeHtml(item.dataHora)}</div>`;
@@ -325,16 +320,21 @@
         const adminMode = isAdmin();
         const managerMode = isManager();
 
-        const visibility = loggedIn ? 'inline-block' : 'none';
-        startButton.style.display = visibility;
+        // 1. Oculta todos os controles principais
+        const controls = [startButton, stopButton, torchButton, deviceSelect, deviceSelectLabel, exportBtn, clearBtn];
+        controls.forEach(el => el.style.display = 'none');
         
-        exportBtn.style.display = adminMode ? 'inline-block' : 'none';
-        clearBtn.style.display = adminMode ? 'inline-block' : 'none';
-
+        // 2. Remove todos os elementos dinâmicos (login/logout/gerenciamento/relatórios)
         const authElements = document.querySelectorAll('.auth-control');
         authElements.forEach(el => el.remove());
 
         if (loggedIn) {
+            // MOSTRA CONTROLES
+            startButton.style.display = 'inline-block';
+            exportBtn.style.display = adminMode ? 'inline-block' : 'none';
+            clearBtn.style.display = adminMode ? 'inline-block' : 'none';
+
+            // Adiciona Logout e Relatórios
             const user = getLoggedInUser();
             const logoutBtn = createButton(`👋 ${user.username} - Sair`, 'secondary', logoutUser);
             logoutBtn.classList.add('auth-control');
@@ -358,15 +358,23 @@
             }
 
         } else {
-            // Adiciona formulário de Login
-            const form = document.createElement('div'); form.classList.add('auth-control'); form.style.display = 'flex'; form.style.gap = '8px'; form.style.flexWrap = 'wrap'; form.style.alignItems = 'center';
-            // REVERTEU: Inputs com cores fixas (BRANCO)
+            // EXIBE FORMULÁRIO DE LOGIN NA ÁREA DE CONTROLES
+            const form = document.createElement('div'); 
+            form.id = 'loginForm'; // ID para estilos específicos no HTML
+            form.classList.add('auth-control'); 
+            form.style.display = 'flex'; 
+            form.style.gap = '8px'; 
+            form.style.flexWrap = 'wrap'; 
+            form.style.alignItems = 'center';
+            
+            // Campos de input com largura ajustada
             form.innerHTML = `
-                <input type="text" id="loginUser" placeholder="Usuário" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
-                <input type="password" id="loginPass" placeholder="Senha" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
+                <input type="text" id="loginUser" placeholder="Usuário" required style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; color: #111; background-color: #fff;">
+                <input type="password" id="loginPass" placeholder="Senha" required style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; color: #111; background-color: #fff;">
                 <button id="loginBtn" style="background:#28a745;color:#fff;">🔑 Entrar</button>
             `;
-            // FIM DA REVERSÃO
+            
+            // Insere o formulário no container de controles
             controlsContainer.appendChild(form);
             
             const loginBtn = document.getElementById('loginBtn');
@@ -378,9 +386,10 @@
                 });
             }
             
-            logOutput('Pronto. Por favor, faça login.');
+            logOutput('Por favor, faça login para começar.');
         }
 
+        // Garante que a câmera pare se não estiver logado
         if (!loggedIn) { stopCamera(); }
     }
     
@@ -466,7 +475,7 @@
         
         stopButton.style.display = 'none'; torchButton.style.display = 'none'; deviceSelect.style.display = 'none'; deviceSelectLabel.style.display = 'none';
         overlayCtx.clearRect(0,0,overlay.width,overlay.height);
-        logOutput(isAuthenticated() ? 'Scanner parado.' : 'Pronto. Por favor, faça login.');
+        logOutput(isAuthenticated() ? 'Scanner parado.' : 'Por favor, faça login para começar.');
     }
     
     function fitCanvases() {
@@ -502,7 +511,7 @@
                 
                 if (code && code.data) {
                     if (code.location) {
-                        const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCtx.height; // Corrigido para tempCtx.height
+                        const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCanvas.height;
                         const mapCorner = (pt) => ({ x: Math.round(pt.x * scaleX + sx), y: Math.round(pt.y * scaleY + sy) });
                         const loc = { topLeftCorner: mapCorner(code.location.topLeftCorner), topRightCorner: mapCorner(code.location.topRightCorner), bottomLeftCorner: mapCorner(code.location.bottomLeftCorner), bottomRightCorner: mapCorner(code.location.bottomRightCorner) };
                         drawBoundingBox(loc);
@@ -661,6 +670,7 @@
         window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
         drawBoundingBox(null);
         
+        // Carrega o estado de autenticação e exibe o login (se necessário)
         updateUIForAuth(); 
         
         window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
