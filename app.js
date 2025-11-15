@@ -19,9 +19,9 @@
     const appContainer = document.querySelector('.app'); 
     const body = document.body;
     
-    // NOVO: Referências diretas aos elementos de login (agora fixos no HTML)
+    // As referências de login nesta versão podem ser o ponto de falha
     const loginScreen = document.getElementById('loginScreen');
-    const loginBtn = document.getElementById('loginBtn');
+    const loginBtn = document.getElementById('loginBtn'); 
     const loginUserField = document.getElementById('loginUser');
     const loginPassField = document.getElementById('loginPass');
     
@@ -38,7 +38,7 @@
     let scanning = false;
     let lastScanTime = 0;
     let scannedData = loadScannedData();
-    let users = loadUsers(); // Carrega usuários na inicialização
+    let users = loadUsers(); 
     
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -70,14 +70,13 @@
             statusEl.style.color = msg.includes('falhou') ? '#dc3545' : '#6c757d'; 
         }
     }
-    // Melhoria: Usar template literal para evitar erro de aspas/quebra de linha
     function escapeHtml(s) { 
         return (s+'').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''})[c]); 
     }
     
     function formatDate(date) { return date.toISOString().substring(0, 10); }
 
-    // --- DADOS E LOCAL STORAGE (Mantida) ---
+    // --- DADOS E LOCAL STORAGE ---
     function saveScannedData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); } catch (e) { console.warn(e); } }
     function loadScannedData() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
     function addScan(entry) { 
@@ -154,14 +153,12 @@
     function isManager() { const user = getLoggedInUser(); return user && user.role === 'manager'; }
 
     function loginUser(username, password) {
-        // Recarrega a lista de usuários para ter certeza que está atualizada
         users = loadUsers(); 
         
         if (users[username] && users[username].password === password) {
             const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
             sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
             
-            // Limpa os campos de login
             if (loginUserField) loginUserField.value = '';
             if (loginPassField) loginPassField.value = '';
             
@@ -344,7 +341,7 @@
     }
 
 
-    // --- LÓGICA DE FILTRAGEM DE SCANS (Mantida) ---
+    // --- LÓGICA DE FILTRAGEM DE SCANS ---
     
     function getFilterableUsernames(currentUser) {
         if (isAdmin()) {
@@ -377,9 +374,8 @@
     }
 
 
-    // --- RENDERIZAÇÃO E UI (Mantida) ---
+    // --- RENDERIZAÇÃO E UI ---
 
-    // Função para abrir o mapa DIRETAMENTE com o endereço
     function openMapForAddress(address) {
         if (!address || address.trim() === 'N/A, CEP N/A') {
             alert("Endereço indisponível para este item.");
@@ -442,9 +438,7 @@
             idText.style.color = '#343a40';
             idText.innerHTML = `<strong>ID: ${escapeHtml(mainId)}</strong>`;
             
-            // 🛑 CORREÇÃO AQUI: Garante que apenas o endereço formatado seja usado.
             let addressOnly = `${item.comprador?.endereco || 'N/A'}, CEP ${item.comprador?.cep || 'N/A'}`;
-            // Remove a parte "CEP N/A" se for o caso
             addressOnly = addressOnly.replace(/, CEP N\/A$/, '').trim(); 
 
             const mapPin = document.createElement('span');
@@ -504,7 +498,6 @@
         return btn;
     }
 
-    // Função de controle de UI (Mantida)
     function updateUIForAuth() {
         const loggedIn = isAuthenticated();
         const adminMode = isAdmin();
@@ -591,7 +584,7 @@
         if (!loggedIn) { stopCamera(); }
     }
     
-    // --- LÓGICA DA CÂMERA (Mantida) ---
+    // --- LÓGICA DA CÂMERA ---
     
     async function requestPermissionOnce() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia não suportado');
@@ -723,7 +716,7 @@
         rafId = requestAnimationFrame(scanLoop);
     }
     
-    // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Mantida) ---
+    // --- LÓGICA DE EXTRAÇÃO E RESULTADO ---
     
     function extractIdFromLink(link) {
         if (!link || typeof link !== 'string') return { type: null, value: null };
@@ -746,10 +739,8 @@
         if (p.length <= 64 && /[A-Za-z0-9\-_]{4,}/.test(p)) return { type: 'text', value: p.split(/\s|;|,|\|/)[0] };
         return { type: null, value: null };
     }
-
-    // Simula a obtenção de dados do comprador
+    
     function getCompradorInfo(mainId) {
-        // Exemplo BR2559436650945 sempre retorna o mesmo comprador
         if (mainId === 'BR2559436650945') {
             return {
                  nome: "Fulano da Silva",
@@ -758,7 +749,6 @@
             };
         }
         
-        // Esta é uma simulação genérica para outros IDs.
         const hash = (mainId || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const names = ["João Silva", "Maria Santos", "Pedro Almeida", "Ana Oliveira", "Carlos Souza", "Fernando Costa", "Juliana Lima", "Ricardo Teles"];
         const addresses = [
@@ -789,10 +779,8 @@
         const extractedId = extractIdFromLink(payload); 
         const qrId = extractQrId(payload);
         
-        // Priorizar o link completo como ID principal
         const mainId = payload; 
 
-        // Adiciona a informação do comprador
         const compradorInfo = getCompradorInfo(mainId);
         
         const entry = { plataforma, link: payload, dataHora: new Date().toLocaleString('pt-BR'), timestamp: Date.now(), extractedId, qrId, comprador: compradorInfo };
@@ -815,7 +803,7 @@
         logOutput(`Lido: ${plataforma} • ${mainId}`);
     }
 
-    // --- FUNÇÕES DE RELATÓRIO (Mantida) ---
+    // --- FUNÇÕES DE RELATÓRIO ---
     
     function getDateRange(period) {
         const now = new Date();
@@ -875,7 +863,7 @@
         logOutput(`Relatório ${periodName} gerado com ${filteredData.length} registros.`);
     }
 
-    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Mantida) ---
+    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA ---
     
     function convertToCSV(data) {
         if (!data || data.length === 0) return '';
@@ -938,34 +926,39 @@
     // --- INICIALIZAÇÃO ---
 
     function setupLoginListeners() {
-        if (!loginBtn) return; 
+        // A lógica de login nesta versão pode ter problemas com o escopo ou timing do loginBtn
+        if (loginBtn) { 
+            const handleLoginAttempt = (e) => {
+                // Previne a submissão padrão do formulário se o botão estiver dentro de um <form>
+                if (e && e.type === 'click') {
+                     e.preventDefault(); 
+                }
 
-        const handleLoginAttempt = (e) => {
-            // Impedir o comportamento padrão do botão se for um evento de clique
-            if (e && e.type === 'click') {
-                 e.preventDefault(); 
-            }
-            
-            const user = loginUserField.value.trim(); 
-            const pass = loginPassField.value;
-            
-            if (!user || !pass) {
-                 logLoginStatus('Usuário e senha são obrigatórios.');
-                 return;
-            }
-            
-            logLoginStatus('Verificando credenciais...');
-            loginUser(user, pass);
-        };
+                const user = loginUserField.value.trim(); 
+                const pass = loginPassField.value;
+                
+                if (!user || !pass) {
+                     logLoginStatus('Usuário e senha são obrigatórios.');
+                     return;
+                }
+                
+                logLoginStatus('Verificando credenciais...');
+                loginUser(user, pass);
+            };
 
-        loginBtn.addEventListener('click', handleLoginAttempt);
-        loginPassField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleLoginAttempt(e);
-        });
-        
-        loginUserField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleLoginAttempt(e);
-        });
+            loginBtn.addEventListener('click', handleLoginAttempt);
+            
+            if (loginPassField) {
+                 loginPassField.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') handleLoginAttempt(e);
+                });
+            }
+             if (loginUserField) {
+                 loginUserField.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') handleLoginAttempt(e);
+                });
+            }
+        }
         
         logLoginStatus('Insira suas credenciais.');
     }
