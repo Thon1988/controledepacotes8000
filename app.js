@@ -38,7 +38,7 @@
     let scanning = false;
     let lastScanTime = 0;
     let scannedData = loadScannedData();
-    let users = loadUsers(); 
+    let users = loadUsers(); // Carrega usuários na inicialização
     
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -92,34 +92,53 @@
         renderScans(); 
     }
     
-    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (Mantida) ---
+    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS ---
     
     function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
     function loadUsers() {
-        try { 
-            const raw = localStorage.getItem(USER_KEY);
-            if (raw) {
-                const savedUsers = JSON.parse(raw);
-                if (!savedUsers['thon']) {
-                    savedUsers['thon'] = { password: '882010', role: 'administrator', createdBy: 'system' };
-                }
-                Object.keys(savedUsers).forEach(username => {
-                    if (!savedUsers[username].createdBy) {
-                        savedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
-                    }
-                });
-                return savedUsers;
-            }
-        } catch (e) {}
-
         const defaultUsers = {
             'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, 
             'manager1': { password: '123', role: 'manager', createdBy: 'system' },     
             'user1': { password: 'user1', role: 'user', createdBy: 'manager1' }        
         };
-        try { localStorage.setItem(USER_KEY, JSON.stringify(defaultUsers)); } catch (e) {}
-        return defaultUsers;
+        
+        let loadedUsers = {};
+        let isDefault = true;
+
+        try { 
+            const raw = localStorage.getItem(USER_KEY);
+            if (raw) {
+                loadedUsers = JSON.parse(raw);
+                isDefault = false;
+            }
+        } catch (e) {
+            console.error("Erro ao carregar usuários salvos, usando padrões.", e);
+        }
+        
+        // Garante que o usuário administrador padrão sempre exista, caso tenha sido apagado ou o storage esteja vazio
+        if (!loadedUsers['thon']) {
+            loadedUsers['thon'] = defaultUsers['thon'];
+            if (!isDefault) { // Se existiam outros usuários, mas o thon foi apagado, salva de novo.
+                saveUsers(); 
+            }
+        }
+
+        // Se o storage estava vazio, salva a lista padrão completa
+        if (isDefault && Object.keys(loadedUsers).length > 0) {
+             // Garante que todos os defaults estejam presentes se for a primeira carga
+             loadedUsers = { ...defaultUsers, ...loadedUsers };
+             saveUsers();
+        }
+
+        // Adiciona metadados se faltarem
+        Object.keys(loadedUsers).forEach(username => {
+            if (!loadedUsers[username].createdBy) {
+                loadedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
+            }
+        });
+
+        return loadedUsers;
     }
     
     function getLoggedInUser() {
@@ -135,11 +154,17 @@
     function isManager() { const user = getLoggedInUser(); return user && user.role === 'manager'; }
 
     function loginUser(username, password) {
+        // Recarrega a lista de usuários para ter certeza que está atualizada
+        users = loadUsers(); 
+        
         if (users[username] && users[username].password === password) {
             const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
             sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
-            loginUserField.value = '';
-            loginPassField.value = '';
+            
+            // Limpa os campos de login
+            if (loginUserField) loginUserField.value = '';
+            if (loginPassField) loginPassField.value = '';
+            
             logLoginStatus('');
             
             updateUIForAuth();
@@ -352,9 +377,9 @@
     }
 
 
-    // --- RENDERIZAÇÃO E UI ---
+    // --- RENDERIZAÇÃO E UI (Mantida) ---
 
-    // Função para abrir o mapa DIRETAMENTE com o endereço (Mantida)
+    // Função para abrir o mapa DIRETAMENTE com o endereço
     function openMapForAddress(address) {
         if (!address || address.trim() === 'N/A, CEP N/A') {
             alert("Endereço indisponível para este item.");
@@ -363,17 +388,14 @@
 
         const encodedAddress = encodeURIComponent(address);
         
-        // Use prompt para dar a opção de escolha
         const choice = prompt(
             `Abrir o endereço "${address}" com:\n1. Google Maps (Tenta abrir o app)\n2. Waze (Tenta abrir o app)\n\nDigite 1 ou 2:`,
-            '1' // Sugere Google Maps como padrão
+            '1' 
         );
 
         if (choice === '1') {
-            // Google Maps URL Scheme (geo:)
             window.open(`geo:0,0?q=${encodedAddress}`, '_blank');
         } else if (choice === '2') {
-            // Waze URL Scheme (waze://)
             window.open(`waze://?q=${encodedAddress}&navigate=yes`, '_blank');
         } else if (choice !== null) {
             alert("Opção inválida. Por favor, digite 1 (Google Maps) ou 2 (Waze).");
@@ -405,33 +427,27 @@
             el.style.padding = '6px 0';
             el.style.borderBottom = '1px dashed #eee';
             
-            // Priorizar o link completo como ID
             const mainId = item.link || item.qrId.value || item.extractedId.value; 
             const idType = 'Link Completo'; 
             
-            // Container para a linha principal (ID + Botões)
             const mainLine = document.createElement('div');
             mainLine.style.display = 'flex';
             mainLine.style.justifyContent = 'space-between';
             mainLine.style.alignItems = 'center';
             mainLine.style.marginBottom = '4px';
 
-            // ID Principal
             const idText = document.createElement('span');
             idText.style.fontSize = '14px';
             idText.style.wordBreak = 'break-all';
             idText.style.color = '#343a40';
             idText.innerHTML = `<strong>ID: ${escapeHtml(mainId)}</strong>`;
             
-            // 🛑 CORREÇÃO AQUI: Garante que apenas o endereço formatado seja usado.
             let addressOnly = `${item.comprador?.endereco || 'N/A'}, CEP ${item.comprador?.cep || 'N/A'}`;
-            // Remove a parte "CEP N/A" se for o caso
             addressOnly = addressOnly.replace(/, CEP N\/A$/, '').trim(); 
 
-            // Ícone de Alfinete (Mapa)
             const mapPin = document.createElement('span');
             mapPin.innerHTML = '📍';
-            mapPin.title = `Abrir endereço: ${addressOnly} no Mapa`; // Título agora só com o endereço
+            mapPin.title = `Abrir endereço: ${addressOnly} no Mapa`;
             mapPin.style.fontSize = '20px'; 
             mapPin.style.cursor = 'pointer';
             mapPin.style.marginLeft = '8px';
@@ -440,14 +456,12 @@
             
             mapPin.addEventListener('click', (e) => {
                 e.stopPropagation(); 
-                // Passa APENAS o endereço formatado
                 openMapForAddress(addressOnly);
             });
             mapPin.addEventListener('mouseenter', () => mapPin.style.transform = 'scale(1.1)');
             mapPin.addEventListener('mouseleave', () => mapPin.style.transform = 'scale(1)');
 
 
-            // Linha de Informações do Comprador
             const infoLine = document.createElement('div');
             infoLine.style.fontSize = '12px';
             infoLine.style.color = '#495057';
@@ -457,7 +471,6 @@
                 📍 **Endereço:** ${escapeHtml(item.comprador?.endereco || 'N/A')} | **CEP:** ${escapeHtml(item.comprador?.cep || 'N/A')}
             `;
 
-            // Linha de metadados
             const metaLine = document.createElement('div');
             metaLine.style.fontSize = '11px';
             metaLine.style.color = '#6c757d';
@@ -467,7 +480,6 @@
             
             metaLine.textContent = `${escapeHtml(item.dataHora.split(' ')[1])} ${scannedByText} ${platformText} | Tipo ID: ${escapeHtml(idType)}`;
             
-            // Adiciona o alfinete antes do texto principal
             mainLine.appendChild(mapPin); 
             mainLine.appendChild(idText);
 
@@ -926,16 +938,33 @@
     function setupLoginListeners() {
         if (!loginBtn) return; 
 
-        const handleLoginAttempt = () => {
-            const user = loginUserField.value;
+        const handleLoginAttempt = (e) => {
+            // Impedir o comportamento padrão do botão se for um evento de clique
+            if (e && e.type === 'click') {
+                 e.preventDefault(); 
+            }
+            // Não impede o 'Enter' se for disparado pelo keypress
+            
+            const user = loginUserField.value.trim(); // Garante que não há espaços
             const pass = loginPassField.value;
+            
+            if (!user || !pass) {
+                 logLoginStatus('Usuário e senha são obrigatórios.');
+                 return;
+            }
+            
             logLoginStatus('Verificando credenciais...');
             loginUser(user, pass);
         };
 
         loginBtn.addEventListener('click', handleLoginAttempt);
         loginPassField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleLoginAttempt();
+            if (e.key === 'Enter') handleLoginAttempt(e);
+        });
+        
+        // Garante que o loginUserField também dispare no Enter, para maior usabilidade
+        loginUserField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleLoginAttempt(e);
         });
         
         logLoginStatus('Insira suas credenciais.');
