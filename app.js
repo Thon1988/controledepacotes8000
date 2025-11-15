@@ -30,7 +30,7 @@
     let scanning = false;
     let lastScanTime = 0;
     let scannedData = loadScannedData();
-    let users = loadUsers(); // Carrega ou inicializa usuários
+    let users = loadUsers(); 
     
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -58,7 +58,6 @@
     function saveScannedData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); } catch (e) { console.warn(e); } }
     function loadScannedData() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
     function addScan(entry) { 
-        // Adiciona o usuário logado ao registro de scan (CRÍTICO para relatórios de gestores)
         const currentUser = getLoggedInUser();
         if (currentUser) {
             entry.scannedBy = currentUser.username;
@@ -77,16 +76,11 @@
             const raw = localStorage.getItem(USER_KEY);
             if (raw) {
                 const savedUsers = JSON.parse(raw);
-                
-                // Garante que o administrador padrão 'thon' sempre exista
                 if (!savedUsers['thon']) {
                     savedUsers['thon'] = { password: '882010', role: 'administrator', createdBy: 'system' };
                 }
-                
-                // Garante o createdBy para usuários antigos
                 Object.keys(savedUsers).forEach(username => {
                     if (!savedUsers[username].createdBy) {
-                        // Tenta inferir se foi criado por admin ou é usuário padrão antigo
                         savedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
                     }
                 });
@@ -94,11 +88,10 @@
             }
         } catch (e) {}
 
-        // Usuários padrão
         const defaultUsers = {
-            'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, // ADMINISTRADOR PADRÃO
-            'manager1': { password: '123', role: 'manager', createdBy: 'system' },     // GESTOR PADRÃO
-            'user1': { password: 'user1', role: 'user', createdBy: 'manager1' }        // USUÁRIO COMUM PADRÃO
+            'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, 
+            'manager1': { password: '123', role: 'manager', createdBy: 'system' },     
+            'user1': { password: 'user1', role: 'user', createdBy: 'manager1' }        
         };
         try { localStorage.setItem(USER_KEY, JSON.stringify(defaultUsers)); } catch (e) {}
         return defaultUsers;
@@ -118,7 +111,6 @@
 
     function loginUser(username, password) {
         if (users[username] && users[username].password === password) {
-            // Salva também o createdBy na sessão para facilitar
             const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
             sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
             logOutput(`Login bem-sucedido. Bem-vindo(a), ${user.username} (${user.role}).`);
@@ -136,13 +128,11 @@
         updateUIForAuth();
     }
     
-    // --- GERENCIAMENTO DE USUÁRIOS (ATUALIZADO PARA DARK MODE) ---
+    // --- GERENCIAMENTO DE USUÁRIOS (CORES FIXAS RESTAURADAS) ---
 
     function setupUserManagement() {
         if (!isAdmin() && !isManager()) { return; }
 
-        const currentUser = getLoggedInUser();
-        
         const oldContainer = document.querySelector('#userManagementContainer');
         if (oldContainer) oldContainer.remove();
 
@@ -158,14 +148,13 @@
                 <option value="administrator">Administrador</option>
             `;
         } else if (isManager()) {
-            // Gestores só podem criar usuários comuns
             roleOptions = `<option value="user">Usuário Padrão</option>`;
         }
         
-        // --- ATUALIZAÇÃO: Usando var(--card) e var(--text-primary) ---
+        // REVERTEU: Estilos inline para cores fixas (BRANCO)
         container.innerHTML = `
-            <div class="panel" style="margin-top: 12px; background: var(--card); color: var(--text-primary);">
-                <h3 style="margin: 0 0 8px; font-size: 16px; color: var(--text-primary);">👤 Gerenciar Usuários</h3>
+            <div class="panel" style="margin-top: 12px; background: #fff; color: #111;">
+                <h3 style="margin: 0 0 8px; font-size: 16px; color: #111;">👤 Gerenciar Usuários</h3>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
                     <input type="text" id="newUser" placeholder="Nome de Usuário" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
                     <input type="password" id="newPass" placeholder="Senha" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
@@ -177,7 +166,7 @@
                 <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
             </div>
         `;
-        // --- FIM DA ATUALIZAÇÃO ---
+        // FIM DA REVERSÃO
         
         controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
 
@@ -194,16 +183,14 @@
         const isAdminUser = isAdmin();
         const isManagerUser = isManager();
         
-        // Filtra usuários: Administrador vê todos. Gestor vê apenas os que ele criou.
         const usersToShow = Object.keys(users).filter(username => {
             if (isAdminUser) return true;
             const user = users[username];
-            // Gestor só vê usuários criados por ele
             return user.createdBy === currentUser.username;
         });
         
-        // --- ATUALIZAÇÃO: Cor do texto para #666 substituída por var(--muted) ---
-        if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:var(--muted)">Nenhum usuário gerenciável.</div>'; return; }
+        // REVERTEU: Cor do texto para #6c757d (cor original)
+        if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:#6c757d">Nenhum usuário gerenciável.</div>'; return; }
 
 
         usersToShow.forEach(username => {
@@ -218,17 +205,14 @@
                 <div style="font-size:14px;">
                     <strong>${escapeHtml(username)}</strong> 
                     (<span style="color:${roleColor}">${roleText}</span>)
-                    <span style="font-size:12px; color:var(--muted); margin-left: 5px;">${user.createdBy && user.createdBy !== 'system' ? `(Criado por: ${user.createdBy})` : ''}</span>
+                    <span style="font-size:12px; color:#6c757d; margin-left: 5px;">${user.createdBy && user.createdBy !== 'system' ? `(Criado por: ${user.createdBy})` : ''}</span>
                 </div>
             `;
             
-            // Regras de exclusão
             let canDelete = false;
             if (isAdminUser && username !== currentUser.username) {
-                // Admin pode deletar qualquer um (menos a si mesmo)
                 canDelete = true;
             } else if (isManagerUser) {
-                // Gestor só pode deletar usuários que ele criou E que sejam 'user'
                 if (user.createdBy === currentUser.username && user.role === 'user' && username !== currentUser.username) {
                     canDelete = true;
                 }
@@ -241,12 +225,11 @@
                  deleteBtn.addEventListener('click', () => handleDeleteUser(username));
                  el.appendChild(deleteBtn);
             } else if (username === currentUser.username) {
-                 el.innerHTML += '<span style="font-size:12px; color:var(--muted); margin-left: 10px;">(Você)</span>';
+                 el.innerHTML += '<span style="font-size:12px; color:#6c757d; margin-left: 10px;">(Você)</span>';
             }
             listDiv.appendChild(el);
         });
     }
-    // --- FIM DA ATUALIZAÇÃO DO GERENCIAMENTO DE USUÁRIOS ---
     
     function handleCreateUser() {
         if (!isAdmin() && !isManager()) { alert('Você não tem permissão para criar usuários.'); return; }
@@ -263,7 +246,6 @@
         if (!username || !password) { alert('Usuário e Senha são obrigatórios.'); return; }
         if (users[username]) { alert(`O usuário '${username}' já existe.`); return; }
         
-        // Regra de segurança: Gestor só pode criar usuários comuns
         if (isManager() && role !== 'user') {
              alert('Um Gestor só pode criar Usuários Padrão.');
              return;
@@ -273,7 +255,6 @@
         saveUsers();
         logOutput(`Usuário ${username} (${role}) criado com sucesso.`);
         
-        // Limpa campos e atualiza lista
         usernameInput.value = '';
         passwordInput.value = '';
         renderUserList();
@@ -289,10 +270,8 @@
         let canDelete = false;
 
         if (isAdmin()) {
-            // Admin pode deletar qualquer um (menos a si mesmo)
             canDelete = true;
         } else if (isManager()) {
-            // Gestor só pode deletar: Usuários comuns que ele criou
             if (userToDelete.createdBy === currentUser.username && userToDelete.role === 'user') {
                 canDelete = true;
             } else {
@@ -317,17 +296,17 @@
 
     function renderScans() {
         scansList.innerHTML = '';
-        if (!scannedData.length) { scansList.innerHTML = '<div style="color:var(--muted)">Nenhum registro ainda.</div>'; return; }
+        // REVERTEU: Cor do texto para #6c757d (cor original)
+        if (!scannedData.length) { scansList.innerHTML = '<div style="color:#6c757d">Nenhum registro ainda.</div>'; return; }
         
-        // Exibe os 20 scans mais recentes
         scannedData.slice(0, 20).forEach((item, idx) => {
             const el = document.createElement('div'); el.className = 'item';
             const idBadge = item.extractedId && item.extractedId.value ? `<div class="badge">${escapeHtml(item.extractedId.type)}: ${escapeHtml(item.extractedId.value)}</div>` : '';
             const qrBadge = item.qrId && item.qrId.value ? `<div class="badge">QR: ${escapeHtml(item.qrId.value)}</div>` : '';
-            // Inclui quem escaneou, se disponível
-            const scannedByTag = item.scannedBy ? `<span style="font-size:12px; color:var(--muted); margin-left: 5px;">por: ${escapeHtml(item.scannedBy)}</span>` : '';
+            // REVERTEU: Cor do texto secundário e meta
+            const scannedByTag = item.scannedBy ? `<span style="font-size:12px; color:#6c757d; margin-left: 5px;">por: ${escapeHtml(item.scannedBy)}</span>` : '';
             
-            el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><div class="badge">${escapeHtml(item.plataforma)}</div>${qrBadge}${idBadge}<div style="font-size:14px;word-break:break-all; color: var(--text-secondary);">${escapeHtml(item.link)}</div><div style="margin-left:auto; display:flex; align-items:center;">${scannedByTag}<button data-idx="${idx}" style="background:#00b4d8;color:#fff;padding:6px;border-radius:6px; margin-left: 8px;">Abrir</button></div></div><div class="meta" style="color:var(--muted);">${escapeHtml(item.dataHora)}</div>`;
+            el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><div class="badge">${escapeHtml(item.plataforma)}</div>${qrBadge}${idBadge}<div style="font-size:14px;word-break:break-all; color: #343a40;">${escapeHtml(item.link)}</div><div style="margin-left:auto; display:flex; align-items:center;">${scannedByTag}<button data-idx="${idx}" style="background:#00b4d8;color:#fff;padding:6px;border-radius:6px; margin-left: 8px;">Abrir</button></div></div><div class="meta" style="color:#6c757d;">${escapeHtml(item.dataHora)}</div>`;
             const btn = el.querySelector('button[data-idx]'); btn.addEventListener('click', () => window.open(item.link, '_blank'));
             scansList.appendChild(el);
         });
@@ -346,28 +325,21 @@
         const adminMode = isAdmin();
         const managerMode = isManager();
 
-        // 1. Mostrar/Esconder controles principais
         const visibility = loggedIn ? 'inline-block' : 'none';
         startButton.style.display = visibility;
         
-        // Apenas Admin pode exportar TUDO
         exportBtn.style.display = adminMode ? 'inline-block' : 'none';
-        
-        // 2. Controlar botão Limpar (Apenas Admin)
         clearBtn.style.display = adminMode ? 'inline-block' : 'none';
 
-        // 3. Remover elementos dinâmicos antigos
         const authElements = document.querySelectorAll('.auth-control');
         authElements.forEach(el => el.remove());
 
         if (loggedIn) {
-            // Adiciona botão de Logout
             const user = getLoggedInUser();
             const logoutBtn = createButton(`👋 ${user.username} - Sair`, 'secondary', logoutUser);
             logoutBtn.classList.add('auth-control');
             controlsContainer.appendChild(logoutBtn);
             
-            // Adiciona botões de Relatório (Gestores e Admins)
             if (adminMode || managerMode) {
                  const reportDailyBtn = createButton('📄 Relatório Diário', 'secondary', () => generateReport('daily'));
                  const reportQuinzenalBtn = createButton('📄 Relatório Quinzenal', 'secondary', () => generateReport('quinzenal'));
@@ -381,7 +353,6 @@
             
             logOutput(`Bem-vindo(a), ${user.username}. Scanner pronto.`);
             
-            // Adiciona a interface de Gerenciamento de Usuários
             if (adminMode || managerMode) {
                  setupUserManagement();
             }
@@ -389,13 +360,13 @@
         } else {
             // Adiciona formulário de Login
             const form = document.createElement('div'); form.classList.add('auth-control'); form.style.display = 'flex'; form.style.gap = '8px'; form.style.flexWrap = 'wrap'; form.style.alignItems = 'center';
-            // --- ATUALIZAÇÃO: Inputs com cores fixas (PRETO/BRANCO) para alto contraste ---
+            // REVERTEU: Inputs com cores fixas (BRANCO)
             form.innerHTML = `
                 <input type="text" id="loginUser" placeholder="Usuário" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
                 <input type="password" id="loginPass" placeholder="Senha" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
                 <button id="loginBtn" style="background:#28a745;color:#fff;">🔑 Entrar</button>
             `;
-            // --- FIM DA ATUALIZAÇÃO ---
+            // FIM DA REVERSÃO
             controlsContainer.appendChild(form);
             
             const loginBtn = document.getElementById('loginBtn');
@@ -413,7 +384,7 @@
         if (!loggedIn) { stopCamera(); }
     }
     
-    // --- LÓGICA DA CÂMERA (Mantida) ---
+    // --- LÓGICA DA CÂMERA (Sem Alterações) ---
 
     async function requestPermissionOnce() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia não suportado');
@@ -441,7 +412,6 @@
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { logOutput('getUserMedia não suportado neste navegador.'); startButton.disabled = false; return; }
 
         try {
-            // Tenta 'environment' (câmera traseira)
             try { mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); } 
             catch (errFacing) {
                 await requestPermissionOnce();
@@ -507,11 +477,9 @@
     
     function drawBoundingBox(location) {
         overlayCtx.clearRect(0,0,overlay.width,overlay.height);
-        // Desenha a caixa de foco
         if (!location) { const w = overlay.width, h = overlay.height; const boxW = Math.round(w * 0.62), boxH = Math.round(h * 0.5); const x = Math.round((w - boxW) / 2), y = Math.round((h - boxH) / 2);
             overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x, y, boxW, boxH); return;
         }
-        // Desenha o box de detecção
         overlayCtx.strokeStyle = 'rgba(0,200,83,0.95)'; overlayCtx.lineWidth = Math.max(2, overlay.width / 200);
         overlayCtx.beginPath(); overlayCtx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y); overlayCtx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
         overlayCtx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y); overlayCtx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
@@ -534,7 +502,7 @@
                 
                 if (code && code.data) {
                     if (code.location) {
-                        const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCanvas.height;
+                        const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCtx.height; // Corrigido para tempCtx.height
                         const mapCorner = (pt) => ({ x: Math.round(pt.x * scaleX + sx), y: Math.round(pt.y * scaleY + sy) });
                         const loc = { topLeftCorner: mapCorner(code.location.topLeftCorner), topRightCorner: mapCorner(code.location.topRightCorner), bottomLeftCorner: mapCorner(code.location.bottomLeftCorner), bottomRightCorner: mapCorner(code.location.bottomRightCorner) };
                         drawBoundingBox(loc);
@@ -548,7 +516,7 @@
         rafId = requestAnimationFrame(scanLoop);
     }
     
-    // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Mantida) ---
+    // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Sem Alterações) ---
     
     function extractIdFromLink(link) {
         if (!link || typeof link !== 'string') return { type: null, value: null };
@@ -578,21 +546,20 @@
         const plataforma = (() => { const l = payload.toLowerCase(); if (l.includes('shopee.')) return 'Shopee'; if (l.includes('mercadolivre.')||l.includes('mercadolibre')) return 'Mercado Livre'; return 'Outra'; })();
         const extractedId = extractIdFromLink(payload); const qrId = extractQrId(payload);
         const entry = { plataforma, link: payload, dataHora: new Date().toLocaleString('pt-BR'), timestamp: Date.now(), extractedId, qrId };
-        addScan(entry); // Chama addScan que agora inclui o 'scannedBy'
+        addScan(entry); 
         beep(); try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
         showPopup(`OK • ${qrId.value || extractedId.value || 'salvo'}`);
         try { await navigator.clipboard.writeText(qrId.value || extractedId.value || payload); logOutput('Copiado para área de transferência.'); } catch (e) {}
         logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
     }
 
-    // --- FUNÇÕES DE RELATÓRIO (Mantida) ---
+    // --- FUNÇÕES DE RELATÓRIO (Sem Alterações) ---
     
     function getDateRange(period) {
         const now = new Date();
         const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         if (period === 'daily') {
-            // Início do dia
         } else if (period === 'quinzenal') {
             start.setDate(start.getDate() - 14);
         } else if (period === 'mensal') {
@@ -610,15 +577,12 @@
         let filteredData = scannedData.filter(item => item.timestamp >= startTime);
 
         if (isManager()) {
-            // Gestor vê apenas os scans realizados pelos usuários 'user' que ele criou
             const managerCreatedUsernames = Object.keys(users)
                 .filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
 
-            // Adiciona o próprio nome do gestor (caso ele faça scans)
             managerCreatedUsernames.push(currentUser.username);
 
             filteredData = filteredData.filter(item => {
-                 // Filtra para incluir apenas scans feitos por usuários criados pelo gestor OU pelo próprio gestor
                  return item.scannedBy && managerCreatedUsernames.includes(item.scannedBy);
             });
         }
@@ -646,11 +610,10 @@
         logOutput(`Relatório ${periodName} gerado com ${filteredData.length} registros.`);
     }
 
-    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Mantida) ---
+    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Sem Alterações) ---
     
     function convertToCSV(data) {
         if (!data || data.length === 0) return '';
-        // Adiciona a coluna Scanned_By
         const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan', 'Scanned_By']; 
         const rows = [headers.join(';')];
         data.forEach(item => {
@@ -668,7 +631,6 @@
     function exportCSV() {
         if (!isAdmin()) { alert('Apenas administradores podem exportar todos os dados.'); return; }
         if (!scannedData || scannedData.length === 0) { alert('Nenhum dado para exportar.'); return; }
-        // Exporta todos os dados com o novo campo 'scannedBy'
         const csv = convertToCSV(scannedData.map(({plataforma,link,dataHora,extractedId,qrId,scannedBy}) => ({plataforma,link,dataHora,extractedId,qrId,scannedBy})));
         const bom = '\uFEFF'; const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `scans_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
@@ -699,7 +661,6 @@
         window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
         drawBoundingBox(null);
         
-        // Inicializa o estado de Autenticação
         updateUIForAuth(); 
         
         window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
