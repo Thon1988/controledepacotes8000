@@ -3,44 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner — Shopee / Mercado Livre style</title>
+  <title>📦 Scanner Mobile (iOS / Android)</title>
 
+  <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
-    :root{--bg:#f4f6f8;--card:#fff;--accent:#007bff;--muted:#666}
-    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#111}
+    :root{--bg:#111;--card:#fff;--accent:#00b4d8;--muted:#9aa0a6}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#fff}
     .app{max-width:920px;margin:12px auto;padding:12px}
-    h1{margin:0 0 8px;font-size:18px}
+    h1{margin:0 0 8px;font-size:18px;color:#fff}
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
-    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:6px;cursor:pointer}
+    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
     button.secondary{background:#6c757d}
-    button.warn{background:#d9534f}
-    label.switch{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
-    .camera-wrap{position:relative;max-width:720px;margin:0 auto;border-radius:10px;overflow:hidden;background:#000}
-    video#videoElement{width:100%;height:auto;display:block}
+    .camera-wrap{position:relative;max-width:920px;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;height:60vh;display:flex;align-items:center;justify-content:center}
+    video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
     canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
-    .panel{background:var(--card);padding:10px;border-radius:8px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .panel{background:var(--card);padding:10px;border-radius:8px;margin-top:12px;box-shadow:0 1px 6px rgba(0,0,0,.4);color:#111}
     #output{min-height:36px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
-    .list{max-height:220px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-    .item{padding:8px;border-radius:6px;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:6px}
-    .meta{font-size:12px;color:var(--muted)}
-    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eee;font-size:12px}
+    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
+    .item{padding:8px;border-bottom:1px solid #eee}
+    .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
     #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
-    @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} }
+    @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} .camera-wrap{height:50vh} }
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>📦 Scanner</h1>
+    <h1>📦 Scanner (iOS / Android)</h1>
 
-    <div class="controls">
-      <button id="startButton">▶️ Iniciar</button>
+    <div class="controls" id="controls">
+      <button id="startButton">▶️ Iniciar câmera</button>
       <button id="stopButton" class="secondary" style="display:none">⏹️ Parar</button>
       <button id="torchButton" class="secondary" style="display:none">🔦 Flash</button>
+      <select id="deviceSelect" class="select-device" style="display:none"></select>
       <button id="exportBtn" class="secondary">⬇️ Exportar CSV</button>
-      <button id="clearBtn" class="warn">🧹 Limpar</button>
-      <label class="switch"><input id="autoOpen" type="checkbox"> Auto-abrir links</label>
+      <button id="clearBtn" class="secondary">🧹 Limpar</button>
     </div>
 
     <div class="camera-wrap" id="cameraWrap">
@@ -49,7 +47,7 @@
     </div>
 
     <div class="panel">
-      <div id="output">Pronto. Clique em "Iniciar" para abrir a câmera.</div>
+      <div id="output">Pronto. Clique em "Iniciar câmera".</div>
       <div class="list" id="scansList" aria-live="polite"></div>
     </div>
   </div>
