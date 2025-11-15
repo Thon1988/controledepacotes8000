@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner 8000</title>
+  <title>📦 Scanner 8000 v0.1</title>
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
@@ -21,19 +21,33 @@
     .panel{background:var(--card);padding:10px;border-radius:8px;margin-top:12px;box-shadow:0 1px 6px rgba(0,0,0,.4);color:#111}
     #output{min-height:36px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
     .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-    .item{padding:8px;border-bottom:1px solid #eee}
+    .item{padding:8px;border-bottom:1px solid #eee;display:flex;flex-direction:column;gap:6px}
+    .meta{font-size:12px;color:#666}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eee;font-size:12px;color:#111}
     .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
     .select-label { color: #fff; font-size: 14px; margin-left: 6px; }
     #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
+    .link-text{
+      font-size:14px;
+      white-space:nowrap;
+      overflow-x:auto;
+      -webkit-overflow-scrolling: touch;
+      word-break: normal;
+      max-width:100%;
+      color:#111;
+      background:#f8f9fa;
+      padding:4px 6px;
+      border-radius:6px;
+    }
     @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} .camera-wrap{height:50vh} }
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>📦 Scanner 8000</h1>
+    <h1>📦 Scanner 8000 v0.1</h1>
 
     <div class="controls" id="controls">
-      <button id="startButton" aria-label="Iniciar câmera">▶️ Iniciar câmera</button>
+      <!-- Botão "Iniciar" removido temporariamente conforme solicitado -->
       <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
       <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
 
@@ -50,7 +64,7 @@
     </div>
 
     <div class="panel">
-      <div id="output">Pronto. Clique em "Iniciar câmera".</div>
+      <div id="output">Pronto. (Botão iniciar removido temporariamente.)</div>
       <div class="list" id="scansList" aria-live="polite"></div>
     </div>
   </div>
