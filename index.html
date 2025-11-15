@@ -1,35 +1,61 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📦 Scanner de Pacotes</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    <style>
-        /* CSS OMITIDO POR BREVIDADE */
-        body { font-family: sans-serif; text-align: center; margin: 0; padding: 20px; background-color: #f0f0f0; }
-        #videoElement { width: 100%; max-width: 450px; height: auto; border: 4px solid #333; border-radius: 8px; display: block; margin: 15px auto; }
-        #output { margin: 20px auto; padding: 15px; border: 1px dashed gray; border-radius: 6px; background-color: white; max-width: 400px; min-height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-        button { padding: 10px 20px; font-size: 16px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; transition: background-color 0.3s; }
-        button:hover { background-color: #0056b3; }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>📦 Scanner de Pacotes — Shopee / Mercado Livre</title>
+
+  <!-- jsQR -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <style>
+    :root{--bg:#f4f6f8;--card:#fff;--accent:#007bff;--muted:#666}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--bg);color:#111}
+    .app{max-width:920px;margin:18px auto;padding:18px}
+    h1{margin:0 0 12px;font-size:20px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+    button{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:6px;cursor:pointer}
+    button.secondary{background:#6c757d}
+    button.warn{background:#d9534f}
+    button:disabled{opacity:.6;cursor:default}
+    .camera-wrap{position:relative;max-width:720px;margin:0 auto;border-radius:10px;overflow:hidden;background:#000}
+    video#videoElement{width:100%;height:auto;display:block}
+    canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+    .panel{background:var(--card);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    #output{min-height:44px;display:flex;align-items:center;gap:8px;color:var(--muted);padding:4px}
+    .list{max-height:260px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
+    .item{padding:8px;border-radius:6px;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:6px}
+    .item:last-child{border-bottom:0}
+    .meta{font-size:12px;color:var(--muted)}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eee;font-size:12px}
+    .actions{margin-left:auto;display:flex;gap:8px}
+    @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} }
+  </style>
 </head>
 <body>
-    <h1>📦 Scanner de Pacotes</h1>
-    
-    <button id="startButton" onclick="startCamera()">▶️ Abrir Câmera / Iniciar Scanner</button>
-    
-    <video id="videoElement" muted></video>
-    
-    <div id="output">
-        <p>Aguardando início do scanner.</p>
-    </div>
-    
-    <button onclick="exportCSV()">Exportar Dados para CSV</button>
+  <div class="app">
+    <h1>📦 Scanner de Pacotes — Shopee e Mercado Livre</h1>
 
-    <script src="app.js"></script>
+    <div class="controls">
+      <button id="startButton">▶️ Abrir Câmera / Iniciar</button>
+      <button id="stopButton" class="secondary" style="display:none">⏹️ Parar</button>
+      <button id="exportBtn" class="secondary">⬇️ Exportar CSV</button>
+      <button id="clearBtn" class="warn">🧹 Limpar registros</button>
+      <div style="margin-left:8px;color:var(--muted);font-size:13px">Escaneie QR codes — reconhece Shopee, Mercado Livre e extrai IDs</div>
+    </div>
+
+    <div class="camera-wrap" id="cameraWrap">
+      <video id="videoElement" muted autoplay playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <div class="panel">
+      <div id="output">Aguardando início do scanner.</div>
+      <div class="list" id="scansList" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
-
-
-
+</html>
