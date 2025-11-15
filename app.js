@@ -1,218 +1,846 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner 8000 v0.1</title>
+// app.js — Mobile-friendly scanner (iOS + Android) with authentication and reporting (Admin, Manager, User)
 
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+(() => {
+    // --- Referências de Elementos Existentes ---
+    const video = document.getElementById('videoElement');
+    const overlay = document.getElementById('overlay');
+    const output = document.getElementById('output');
+    const scansList = document.getElementById('scansList');
+    const startButton = document.getElementById('startButton');
+    const stopButton = document.getElementById('stopButton');
+    const torchButton = document.getElementById('torchButton');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const deviceSelectLabel = document.getElementById('deviceSelectLabel');
+    const exportBtn = document.getElementById('exportBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const scanPopup = document.getElementById('scanPopup');
+    const overlayCtx = overlay.getContext('2d');
+    const controlsContainer = document.getElementById('controls');
+    const appContainer = document.querySelector('.app'); // Referência ao container principal da aplicação
+    const body = document.body;
+    
+    // --- Variáveis e Constantes ---
+    const STORAGE_KEY = 'scannedPackages_v1_mobile';
+    const USER_KEY = 'scanner_users_v1';
+    const LOGIN_SESSION_KEY = 'scanner_loggedInUser';
+    
+    const SCAN_INTERVAL = 700;
+    const DUPLICATE_WINDOW = 60 * 1000;
 
-  <style>
-    /* Estilos gerais do corpo da aplicação */
-    html,body{
-        height:100%;
-        margin:0;
-        font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;
-        background:#f4f4f7; /* Fundo claro fixo */
-        color:#111; /* Texto preto fixo */
-        display: flex; /* Para centralizar o conteúdo */
-        flex-direction: column; /* Organiza os itens em coluna */
-        justify-content: center; /* Centraliza verticalmente */
-        align-items: center; /* Centraliza horizontalmente */
-    }
+    let mediaStream = null;
+    let rafId = null;
+    let scanning = false;
+    let lastScanTime = 0;
+    let scannedData = loadScannedData();
+    let users = loadUsers(); 
+    
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    let currentVideoTrack = null;
+    let torchOn = false;
+    
+    // VARIÁVEL GLOBAL PARA FILTRO DE DATA
+    let selectedDate = new Date().toISOString().substring(0, 10); // Inicializa com a data de hoje (AAAA-MM-DD)
 
-    .app{
-        max-width:920px;
-        margin:12px auto;
-        padding:12px;
-        width: 100%; /* Ocupa a largura total para responsividade */
-        box-sizing: border-box; /* Inclui padding na largura */
-    }
-    
-    h1{margin:0 0 8px;font-size:18px;color:#111; text-align: center;} 
-    
-    .controls{
-        display:flex;
-        gap:8px;
-        flex-wrap:wrap;
-        margin-bottom:10px;
-        align-items:center;
-        justify-content: center; /* Centraliza os botões */
-    }
-    button{
-        background:#00b4d8;
-        color:#fff;
-        border:0;
-        padding:8px 12px;
-        border-radius:8px;
-        cursor:pointer;
-        font-weight:600;
-        transition: background 0.2s ease;
-    }
-    button:hover {
-        background: #0096c7;
-    }
-    button.secondary{background:#6c757d}
-    button.secondary:hover {
-        background: #5a6268;
-    }
-    
-    /* Estilo para Inputs/Selects (Alto contraste) */
-    .controls input[type="text"], 
-    .controls input[type="password"], 
-    .controls input[type="date"],
-    .controls select {
-      padding: 8px; 
-      border-radius: 8px; 
-      border: 1px solid #ccc; 
-      width: auto; 
-      color: #111; 
-      background-color: #fff; 
-      box-sizing: border-box;
-    }
 
-    .camera-wrap{
-        position:relative;
-        max-width:920px;
-        margin:0 auto;
-        border-radius:12px;
-        overflow:hidden;
-        background:#000;
-        height:60vh;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1); /* Sombra suave */
-    }
-    video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
-    canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
-    
-    /* Painel de Registros/Gerenciamento */
-    .panel{
-        background:#fff; /* Fundo de painel branco fixo */
-        padding:10px;
-        border-radius:8px;
-        margin-top:12px;
-        box-shadow:0 1px 6px rgba(0,0,0,.1); 
-        color:#111; /* Texto preto fixo */
-    }
-    
-    #output{min-height:36px;display:flex;align-items:center;gap:8px;color:#6c757d;padding:4px}
-    .list{max-height:180px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-    .item{padding:8px;border-bottom:1px solid #eee; color:#343a40;} 
-    .select-device{background:#fff;color:#111;border-radius:8px;padding:6px}
-    .select-label { color: #111; font-size: 14px; margin-left: 6px; }
-    #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
-    
-    /* --- NOVOS ESTILOS PARA A TELA DE LOGIN --- */
-    .login-container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        min-height: calc(100vh - 50px); /* Ajusta altura para não sobrepor o footer se houver */
-        width: 100%;
-        max-width: 400px; /* Largura máxima para o formulário */
-        margin: auto; /* Centraliza na tela */
-        padding: 20px;
-        box-sizing: border-box;
+    // --- UTILS (Beep, Popup, Log) ---
+    function beep(duration = 90, freq = 1400, vol = 0.12) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'sine'; o.frequency.value = freq; g.gain.value = vol;
+            o.connect(g); g.connect(ctx.destination); o.start();
+            setTimeout(() => { try { o.stop(); ctx.close(); } catch (e) {} }, duration);
+        } catch (e) {}
     }
 
-    #loginForm {
-        background: #ffffff;
-        padding: 30px 25px;
-        border-radius: 12px;
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        width: 100%; /* Ocupa a largura do login-container */
-        box-sizing: border-box;
-        display: flex; /* Para organizar os inputs e botão */
-        flex-direction: column;
-        gap: 15px; /* Espaçamento entre os elementos do formulário */
-    }
+    function showPopup(text, ms = 900) { scanPopup.textContent = text; scanPopup.style.display = 'block'; setTimeout(() => { scanPopup.style.display = 'none'; }, ms); }
+    function logOutput(msg) { output.textContent = msg; console.info(msg); }
+    function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+    
+    // Formata uma data Date() para AAAA-MM-DD
+    function formatDate(date) { return date.toISOString().substring(0, 10); }
 
-    #loginForm input[type="text"],
-    #loginForm input[type="password"] {
-        width: 100%; /* Ocupa 100% da largura do formulário */
-        padding: 12px;
-        margin-bottom: 0; /* Remove a margem inferior padrão */
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        font-size: 16px;
-        transition: border-color 0.2s ease;
-    }
-    #loginForm input[type="text"]:focus,
-    #loginForm input[type="password"]:focus {
-        border-color: #00b4d8; /* Cor de destaque ao focar */
-        outline: none;
-    }
-
-    #loginForm button {
-        width: 100%;
-        padding: 12px 20px;
-        font-size: 16px;
-        font-weight: bold;
-        background: #00b4d8;
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background 0.2s ease;
-    }
-    #loginForm button:hover {
-        background: #0096c7;
-    }
-
-    /* Oculta a aplicação principal quando o login está ativo */
-    body.login-active .app {
-        display: none;
+    // --- DADOS E LOCAL STORAGE ---
+    function saveScannedData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); } catch (e) { console.warn(e); } }
+    function loadScannedData() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+    function addScan(entry) { 
+        const currentUser = getLoggedInUser();
+        if (currentUser) {
+            entry.scannedBy = currentUser.username;
+        }
+        // Adiciona a data no formato AAAA-MM-DD para facilitar a filtragem
+        entry.date = formatDate(new Date(entry.timestamp)); 
+        
+        scannedData.unshift(entry); 
+        saveScannedData(); 
+        renderScans(); 
     }
     
-    /* Quando não está logado, a saída e a lista não devem aparecer */
-    #output, #scansList {
-        display: none;
+    // --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (Sem Alterações na Lógica Base) ---
+    
+    function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
+    
+    function loadUsers() {
+        try { 
+            const raw = localStorage.getItem(USER_KEY);
+            if (raw) {
+                const savedUsers = JSON.parse(raw);
+                if (!savedUsers['thon']) {
+                    savedUsers['thon'] = { password: '882010', role: 'administrator', createdBy: 'system' };
+                }
+                Object.keys(savedUsers).forEach(username => {
+                    if (!savedUsers[username].createdBy) {
+                        savedUsers[username].createdBy = (username === 'thon' || username === 'user1' || username === 'manager1') ? 'system' : 'thon'; 
+                    }
+                });
+                return savedUsers;
+            }
+        } catch (e) {}
+
+        const defaultUsers = {
+            'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, 
+            'manager1': { password: '123', role: 'manager', createdBy: 'system' },     
+            'user1': { password: 'user1', role: 'user', createdBy: 'manager1' }        
+        };
+        try { localStorage.setItem(USER_KEY, JSON.stringify(defaultUsers)); } catch (e) {}
+        return defaultUsers;
+    }
+    
+    function getLoggedInUser() {
+        try {
+            const userStr = sessionStorage.getItem(LOGIN_SESSION_KEY);
+            if (userStr) return JSON.parse(userStr);
+        } catch (e) {}
+        return null;
     }
 
-    /* Responsividade para celular */
-    @media (max-width:520px){ 
-      .controls{flex-direction:column;align-items:stretch} 
-      .camera-wrap{height:50vh} 
-      .login-container {
-            padding: 10px;
-            max-width: 95%; /* Ajusta para telas menores */
+    function isAuthenticated() { return !!getLoggedInUser(); }
+    function isAdmin() { const user = getLoggedInUser(); return user && user.role === 'administrator'; }
+    function isManager() { const user = getLoggedInUser(); return user && user.role === 'manager'; }
+
+    function loginUser(username, password) {
+        if (users[username] && users[username].password === password) {
+            const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
+            sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
+            logOutput(`Login bem-sucedido. Bem-vindo(a), ${user.username} (${user.role}).`);
+            updateUIForAuth();
+            renderScans(); // Renderiza após o login
+            return true;
         }
-    }
-  </style>
-</head>
-<body>
-    <div class="app">
-        <h1>📦 Scanner 8000 v0.1</h1>
+        logOutput('Login falhou: Usuário ou senha inválidos.');
+        return false;
+    }
 
-        <div class="controls" id="controls">
-              <button id="startButton" aria-label="Iniciar câmera" style="display:none">▶️ Iniciar câmera</button>
-      <button id="stopButton" class="secondary" style="display:none" aria-label="Parar câmera">⏹️ Parar</button>
-      <button id="torchButton" class="secondary" style="display:none" aria-label="Ligar flash">🔦 Flash</button>
+    function logoutUser() {
+        sessionStorage.removeItem(LOGIN_SESSION_KEY);
+        logOutput('Logout realizado.');
+        stopCamera();
+        updateUIForAuth();
+        renderScans(); // Limpa/re-renderiza a lista após o logout
+    }
+    
+    function setupUserManagement() {
+        if (!isAdmin() && !isManager()) { return; }
 
-      <label for="deviceSelect" class="select-label" style="display:none" id="deviceSelectLabel">Câmera:</label>
-      <select id="deviceSelect" class="select-device" style="display:none" aria-labelledby="deviceSelectLabel"></select>
+        const oldContainer = document.querySelector('#userManagementContainer');
+        if (oldContainer) oldContainer.remove();
 
-      <button id="exportBtn" class="secondary" style="display:none" aria-label="Exportar CSV">⬇️ Exportar CSV</button>
-      <button id="clearBtn" class="secondary" style="display:none" aria-label="Limpar registros">🧹 Limpar</button>
-    </div>
+        const container = document.createElement('div');
+        container.id = 'userManagementContainer';
+        container.classList.add('auth-control');
+        
+        let roleOptions = '';
+        if (isAdmin()) {
+            roleOptions = `
+                <option value="user">Usuário Padrão</option>
+                <option value="manager">Gestor</option>
+                <option value="administrator">Administrador</option>
+            `;
+        } else if (isManager()) {
+            roleOptions = `<option value="user">Usuário Padrão</option>`;
+        }
+        
+        container.innerHTML = `
+            <div class="panel" style="margin-top: 12px; background: #fff; color: #111;">
+                <h3 style="margin: 0 0 8px; font-size: 16px; color: #111;">👤 Gerenciar Usuários</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="newUser" placeholder="Nome de Usuário" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
+                    <input type="password" id="newPass" placeholder="Senha" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; width: 120px; color: #111; background-color: #fff;">
+                    <select id="newRole" style="padding: 6px; border-radius: 6px; border: 1px solid #ccc; color: #111; background-color: #fff;">
+                        ${roleOptions}
+                    </select>
+                    <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px;">➕ Adicionar</button>
+                </div>
+                <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
+            </div>
+        `;
+        
+        // Insere o gerenciamento no container principal de controles (abaixo dos relatórios)
+        controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
 
-        <div class="camera-wrap" id="cameraWrap">
-      <video id="videoElement" muted playsinline autoplay></video>
-      <canvas id="overlay"></canvas>
-    </div>
+        document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
+        renderUserList();
+    }
+    
+    function renderUserList() {
+        const listDiv = document.getElementById('userListDisplay');
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
+        
+        const currentUser = getLoggedInUser();
+        const isAdminUser = isAdmin();
+        const isManagerUser = isManager();
+        
+        const usersToShow = Object.keys(users).filter(username => {
+            if (isAdminUser) return true;
+            const user = users[username];
+            return user.createdBy === currentUser.username;
+        });
+        
+        if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:#6c757d">Nenhum usuário gerenciável.</div>'; return; }
 
-    <div class="panel">
-            <div id="output">Por favor, faça login para começar.</div>
-      <div class="list" id="scansList" aria-live="polite"></div>
-    </div>
-  </div>
 
-  <div id="scanPopup" role="status" aria-live="polite"></div>
+        usersToShow.forEach(username => {
+            const user = users[username];
+            const el = document.createElement('div'); el.className = 'item';
+            el.style.display = 'flex'; el.style.justifyContent = 'space-between'; el.style.alignItems = 'center';
+            
+            const roleColor = { 'administrator': '#dc3545', 'manager': '#ffc107', 'user': '#17a2b8' }[user.role];
+            const roleText = { 'administrator': 'Admin', 'manager': 'Gestor', 'user': 'Padrão' }[user.role];
 
-    <script src="app.js"></script>
-</body>
-</html>
+            el.innerHTML = `
+                <div style="font-size:14px;">
+                    <strong>${escapeHtml(username)}</strong> 
+                    (<span style="color:${roleColor}">${roleText}</span>)
+                    <span style="font-size:12px; color:#6c757d; margin-left: 5px;">${user.createdBy && user.createdBy !== 'system' ? `(Criado por: ${user.createdBy})` : ''}</span>
+                </div>
+            `;
+            
+            let canDelete = false;
+            if (isAdminUser && username !== currentUser.username) {
+                canDelete = true;
+            } else if (isManagerUser) {
+                if (user.createdBy === currentUser.username && user.role === 'user' && username !== currentUser.username) {
+                    canDelete = true;
+                }
+            }
+
+            if (canDelete) {
+                 const deleteBtn = document.createElement('button');
+                 deleteBtn.textContent = 'Remover';
+                 deleteBtn.style.background = '#dc3545'; deleteBtn.style.marginLeft = '8px'; deleteBtn.style.padding = '4px 8px';
+                 deleteBtn.addEventListener('click', () => handleDeleteUser(username));
+                 el.appendChild(deleteBtn);
+            } else if (username === currentUser.username) {
+                 el.innerHTML += '<span style="font-size:12px; color:#6c757d; margin-left: 10px;">(Você)</span>';
+            }
+            listDiv.appendChild(el);
+        });
+    }
+    
+    function handleCreateUser() {
+        if (!isAdmin() && !isManager()) { alert('Você não tem permissão para criar usuários.'); return; }
+        
+        const usernameInput = document.getElementById('newUser');
+        const passwordInput = document.getElementById('newPass');
+        const roleInput = document.getElementById('newRole');
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        const role = roleInput.value;
+        const creator = getLoggedInUser().username;
+
+        if (!username || !password) { alert('Usuário e Senha são obrigatórios.'); return; }
+        if (users[username]) { alert(`O usuário '${username}' já existe.`); return; }
+        
+        if (isManager() && role !== 'user') {
+             alert('Um Gestor só pode criar Usuários Padrão.');
+             return;
+        }
+        
+        users[username] = { password: password, role: role, createdBy: creator };
+        saveUsers();
+        logOutput(`Usuário ${username} (${role}) criado com sucesso.`);
+        
+        usernameInput.value = '';
+        passwordInput.value = '';
+        renderUserList();
+    }
+    
+    function handleDeleteUser(username) {
+        const currentUser = getLoggedInUser();
+        const userToDelete = users[username];
+
+        if (!userToDelete) { alert('Usuário não encontrado.'); return; }
+        if (username === currentUser.username) { alert('Você não pode remover a si mesmo.'); return; }
+
+        let canDelete = false;
+
+        if (isAdmin()) {
+            canDelete = true;
+        } else if (isManager()) {
+            if (userToDelete.createdBy === currentUser.username && userToDelete.role === 'user') {
+                canDelete = true;
+            } else {
+                alert('Você só pode excluir Usuários Padrão que foram criados por você.');
+                return;
+            }
+        }
+        
+        if (canDelete) {
+            if (confirm(`Tem certeza que deseja remover o usuário '${username}'?`)) {
+                delete users[username];
+                saveUsers();
+                logOutput(`Usuário ${username} removido.`);
+                renderUserList();
+            }
+        } else {
+             alert('Você não tem permissão para remover este usuário.');
+        }
+    }
+
+
+    // --- LÓGICA DE FILTRAGEM DE SCANS ---
+    
+    function getFilterableUsernames(currentUser) {
+        if (isAdmin()) {
+            return Object.keys(users);
+        }
+        if (isManager()) {
+            // Gestor: vê seus próprios scans + scans dos usuários que ele criou
+            const managerCreatedUsernames = Object.keys(users)
+                .filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
+            managerCreatedUsernames.push(currentUser.username);
+            return managerCreatedUsernames;
+        }
+        // Usuário Padrão: vê apenas os próprios scans
+        return [currentUser.username];
+    }
+    
+    function getFilteredScans() {
+        const currentUser = getLoggedInUser();
+        if (!currentUser) return [];
+        
+        const allowedUsers = getFilterableUsernames(currentUser);
+        
+        // 1. Filtra por usuário (visibilidade)
+        let filteredByAccess = scannedData.filter(item => {
+            return item.scannedBy && allowedUsers.includes(item.scannedBy);
+        });
+        
+        // 2. Filtra por data (apenas o dia selecionado)
+        let filteredByDate = filteredByAccess.filter(item => {
+            // Compara a data do scan (AAAA-MM-DD) com a data selecionada
+            return item.date === selectedDate;
+        });
+        
+        return filteredByDate;
+    }
+
+
+    // --- RENDERIZAÇÃO E UI (Atualizado) ---
+
+    function renderScans() {
+        // Garante que a lista e o output só apareçam se o usuário estiver logado
+        const loggedIn = isAuthenticated();
+        scansList.style.display = loggedIn ? 'block' : 'none';
+        output.style.display = loggedIn ? 'block' : 'none';
+        
+        scansList.innerHTML = '';
+        if (!loggedIn) { 
+             scansList.innerHTML = '<div style="color:#6c757d">Faça login para ver os registros.</div>';
+             return;
+        }
+        
+        const scans = getFilteredScans();
+        
+        if (scans.length === 0) { 
+            scansList.innerHTML = `<div style="color:#6c757d">Nenhum registro encontrado para o dia ${selectedDate.split('-').reverse().join('/')}.</div>`; 
+            return; 
+        }
+        
+        // Ordena os scans pelo timestamp do mais recente para o mais antigo (do topo para baixo)
+        scans.sort((a, b) => b.timestamp - a.timestamp); 
+        
+        scans.forEach(item => {
+            const el = document.createElement('div'); el.className = 'item';
+            el.style.display = 'flex'; 
+            el.style.flexDirection = 'column'; // Organiza verticalmente
+            el.style.padding = '6px 0';
+            el.style.borderBottom = '1px dashed #eee';
+            
+            // Tenta obter o ID mais relevante para exibição
+            const mainId = item.qrId.value || item.extractedId.value || item.link;
+            const idType = item.qrId.value ? item.qrId.type : item.extractedId.value ? item.extractedId.type : 'Link Completo';
+            
+            // Linha principal do ID
+            const idLine = document.createElement('div');
+            idLine.style.fontSize = '14px';
+            idLine.style.wordBreak = 'break-all';
+            idLine.style.color = '#343a40';
+            idLine.innerHTML = `<strong>${escapeHtml(mainId)}</strong>`;
+
+            // Linha de metadados
+            const metaLine = document.createElement('div');
+            metaLine.style.fontSize = '11px';
+            metaLine.style.color = '#6c757d';
+            
+            const scannedByText = item.scannedBy ? ` | Por: ${escapeHtml(item.scannedBy)}` : '';
+            const platformText = item.plataforma && item.plataforma !== 'Outra' ? ` | Plataforma: ${escapeHtml(item.plataforma)}` : '';
+            
+            metaLine.textContent = `${escapeHtml(item.dataHora.split(' ')[1])} ${scannedByText} ${platformText} | Tipo ID: ${escapeHtml(idType)}`;
+            
+            el.appendChild(idLine);
+            el.appendChild(metaLine);
+            scansList.appendChild(el);
+        });
+        
+         // Remove a borda do último item
+         if (scansList.lastChild) {
+            scansList.lastChild.style.borderBottom = 'none';
+        }
+    }
+
+    function createButton(text, className, onClick) {
+        const btn = document.createElement('button');
+        btn.textContent = text;
+        btn.classList.add(className);
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    function updateUIForAuth() {
+        const loggedIn = isAuthenticated();
+        const adminMode = isAdmin();
+        const managerMode = isManager();
+        
+        // 1. Oculta/Mostra a tela principal do scanner
+        appContainer.style.display = loggedIn ? 'block' : 'none';
+        
+        // 2. Remove o login antigo se existir
+        let loginScreen = document.getElementById('loginScreen');
+        if (loginScreen) loginScreen.remove();
+
+        // 3. Remove todos os elementos dinâmicos (Gerenciamento de usuários e botões de relatórios/logout)
+        const authElements = document.querySelectorAll('.auth-control');
+        authElements.forEach(el => el.remove());
+
+        // 4. Configuração do Date Selector (Sempre visível quando logado)
+        let dateContainer = document.querySelector('#dateContainer');
+        if (dateContainer) dateContainer.remove();
+        
+        
+        if (loggedIn) {
+            // --- MODO LOGADO ---
+            
+            // Adiciona a classe ao body (embora o 'app' esteja sendo controlado pelo display)
+            body.classList.remove('login-active');
+            
+            // 4a. Cria e mostra o seletor de Data
+            dateContainer = document.createElement('div');
+            dateContainer.id = 'dateContainer';
+            dateContainer.classList.add('auth-control', 'controls');
+            dateContainer.style.flexWrap = 'nowrap';
+            dateContainer.style.justifyContent = 'flex-start';
+             dateContainer.innerHTML = `
+                <label style="color: #111; font-size: 14px; white-space: nowrap;">📅 Dia:</label>
+                <input type="date" id="dateSelectInput" class="select-device" value="${selectedDate}">
+             `;
+            // Insere no topo da aplicação principal
+            controlsContainer.parentNode.insertBefore(dateContainer, controlsContainer);
+            
+            document.getElementById('dateSelectInput').addEventListener('change', (e) => {
+                 selectedDate = e.target.value;
+                 renderScans();
+            });
+
+            // 5. Oculta/Mostra Controles Principais (Scanner/Exportar)
+            startButton.style.display = 'inline-block';
+            exportBtn.style.display = adminMode ? 'inline-block' : 'none';
+            clearBtn.style.display = adminMode ? 'inline-block' : 'none';
+
+            // 6. Adiciona Logout e Relatórios (dentro de #controls)
+            const user = getLoggedInUser();
+            const logoutBtn = createButton(`👋 ${user.username} - Sair`, 'secondary', logoutUser);
+            logoutBtn.classList.add('auth-control');
+            controlsContainer.appendChild(logoutBtn);
+            
+            // Botões de relatório
+            if (adminMode || managerMode) {
+                 const reportDailyBtn = createButton('📄 Relatório Diário', 'secondary', () => generateReport('daily'));
+                 const reportQuinzenalBtn = createButton('📄 Relatório Quinzenal', 'secondary', () => generateReport('quinzenal'));
+                 const reportMensalBtn = createButton('📄 Relatório Mensal', 'secondary', () => generateReport('mensal'));
+                 
+                 reportDailyBtn.classList.add('auth-control'); 
+                 reportQuinzenalBtn.classList.add('auth-control'); 
+                 reportMensalBtn.classList.add('auth-control');
+                 controlsContainer.appendChild(reportDailyBtn);
+                 controlsContainer.appendChild(reportQuinzenalBtn);
+                 controlsContainer.appendChild(reportMensalBtn);
+            }
+            
+            logOutput(`Bem-vindo(a), ${user.username}. Scanner pronto.`);
+            
+            if (adminMode || managerMode) {
+                 setupUserManagement();
+            }
+
+        } else {
+            // --- MODO DESLOGADO: TELA DE LOGIN ---
+            
+            body.classList.add('login-active'); // Adiciona a classe para estilizar o body e esconder o .app
+            
+            // 5. Oculta todos os controles principais
+            const controls = [startButton, stopButton, torchButton, deviceSelect, deviceSelectLabel, exportBtn, clearBtn];
+            controls.forEach(el => el.style.display = 'none');
+            
+            // 6. CRIA A TELA DE LOGIN NOVO VISUAL
+            loginScreen = document.createElement('div');
+            loginScreen.id = 'loginScreen';
+            loginScreen.classList.add('login-container');
+            
+            loginScreen.innerHTML = `
+                <div id="loginForm">
+                    <h2 style="margin-top: 0; color: #343a40;">🔑 Acesso do Scanner</h2>
+                    <input type="text" id="loginUser" placeholder="Nome de Usuário" required>
+                    <input type="password" id="loginPass" placeholder="Senha" required>
+                    <button id="loginBtn">Entrar</button>
+                    <p style="font-size: 12px; color: #999; margin-bottom: 0;">Use 'thon' e '882010' para Admin.</p>
+                </div>
+            `;
+            
+            // Anexa a tela de login ao corpo do documento
+            body.appendChild(loginScreen);
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const loginUserField = document.getElementById('loginUser');
+            const loginPassField = document.getElementById('loginPass');
+            
+            const handleLoginAttempt = () => {
+                const user = loginUserField.value;
+                const pass = loginPassField.value;
+                loginUser(user, pass);
+            };
+
+            if (loginBtn) {
+                loginBtn.addEventListener('click', handleLoginAttempt);
+                loginPassField.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') handleLoginAttempt();
+                });
+            }
+            
+            logOutput('Por favor, faça login para começar.');
+        }
+
+        // Garante que a câmera pare se não estiver logado
+        if (!loggedIn) { stopCamera(); }
+    }
+    
+    // --- LÓGICA DA CÂMERA (Mantida) ---
+    
+    async function requestPermissionOnce() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('getUserMedia não suportado');
+        const s = await navigator.mediaDevices.getUserMedia({ video: true }).catch(e => { throw e; });
+        s.getTracks().forEach(t => t.stop()); return true;
+    }
+
+    async function enumerateVideoDevices() {
+        try { const devices = await navigator.mediaDevices.enumerateDevices(); return devices.filter(d => d.kind === 'videoinput'); } catch (e) { return []; }
+    }
+
+    function populateDeviceSelect(devices) {
+        deviceSelect.innerHTML = '';
+        if (!devices || devices.length === 0) { deviceSelect.style.display = 'none'; deviceSelectLabel.style.display = 'none'; return; }
+        devices.forEach(d => { const opt = document.createElement('option'); opt.value = d.deviceId; opt.text = d.label || `Câmera ${deviceSelect.length + 1}`; deviceSelect.appendChild(opt); });
+        deviceSelect.style.display = devices.length > 1 ? 'inline-block' : 'none';
+        deviceSelectLabel.style.display = devices.length > 1 ? 'inline-block' : 'none';
+    }
+
+    async function startCamera() {
+        if (!isAuthenticated()) { logOutput('🛑 Faça login para iniciar o scanner.'); return; }
+        if (scanning) return;
+        logOutput('Solicitando permissão da câmera...');
+        startButton.disabled = true;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { logOutput('getUserMedia não suportado neste navegador.'); startButton.disabled = false; return; }
+
+        try {
+            try { mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); } 
+            catch (errFacing) {
+                await requestPermissionOnce();
+                const devices = await enumerateVideoDevices();
+                populateDeviceSelect(devices);
+                const rear = devices.find(d => /rear|back|traseira|environment|facing back/i.test(d.label));
+                const chosen = deviceSelect.value || (rear ? rear.deviceId : (devices[0] && devices[0].deviceId));
+                if (chosen) {
+                    try { mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: chosen } }, audio: false }); } 
+                    catch (e) { mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
+                } else { mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
+            }
+
+            video.srcObject = mediaStream; await video.play().catch(() => {});
+            currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
+            
+            torchOn = false;
+            if (currentVideoTrack && typeof currentVideoTrack.getCapabilities === 'function') {
+                try { const caps = currentVideoTrack.getCapabilities(); if (caps && caps.torch) torchButton.style.display = 'inline-block'; else torchButton.style.display = 'none'; } catch (e) { torchButton.style.display = 'none'; }
+            } else { torchButton.style.display = 'none'; }
+
+            const devicesNow = await enumerateVideoDevices(); populateDeviceSelect(devicesNow);
+
+            scanning = true; startButton.style.display = 'none'; stopButton.style.display = 'inline-block';
+            logOutput('✅ Scanner ativo — aponte para o QR.');
+            if (video.readyState >= 1) fitCanvases(); else video.addEventListener('loadedmetadata', fitCanvases, { once: true });
+            rafId = requestAnimationFrame(scanLoop);
+        } catch (err) {
+            console.error('Erro ao abrir câmera:', err);
+            startButton.disabled = false;
+            let msg = 'Erro ao acessar a câmera. Ver console.';
+            if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) msg = '🛑 Permissão negada. Permita a câmera nas configurações do navegador.';
+            else if (err && err.name === 'NotFoundError') msg = 'Câmera não encontrada.';
+            else if (err && err.name === 'SecurityError') msg = 'Requer HTTPS (use GitHub Pages) ou localhost.';
+            logOutput(msg);
+        }
+    }
+
+    async function toggleTorch() {
+        if (!currentVideoTrack) return;
+        try { torchOn = !torchOn; await currentVideoTrack.applyConstraints({ advanced: [{ torch: torchOn }] }); torchButton.textContent = torchOn ? '🔦 On' : '🔦 Flash'; } catch (e) { logOutput('Flash não suportado neste dispositivo.'); }
+    }
+
+    function stopCamera() {
+        if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null; currentVideoTrack = null;
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null; scanning = false; video.pause(); video.srcObject = null;
+        
+        startButton.disabled = false; 
+        if (isAuthenticated()) { startButton.style.display = 'inline-block'; } else { startButton.style.display = 'none'; }
+        
+        stopButton.style.display = 'none'; torchButton.style.display = 'none'; deviceSelect.style.display = 'none'; deviceSelectLabel.style.display = 'none';
+        overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+        logOutput(isAuthenticated() ? 'Scanner parado.' : 'Por favor, faça login para começar.');
+    }
+    
+    function fitCanvases() {
+        const vw = video.videoWidth || video.clientWidth || 640; const vh = video.videoHeight || video.clientHeight || 480;
+        const targetW = Math.min(1024, Math.max(320, Math.round(vw * 0.6))); const targetH = Math.round((vh / vw) * targetW) || 480;
+        tempCanvas.width = targetW; tempCanvas.height = targetH; overlay.width = vw; overlay.height = vh; drawBoundingBox(null);
+    }
+    
+    function drawBoundingBox(location) {
+        overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+        if (!location) { const w = overlay.width, h = overlay.height; const boxW = Math.round(w * 0.62), boxH = Math.round(h * 0.5); const x = Math.round((w - boxW) / 2), y = Math.round((h - boxH) / 2);
+            overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x, y, boxW, boxH); return;
+        }
+        overlayCtx.strokeStyle = 'rgba(0,200,83,0.95)'; overlayCtx.lineWidth = Math.max(2, overlay.width / 200);
+        overlayCtx.beginPath(); overlayCtx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y); overlayCtx.lineTo(location.topRightCorner.x, location.topRightCorner.y);
+        overlayCtx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y); overlayCtx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y);
+        overlayCtx.closePath(); overlayCtx.stroke(); overlayCtx.fillStyle = 'rgba(0,200,83,0.14)'; overlayCtx.fill();
+    }
+    
+    function scanLoop() {
+        if (!scanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            try {
+                const vw = video.videoWidth || video.clientWidth; const vh = video.videoHeight || video.clientHeight;
+                if (!vw || !vh) { rafId = requestAnimationFrame(scanLoop); return; }
+                
+                const cropFactor = 0.6; const sw = Math.floor(vw * cropFactor); const sh = Math.floor(vh * cropFactor);
+                const sx = Math.floor((vw - sw) / 2); const sy = Math.floor((vh - sh) / 2);
+                
+                tempCtx.drawImage(video, sx, sy, sw, sh, 0, 0, tempCanvas.width, tempCanvas.height);
+                const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                
+                if (code && code.data) {
+                    if (code.location) {
+                        const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCanvas.height;
+                        const mapCorner = (pt) => ({ x: Math.round(pt.x * scaleX + sx), y: Math.round(pt.y * scaleY + sy) });
+                        const loc = { topLeftCorner: mapCorner(code.location.topLeftCorner), topRightCorner: mapCorner(code.location.topRightCorner), bottomLeftCorner: mapCorner(code.location.bottomLeftCorner), bottomRightCorner: mapCorner(code.location.bottomRightCorner) };
+                        drawBoundingBox(loc);
+                    } else { drawBoundingBox(null); }
+                    
+                    const now = Date.now();
+                    if (now - lastScanTime >= SCAN_INTERVAL) { lastScanTime = now; const payload = (code.data || '').trim(); handleScanResult(payload); }
+                } else { drawBoundingBox(null); }
+            } catch (e) { console.error('Erro no processamento do frame', e); }
+        }
+        rafId = requestAnimationFrame(scanLoop);
+    }
+    
+    // --- LÓGICA DE EXTRAÇÃO E RESULTADO (Mantida) ---
+    
+    function extractIdFromLink(link) {
+        if (!link || typeof link !== 'string') return { type: null, value: null };
+        const l = link.trim();
+        const shopeePattern1 = /-i\.(\d+)\.(\d+)/i; const m1 = l.match(shopeePattern1); if (m1) return { type: 'shopee_item', value: m1[2], shopId: m1[1] };
+        const shopeePattern2 = /shopee\.[^\/]+\/(?:product|products|item)\/(\d+)/i; const m2 = l.match(shopeePattern2); if (m2) return { type: 'shopee_item', value: m2[1] };
+        const mlPattern1 = /ML[A-Z]*-?(\d+)/i; const m3 = l.match(mlPattern1); if (m3) return { type: 'mercadolivre_item', value: m3[1] };
+        const mlPattern2 = /\/(\d{6,})(?:[^\d]|$)/; const m4 = l.match(mlPattern2); if (m4) return { type: 'mercadolivre_item', value: m4[1] };
+        const orderPattern = /order[_\-\/]?(\d{6,})/i; const m5 = l.match(orderPattern); if (m5) return { type: 'order', value: m5[1] };
+        const fallback = l.match(/(\d{6,})/); if (fallback) return { type: 'number', value: fallback[1] };
+        return { type: null, value: null };
+    }
+
+    function extractQrId(payload) {
+        if (!payload || typeof payload !== 'string') return { type: null, value: null };
+        const p = payload.trim(); const kv = [/(?:qr[_\-]?id|qrid|id|codigo|cod|codigo_id|qrCodeId)[:=]\s*([A-Za-z0-9\-_]+)/i, /(?:idPedido|pedido_id|order_id|order)[:=]\s*([A-Za-z0-9\-_]+)/i];
+        for (const re of kv) { const m = p.match(re); if (m) return { type: 'qr_field', value: m[1] }; }
+        try { const url = new URL(p); const qp = ['id','qrid','qr_id','codigo','code','itemId','orderId','order_id']; for (const k of qp) if (url.searchParams.has(k)) return { type: `qr_param:${k}`, value: url.searchParams.get(k) }; } catch (e) {}
+        const num = p.match(/([0-9]{6,})/); if (num) return { type: 'numeric', value: num[1] };
+        if (p.length <= 64 && /[A-Za-z0-9\-_]{4,}/.test(p)) return { type: 'text', value: p.split(/\s|;|,|\|/)[0] };
+        return { type: null, value: null };
+    }
+
+    async function handleScanResult(payload) {
+        if (!payload) return;
+        
+        // Verifica se é um scan duplicado na janela de tempo de 60 segundos
+        if (scannedData.some(item => item.link === payload && (Date.now() - item.timestamp) < DUPLICATE_WINDOW)) { logOutput('Já escaneado recentemente.'); showPopup('Já escaneado'); return; }
+        
+        const plataforma = (() => { const l = payload.toLowerCase(); if (l.includes('shopee.')) return 'Shopee'; if (l.includes('mercadolivre.')||l.includes('mercadolibre')) return 'Mercado Livre'; return 'Outra'; })();
+        const extractedId = extractIdFromLink(payload); const qrId = extractQrId(payload);
+        
+        const entry = { plataforma, link: payload, dataHora: new Date().toLocaleString('pt-BR'), timestamp: Date.now(), extractedId, qrId };
+        
+        // Adiciona e atualiza a tela
+        addScan(entry); 
+        
+        // Se o novo scan for do dia atual, atualiza a data de filtro para garantir que ele apareça
+        if (formatDate(new Date()) !== selectedDate) {
+            selectedDate = formatDate(new Date());
+            const dateInput = document.getElementById('dateSelectInput');
+            if(dateInput) dateInput.value = selectedDate;
+            renderScans();
+        }
+
+        beep(); try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) {}
+        
+        // Exibe o popup com o ID principal
+        showPopup(`OK • ${qrId.value || extractedId.value || 'salvo'}`);
+        
+        // Copia para a área de transferência o ID principal
+        try { await navigator.clipboard.writeText(qrId.value || extractedId.value || payload); logOutput('Copiado para área de transferência.'); } catch (e) {}
+        
+        logOutput(`Lido: ${plataforma} • ${qrId.value || extractedId.value || ''}`);
+    }
+
+    // --- FUNÇÕES DE RELATÓRIO (Atualizada para usar a mesma lógica de acesso do getFilteredScans) ---
+    
+    function getDateRange(period) {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        if (period === 'daily') {
+        } else if (period === 'quinzenal') {
+            start.setDate(start.getDate() - 14);
+        } else if (period === 'mensal') {
+            start.setMonth(start.getMonth() - 1);
+        }
+        
+        return start.getTime();
+    }
+    
+    function generateReport(period) {
+        const currentUser = getLoggedInUser();
+        if (!currentUser || (!isAdmin() && !isManager())) return;
+        
+        // 1. Define o período de tempo
+        const startTime = getDateRange(period);
+        
+        // 2. Filtra todos os dados (scannedData) pela permissão de acesso (Gestor/Admin)
+        const allowedUsers = getFilterableUsernames(currentUser);
+        let filteredData = scannedData.filter(item => {
+            return item.scannedBy && allowedUsers.includes(item.scannedBy) && item.timestamp >= startTime;
+        });
+
+        const periodName = { 'daily': 'Diário', 'quinzenal': 'Quinzenal', 'mensal': 'Mensal' }[period];
+
+        if (filteredData.length === 0) {
+            alert(`Nenhum dado escaneado encontrado para o relatório ${periodName} na sua área de cobertura.`);
+            return;
+        }
+
+        const csv = convertToCSV(filteredData.map(({plataforma,link,dataHora,extractedId,qrId,scannedBy}) => ({plataforma,link,dataHora,extractedId,qrId,scannedBy})));
+        const bom = '\uFEFF'; 
+        const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob); 
+        const a = document.createElement('a');
+        
+        a.href = url; 
+        a.download = `relatorio_${period}_${new Date().toISOString().substring(0, 10)}.csv`;
+        document.body.appendChild(a); 
+        a.click(); 
+        a.remove(); 
+        URL.revokeObjectURL(url);
+        
+        logOutput(`Relatório ${periodName} gerado com ${filteredData.length} registros.`);
+    }
+
+    // --- FUNÇÕES DE EXPORTAÇÃO E LIMPEZA (Mantidas) ---
+    
+    function convertToCSV(data) {
+        if (!data || data.length === 0) return '';
+        const headers = ['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan', 'Scanned_By']; 
+        const rows = [headers.join(';')];
+        data.forEach(item => {
+            const safe = v => `"${String(v == null ? '' : v).replace(/"/g,'""')}"`;
+            const qrType = item.qrId && item.qrId.type ? item.qrId.type : '';
+            const qrValue = item.qrId && item.qrId.value ? item.qrId.value : '';
+            const idType = item.extractedId && item.extractedId.type ? item.extractedId.type : '';
+            const idValue = item.extractedId && item.extractedId.value ? item.extractedId.value : '';
+            const scannedBy = item.scannedBy || '';
+            rows.push([safe(item.plataforma), safe(item.link), safe(qrType), safe(qrValue), safe(idType), safe(idValue), safe(item.dataHora), safe(scannedBy)].join(';'));
+        });
+        return rows.join('\r\n');
+    }
+
+    function exportCSV() {
+        if (!isAdmin()) { alert('Apenas administradores podem exportar todos os dados.'); return; }
+        if (!scannedData || scannedData.length === 0) { alert('Nenhum dado para exportar.'); return; }
+        
+        // Exporta TUDO (sem filtro de data, apenas Admin tem este botão)
+        const csv = convertToCSV(scannedData.map(({plataforma,link,dataHora,extractedId,qrId,scannedBy}) => ({plataforma,link,dataHora,extractedId,qrId,scannedBy})));
+        const bom = '\uFEFF'; const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `scans_ALL_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        logOutput('Todos os registros exportados.');
+    }
+
+    function clearScans() { 
+        if (!isAdmin()) { alert('Apenas administradores podem limpar os registros.'); return; }
+        if (!confirm('Apagar todos os registros? Esta ação não pode ser desfeita.')) return; 
+        scannedData = []; saveScannedData(); renderScans(); logOutput('Registros limpos.'); 
+    }
+
+    // --- INICIALIZAÇÃO ---
+
+    deviceSelect.addEventListener('change', async () => {
+        if (!isAuthenticated()) return;
+        const id = deviceSelect.value; if (!id) return;
+        try { stopCamera(); mediaStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id } }, audio: false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning = true; rafId = requestAnimationFrame(scanLoop); startButton.style.display = 'none'; stopButton.style.display = 'inline-block'; logOutput('Usando câmera selecionada.'); } catch (e) { console.warn('Falha ao selecionar deviceId', e); logOutput('Falha ao usar câmera selecionada.'); }
+    });
+
+    function init() {
+        // Assegura que o selectedDate é a data atual ao iniciar
+        selectedDate = formatDate(new Date()); 
+        
+        renderScans(); // Tenta renderizar (mostrará mensagem de login se não estiver autenticado)
+        startButton.addEventListener('click', startCamera);
+        stopButton.addEventListener('click', stopCamera);
+        torchButton.addEventListener('click', toggleTorch);
+        exportBtn.addEventListener('click', exportCSV);
+        clearBtn.addEventListener('click', clearScans);
+        window.addEventListener('resize', () => { if (video && video.videoWidth) fitCanvases(); });
+        drawBoundingBox(null);
+        
+        updateUIForAuth(); 
+        
+        window._scanner = { startCamera, stopCamera, exportCSV, clearScans, getScans: () => scannedData };
+    }
+
+    init();
+})();
