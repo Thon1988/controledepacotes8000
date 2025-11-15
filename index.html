@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner de Pacotes — Shopee / Mercado Livre</title>
+  <title>📦 Scanner de Pacotes</title>
 
   <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -29,6 +30,7 @@
     .meta{font-size:12px;color:var(--muted)}
     .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eee;font-size:12px}
     .actions{margin-left:auto;display:flex;gap:8px}
+    #scanPopup { position: fixed; right: 16px; bottom: 16px; background: #0b6; color: white; padding: 10px 14px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.2); display: none; z-index: 9999; }
     @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} }
   </style>
 </head>
@@ -39,6 +41,7 @@
     <div class="controls">
       <button id="startButton">▶️ Abrir Câmera / Iniciar</button>
       <button id="stopButton" class="secondary" style="display:none">⏹️ Parar</button>
+      <button id="torchButton" class="secondary" style="display:none">🔦 Flash</button>
       <button id="exportBtn" class="secondary">⬇️ Exportar CSV</button>
       <button id="clearBtn" class="warn">🧹 Limpar registros</button>
     </div>
@@ -53,6 +56,8 @@
       <div class="list" id="scansList" aria-live="polite"></div>
     </div>
   </div>
+
+  <div id="scanPopup" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>
