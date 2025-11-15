@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Scanner QR/Link Móvel</title>
+    <title>Scanner QR/Link Móvel Avançado</title>
     <style>
         /* Estilos CSS simplificados e responsivos */
         body {
@@ -25,6 +25,29 @@
             box-sizing: border-box;
         }
 
+        /* --- Estilos de Login --- */
+        .login-screen {
+            display: none; 
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        .login-screen input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #loginBtn { background-color: #28a745; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+        #loginStatus { margin-top: 10px; font-size: 14px; color: #dc3545; }
+        
+        /* Controle de visibilidade via classes do Body */
+        .app-main { display: none; } 
+        .logged-in .app-main { display: block; }
+        .login-active .login-screen { display: flex; }
+        
+        /* --- Estilos do Scanner e Controles --- */
         .video-container {
             position: relative;
             width: 100%;
@@ -132,30 +155,9 @@
             flex-grow: 1;
         }
         
-        /* --- Estilos de Login --- */
-        .login-screen {
-            display: none; /* Escondido por JS, mas aqui está o fallback */
-            flex-direction: column;
-            gap: 15px;
-            padding: 20px;
-            text-align: center;
-        }
-        .login-screen input {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-        #loginBtn { background-color: #28a745; color: white; }
-        #loginStatus { margin-top: 10px; font-size: 14px; color: #dc3545; }
-        
-        /* Controle de visibilidade via classes do Body */
-        .app-main { display: none; } 
-        .logged-in .app-main { display: block; }
-        .login-active .login-screen { display: flex; }
     </style>
 </head>
-<body>
+<body class="login-active">
     <div class="app">
         <h1>📦 Scanner Móvel</h1>
         
@@ -164,7 +166,7 @@
             <input type="text" id="loginUser" placeholder="Usuário" required>
             <input type="password" id="loginPass" placeholder="Senha" required>
             <button id="loginBtn">Entrar</button>
-            <div id="loginStatus"></div>
+            <div id="loginStatus">Faça login para começar.</div>
         </div>
         
         <div class="app-main">
