@@ -176,4 +176,228 @@
                     </select>
                     <button id="createUserBtn" style="background:#28a745;color:#fff;padding: 6px 10px;">➕ Adicionar</button>
                 </div>
-                <div id="userListDisplay" class="list" style="max-height:
+                <div id="userListDisplay" class="list" style="max-height: 120px; border: 0; padding: 0;"></div>
+            </div>
+        `;
+        
+        controlsContainer.parentNode.insertBefore(container, controlsContainer.nextSibling);
+
+        document.getElementById('createUserBtn').addEventListener('click', handleCreateUser);
+        renderUserList();
+    }
+    
+    function renderUserList() {
+        const listDiv = document.getElementById('userListDisplay');
+        if (!listDiv) return;
+        listDiv.innerHTML = '';
+        
+        const currentUser = getLoggedInUser();
+        const isAdminUser = isAdmin();
+        const isManagerUser = isManager();
+        
+        const usersToShow = Object.keys(users).filter(username => {
+            if (isAdminUser) return true;
+            const user = users[username];
+            return user.createdBy === currentUser.username;
+        });
+        
+        if (usersToShow.length === 0) { listDiv.innerHTML = '<div style="color:#6c757d">Nenhum usuário gerenciável.</div>'; return; }
+
+
+        usersToShow.forEach(username => {
+            const user = users[username];
+            const el = document.createElement('div'); el.className = 'item';
+            el.style.display = 'flex'; el.style.justifyContent = 'space-between'; el.style.alignItems = 'center';
+            
+            const roleColor = { 'administrator': '#dc3545', 'manager': '#ffc107', 'user': '#17a2b8' }[user.role];
+            const roleText = { 'administrator': 'Admin', 'manager': 'Gestor', 'user': 'Padrão' }[user.role];
+
+            el.innerHTML = `
+                <div style="font-size:14px;">
+                    <strong>${escapeHtml(username)}</strong> 
+                    (<span style="color:${roleColor}">${roleText}</span>)
+                    <span style="font-size:12px; color:#6c757d; margin-left: 5px;">${user.createdBy && user.createdBy !== 'system' ? `(Criado por: ${user.createdBy})` : ''}</span>
+                </div>
+            `;
+            
+            let canDelete = false;
+            if (isAdminUser && username !== currentUser.username) {
+                canDelete = true;
+            } else if (isManagerUser) {
+                if (user.createdBy === currentUser.username && user.role === 'user' && username !== currentUser.username) {
+                    canDelete = true;
+                }
+            }
+
+            if (canDelete) {
+                 const deleteBtn = document.createElement('button');
+                 deleteBtn.textContent = 'Remover';
+                 deleteBtn.style.background = '#dc3545'; deleteBtn.style.marginLeft = '8px'; deleteBtn.style.padding = '4px 8px';
+                 deleteBtn.addEventListener('click', () => handleDeleteUser(username));
+                 el.appendChild(deleteBtn);
+            } else if (username === currentUser.username) {
+                 el.innerHTML += '<span style="font-size:12px; color:#6c757d; margin-left: 10px;">(Você)</span>';
+            }
+            listDiv.appendChild(el);
+        });
+    }
+    
+    function handleCreateUser() {
+        if (!isAdmin() && !isManager()) { alert('Você não tem permissão para criar usuários.'); return; }
+        
+        const usernameInput = document.getElementById('newUser');
+        const passwordInput = document.getElementById('newPass');
+        const roleInput = document.getElementById('newRole');
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        const role = roleInput.value;
+        const creator = getLoggedInUser().username;
+
+        if (!username || !password) { alert('Usuário e Senha são obrigatórios.'); return; }
+        if (users[username]) { alert(`O usuário '${username}' já existe.`); return; }
+        
+        if (isManager() && role !== 'user') {
+             alert('Um Gestor só pode criar Usuários Padrão.');
+             return;
+        }
+        
+        users[username] = { password: password, role: role, createdBy: creator };
+        saveUsers();
+        logOutput(`Usuário ${username} (${role}) criado com sucesso.`);
+        
+        usernameInput.value = '';
+        passwordInput.value = '';
+        renderUserList();
+    }
+    
+    function handleDeleteUser(username) {
+        const currentUser = getLoggedInUser();
+        const userToDelete = users[username];
+
+        if (!userToDelete) { alert('Usuário não encontrado.'); return; }
+        if (username === currentUser.username) { alert('Você não pode remover a si mesmo.'); return; }
+
+        let canDelete = false;
+
+        if (isAdmin()) {
+            canDelete = true;
+        } else if (isManager()) {
+            if (userToDelete.createdBy === currentUser.username && userToDelete.role === 'user') {
+                canDelete = true;
+            } else {
+                alert('Você só pode excluir Usuários Padrão que foram criados por você.');
+                return;
+            }
+        }
+        
+        if (canDelete) {
+            if (confirm(`Tem certeza que deseja remover o usuário '${username}'?`)) {
+                delete users[username];
+                saveUsers();
+                logOutput(`Usuário ${username} removido.`);
+                renderUserList();
+            }
+        } else {
+             alert('Você não tem permissão para remover este usuário.');
+        }
+    }
+
+
+    // --- LÓGICA DE FILTRAGEM DE SCANS ---
+    
+    function getFilterableUsernames(currentUser) {
+        if (isAdmin()) {
+            return Object.keys(users);
+        }
+        if (isManager()) {
+            // Gestor: vê seus próprios scans + scans dos usuários que ele criou
+            const managerCreatedUsernames = Object.keys(users)
+                .filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
+            managerCreatedUsernames.push(currentUser.username);
+            return managerCreatedUsernames;
+        }
+        // Usuário Padrão: vê apenas os próprios scans
+        return [currentUser.username];
+    }
+    
+    function getFilteredScans() {
+        const currentUser = getLoggedInUser();
+        if (!currentUser) return [];
+        
+        const allowedUsers = getFilterableUsernames(currentUser);
+        
+        // 1. Filtra por usuário (visibilidade)
+        let filteredByAccess = scannedData.filter(item => {
+            return item.scannedBy && allowedUsers.includes(item.scannedBy);
+        });
+        
+        // 2. Filtra por data (apenas o dia selecionado)
+        let filteredByDate = filteredByAccess.filter(item => {
+            // Compara a data do scan (AAAA-MM-DD) com a data selecionada
+            return item.date === selectedDate;
+        });
+        
+        return filteredByDate;
+    }
+
+
+    // --- RENDERIZAÇÃO E UI (Atualizado) ---
+
+    function renderScans() {
+        scansList.innerHTML = '';
+        if (!isAuthenticated()) { 
+             scansList.innerHTML = '<div style="color:#6c757d">Faça login para ver os registros.</div>';
+             return;
+        }
+        
+        const scans = getFilteredScans();
+        
+        if (scans.length === 0) { 
+            scansList.innerHTML = `<div style="color:#6c757d">Nenhum registro encontrado para o dia ${selectedDate.split('-').reverse().join('/')}.</div>`; 
+            return; 
+        }
+        
+        // Ordena os scans pelo timestamp do mais recente para o mais antigo (do topo para baixo)
+        scans.sort((a, b) => b.timestamp - a.timestamp); 
+        
+        scans.forEach(item => {
+            const el = document.createElement('div'); el.className = 'item';
+            el.style.display = 'flex'; 
+            el.style.flexDirection = 'column'; // Organiza verticalmente
+            el.style.padding = '6px 0';
+            el.style.borderBottom = '1px dashed #eee';
+            
+            // Tenta obter o ID mais relevante para exibição
+            const mainId = item.qrId.value || item.extractedId.value || item.link;
+            const idType = item.qrId.value ? item.qrId.type : item.extractedId.value ? item.extractedId.type : 'Link Completo';
+            
+            // Linha principal do ID
+            const idLine = document.createElement('div');
+            idLine.style.fontSize = '14px';
+            idLine.style.wordBreak = 'break-all';
+            idLine.style.color = '#343a40';
+            idLine.innerHTML = `<strong>${escapeHtml(mainId)}</strong>`;
+
+            // Linha de metadados
+            const metaLine = document.createElement('div');
+            metaLine.style.fontSize = '11px';
+            metaLine.style.color = '#6c757d';
+            
+            const scannedByText = item.scannedBy ? ` | Por: ${escapeHtml(item.scannedBy)}` : '';
+            const platformText = item.plataforma && item.plataforma !== 'Outra' ? ` | Plataforma: ${escapeHtml(item.plataforma)}` : '';
+            
+            metaLine.textContent = `${escapeHtml(item.dataHora.split(' ')[1])} ${scannedByText} ${platformText} | Tipo ID: ${escapeHtml(idType)}`;
+            
+            el.appendChild(idLine);
+            el.appendChild(metaLine);
+            scansList.appendChild(el);
+        });
+        
+         // Remove a borda do último item
+         if (scansList.lastChild) {
+            scansList.lastChild.style.borderBottom = 'none';
+        }
+    }
+
+    function create
