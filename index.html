@@ -1,302 +1,165 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>📦 PegazusLog v0.1</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>📦 PegazusLog Scanner</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      background: #f4f6f8;
+      color: #111;
+    }
 
-    <style>
+    /* LOGIN */
+    .login-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
 
-        /* ---------------------------------------------------------
-           PALETA MODERNA
-        ---------------------------------------------------------- */
-        :root {
-            --primary: #0ea5e9;
-            --primary-dark: #0284c7;
-            --bg: #f5f7fa;
-            --text: #1e293b;
-            --panel-bg: #ffffff;
-            --border: #e2e8f0;
-            --radius: 14px;
-            --shadow: 0 8px 20px rgba(0,0,0,0.08);
-        }
+    #loginBox {
+      background: #fff;
+      padding: 30px;
+      width: 100%;
+      max-width: 360px;
+      border-radius: 14px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
 
-        body {
-            margin: 0;
-            font-family: "Inter", system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-        }
+    #loginBox input {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
 
-        /* ---------------------------------------------------------
-           LOGIN — CARD MODERNO
-        ---------------------------------------------------------- */
-        #loginScreen {
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+    #loginBtn {
+      padding: 12px;
+      border: none;
+      background: #0077b6;
+      color: #fff;
+      font-weight: bold;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
 
-        #loginForm {
-            background: var(--panel-bg);
-            padding: 40px 30px;
-            border-radius: var(--radius);
-            width: 100%;
-            max-width: 380px;
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            text-align: center;
-        }
+    #loginBtn:hover { background: #005f90; }
 
-        #loginForm h2 {
-            margin: 0 0 10px;
-            font-weight: 600;
-        }
+    #feedbackMessage {
+      font-size: 13px;
+      text-align: center;
+      min-height: 18px;
+    }
 
-        #loginForm input {
-            padding: 14px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 15px;
-            transition: 0.2s;
-        }
-        #loginForm input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25);
-        }
+    /* APP */
+    body.logged-in #loginScreen { display: none; }
+    body.logged-in .app { display: block; }
 
-        #loginForm button {
-            padding: 14px;
-            background: var(--primary);
-            border: none;
-            color: white;
-            border-radius: var(--radius);
-            font-size: 16px;
-            cursor: pointer;
-            transition: 0.2s;
-            font-weight: 600;
-        }
-        #loginForm button:hover {
-            background: var(--primary-dark);
-        }
+    .app {
+      display: none;
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
+    }
 
-        .login-status-message {
-            font-size: 13px;
-            color: #6b7280;
-            min-height: 16px;
-        }
+    h1 {
+      margin: 0 0 15px 0;
+      text-align: center;
+      font-size: 20px;
+    }
 
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
 
-        /* ---------------------------------------------------------
-           APP PRINCIPAL
-        ---------------------------------------------------------- */
-        .app {
-            display: none;
-            padding: 20px;
-            max-width: 960px;
-            margin: auto;
-        }
+    button {
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
 
-        h1 {
-            text-align: center;
-            margin-bottom: 15px;
-            font-size: 22px;
-            font-weight: 600;
-        }
+    #startButton { background: #00b4d8; color: #fff; }
+    #stopButton, #clearBtn, #exportBtn { background: #6c757d; color: #fff; }
 
-        /* ---------------------------------------------------------
-           CONTROLS — botões minimalistas
-        ---------------------------------------------------------- */
-        .controls {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-bottom: 15px;
-        }
+    .camera-wrap {
+      background: #000;
+      border-radius: 12px;
+      height: 60vh;
+      overflow: hidden;
+      position: relative;
+    }
 
-        button {
-            padding: 10px 14px;
-            background: var(--primary);
-            border: none;
-            color: white;
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: 0.2s;
-            font-weight: 500;
-        }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
 
-        button:hover {
-            background: var(--primary-dark);
-        }
+    .panel {
+      margin-top: 15px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
 
-        button.secondary {
-            background: #64748b;
-        }
+    .item {
+      border-bottom: 1px solid #eee;
+      padding: 8px 0;
+    }
 
-        button.secondary:hover {
-            background: #475569;
-        }
-
-        select, input[type="date"] {
-            padding: 10px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: white;
-        }
-
-        /* ---------------------------------------------------------
-           CAMERA — estilo app scanner profissional
-        ---------------------------------------------------------- */
-        .camera-wrap {
-            position: relative;
-            background: black;
-            border-radius: var(--radius);
-            overflow: hidden;
-            box-shadow: var(--shadow);
-            height: 58vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        video#videoElement {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        canvas#overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        /* ---------------------------------------------------------
-           PAINEL
-        ---------------------------------------------------------- */
-        .panel {
-            background: var(--panel-bg);
-            padding: 15px;
-            margin-top: 15px;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-        }
-
-        #output {
-            color: #64748b;
-            min-height: 30px;
-            font-size: 14px;
-        }
-
-        .list {
-            max-height: 220px;
-            overflow-y: auto;
-            padding: 10px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-        }
-
-        .item {
-            padding: 10px;
-            border-bottom: 1px solid var(--border);
-            color: #334155;
-        }
-
-        /* ---------------------------------------------------------
-           POPUP — notificação moderna
-        ---------------------------------------------------------- */
-        #scanPopup {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: var(--primary);
-            color: white;
-            padding: 12px 20px;
-            border-radius: var(--radius);
-            font-size: 15px;
-            display: none;
-            box-shadow: var(--shadow);
-        }
-
-        /* ---------------------------------------------------------
-           LOGIN ATIVO
-        ---------------------------------------------------------- */
-        body.logged-in .app {
-            display: block;
-        }
-
-        body.logged-in #loginScreen {
-            display: none;
-        }
-
-        /* ---------------------------------------------------------
-           RESPONSIVIDADE
-        ---------------------------------------------------------- */
-        @media (max-width: 600px) {
-            .camera-wrap {
-                height: 48vh;
-            }
-            h1 {
-                font-size: 18px;
-            }
-        }
-
-    </style>
+  </style>
 </head>
-
 <body>
 
-    <!-- LOGIN -->
-    <div id="loginScreen">
-        <form id="loginForm">
-            <h2>🔑 Acesso do Scanner</h2>
-            <input id="loginUser" type="text" placeholder="Usuário">
-            <input id="loginPass" type="password" placeholder="Senha">
-            <button id="loginBtn">Entrar</button>
-            <p id="loginStatus" class="login-status-message">Digite suas credenciais.</p>
-        </form>
+  <!-- LOGIN -->
+  <div id="loginScreen" class="login-container">
+    <div id="loginBox">
+      <h2 style="text-align:center; margin-bottom:5px;">🔑 Acesso ao Sistema</h2>
+      <input id="loginUser" placeholder="Usuário" type="text" />
+      <input id="loginPass" placeholder="Senha" type="password" />
+      <button id="loginBtn">Entrar</button>
+      <p id="feedbackMessage">Digite suas credenciais.</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div class="app">
+    <h1>📦 PegazusLog Scanner</h1>
+
+    <div class="controls">
+      <button id="startButton">▶️ Iniciar</button>
+      <button id="stopButton">⏹️ Parar</button>
+      <button id="exportBtn">⬇️ Exportar</button>
+      <button id="clearBtn">🧹 Limpar</button>
     </div>
 
-    <!-- APP -->
-    <div class="app">
-
-        <h1>📦 Scanner 8000 v0.2</h1>
-
-        <div class="controls">
-            <button id="startButton" style="display:none">▶ Iniciar</button>
-            <button id="stopButton" class="secondary" style="display:none">⏹ Parar</button>
-            <button id="torchButton" class="secondary" style="display:none">🔦 Flash</button>
-
-            <select id="deviceSelect" style="display:none"></select>
-
-            <button id="exportBtn" class="secondary" style="display:none">⬇ Exportar CSV</button>
-            <button id="clearBtn" class="secondary" style="display:none">🧹 Limpar</button>
-        </div>
-
-        <div class="camera-wrap">
-            <video id="videoElement" autoplay muted playsinline></video>
-            <canvas id="overlay"></canvas>
-        </div>
-
-        <div class="panel">
-            <div id="output"></div>
-            <div id="scansList" class="list"></div>
-        </div>
-
+    <div class="camera-wrap">
+      <video id="videoElement" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
     </div>
 
-    <div id="scanPopup"></div>
+    <div class="panel">
+      <div id="output">Aguardando leitura...</div>
+      <div id="scansList"></div>
+    </div>
+  </div>
 
-    <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="app.js"></script>
 
 </body>
 </html>
-
