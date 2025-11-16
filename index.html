@@ -1,94 +1,70 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PegazusLog v0.1</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pegazus v0.1</title>
+<link rel="stylesheet" href="style.css">
 <style>
-  body {
-    margin:0;
-    font-family: Arial, sans-serif;
-    background: #f0f2f5;
-  }
+  body { margin:0; font-family: Arial,sans-serif; background:#f0f2f5; display:flex; height:100vh; }
+  .login-container { background:#fff; padding:35px; border-radius:12px; width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.1); text-align:center; margin:auto;}
+  .login-container h1 { color:#007bff; margin-bottom:25px; font-size:26px; }
+  .login-container input { width:100%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:6px; font-size:16px; }
+  .login-container button { width:100%; padding:12px; font-size:16px; border:none; border-radius:6px; background:#007bff; color:#fff; cursor:pointer; margin-top:10px; }
+  #feedbackMessage { color:red; margin-top:10px; }
 
-  /* Login */
-  .login-container {
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    min-height:100vh;
-    width:100%;
-  }
-  .login-box {
-    background:white;
-    padding:35px;
-    border-radius:12px;
-    width:320px;
-    box-shadow:0 4px 12px rgba(0,0,0,0.1);
-    text-align:center;
-  }
-  .login-box h1 {margin-bottom:25px;}
-  .login-box input {width:100%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:6px; font-size:16px;}
-  .login-box button {width:100%; padding:12px; font-size:16px; border:none; border-radius:6px; background:#007bff; color:white; cursor:pointer; margin-top:10px;}
+  #app { display:none; flex:1; height:100%; overflow:hidden; }
+  #sidebar { width:220px; background:#fff; border-right:1px solid #ccc; padding:10px; display:none; flex-shrink:0; flex-direction:column; }
+  #sidebar button { width:100%; margin:5px 0; padding:10px; border:none; border-radius:6px; cursor:pointer; background:#007bff; color:#fff; font-size:14px; }
+  #sidebar button:hover { background:#0056b3; }
+  #sidebar .backBtn { background:#6c757d; margin-top:10px; }
 
-  /* App */
-  #app {display:none; height:100vh; width:100%; position:relative;}
-  #sidebar {
-    width:200px;
-    background:#fff;
-    position:absolute;
-    top:0; left:0; bottom:0;
-    box-shadow:2px 0 5px rgba(0,0,0,0.1);
-    display:flex;
-    flex-direction:column;
-    padding:10px;
-    gap:10px;
-    z-index:999;
-  }
-  #sidebar button {padding:10px; border:none; border-radius:6px; cursor:pointer; background:#007bff; color:white; font-weight:bold;}
-  #map {position:absolute; top:0; left:200px; right:0; bottom:0;}
-  #cameraContainer {position:absolute; top:0; left:200px; right:0; bottom:0; display:none; background:black; justify-content:center; align-items:center;}
-  #videoElement {width:100%; height:100%; object-fit:cover;}
-  #overlay {position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;}
-  #deliveriesList {position:absolute; top:10px; left:220px; background:white; padding:10px; max-height:300px; overflow:auto; border-radius:6px; display:none;}
+  #content { flex:1; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  video#videoElement { width:100%; max-width:600px; border-radius:12px; background:#000; display:none; }
+  canvas#overlay { position:absolute; left:0; top:0; pointer-events:none; }
+  #map { width:100%; height:100%; display:none; }
+  #scansList { width:90%; max-width:600px; margin-top:10px; display:none; }
 </style>
 </head>
 <body>
 
 <!-- Login -->
 <div class="login-container">
-  <div class="login-box">
-    <h1>PegazusLog v0.1</h1>
-    <input type="text" id="loginUser" placeholder="Usuário" />
-    <input type="password" id="loginPass" placeholder="Senha" />
-    <button id="loginBtn">Entrar</button>
-    <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
-  </div>
+  <h1>Pegazus v0.1</h1>
+  <input type="text" id="loginUser" placeholder="Usuário">
+  <input type="password" id="loginPass" placeholder="Senha">
+  <button id="loginBtn">Entrar</button>
+  <p id="feedbackMessage"></p>
 </div>
 
 <!-- App -->
 <div id="app">
   <div id="sidebar">
-    <button id="btnCamera">📷 Abrir Câmera</button>
-    <button id="btnMap">🗺️ Mapa de Entregas</button>
-    <button id="btnDeliveries">📦 Entregas</button>
-    <button id="btnRoute">🚗 Gerar Rota</button>
-    <button id="btnExport">⬇️ Exportar CSV</button>
-    <button onclick="logout()">🔙 Sair</button>
+    <button id="btnCamera">📷 Camera</button>
+    <button id="btnEntregas">📦 Entregas</button>
+    <button id="btnMapa">🗺️ Mapa</button>
+    <div id="exportContainer" style="position:relative;">
+      <button id="exportBtn">⬇️ Exportar CSV</button>
+      <div id="exportMenu" style="display:none; position:absolute; top:100%; left:0; background:#fff; border:1px solid #ccc; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+        <button class="exportOption" data-period="diario">Diário</button>
+        <button class="exportOption" data-period="quinzenal">Quinzenal</button>
+        <button class="exportOption" data-period="mensal">Mensal</button>
+      </div>
+    </div>
+    <button id="btnSair" class="backBtn">Sair</button>
   </div>
 
-  <div id="map"></div>
-
-  <div id="cameraContainer">
+  <div id="content">
     <video id="videoElement" autoplay playsinline></video>
     <canvas id="overlay"></canvas>
+    <div id="map"></div>
+    <div id="scansList"></div>
   </div>
+</div>
 
-  <div id="deliveriesList"></div>
-</body>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="jsQR.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
 <script src="app.js"></script>
+
+</body>
 </html>
