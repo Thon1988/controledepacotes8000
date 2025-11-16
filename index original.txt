@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanner QR/Link Móvel Avançado</title>
+    <style>
+        /* Estilos CSS simplificados e responsivos */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+            transition: margin-top 0.3s;
+        }
+
+        .app {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 15px;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* --- Estilos de Login --- */
+        .login-screen {
+            display: none; 
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        .login-screen input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #loginBtn { background-color: #28a745; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+        #loginStatus { margin-top: 10px; font-size: 14px; color: #dc3545; }
+        
+        /* Controle de visibilidade via classes do Body */
+        .app-main { display: none; } 
+        .logged-in .app-main { display: block; }
+        .login-active .login-screen { display: flex; }
+        
+        /* --- Estilos do Scanner e Controles --- */
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 75%; /* Proporção 4:3 */
+            background: #000;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #videoElement, #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #overlay {
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+
+        button, .select-device {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            flex-grow: 1;
+            min-width: 100px;
+        }
+
+        #startButton { background-color: #007bff; color: white; }
+        #stopButton { background-color: #dc3545; color: white; display: none; }
+        #torchButton { background-color: #ffc107; color: #333; display: none; }
+        .secondary { background-color: #6c757d; color: white; }
+        
+        button:hover:not(:disabled) { opacity: 0.9; }
+        button:disabled { background-color: #adb5bd; cursor: not-allowed; }
+
+        #output {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #495057;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .list {
+            max-height: 350px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5-px;
+            padding: 0 10-px;
+        }
+        
+        .item {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            color: #333;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+
+        #scanPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .select-device {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            color: #333;
+            max-width: 150px;
+        }
+        
+        .device-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-grow: 1;
+        }
+        
+    </style>
+</head>
+<body class="login-active">
+    <div class="app">
+        <h1>📦 Scanner Móvel</h1>
+        
+        <div id="loginScreen" class="login-screen">
+            <h2>Acesso Restrito</h2>
+            <input type="text" id="loginUser" placeholder="Usuário" required>
+            <input type="password" id="loginPass" placeholder="Senha" required>
+            <button id="loginBtn">Entrar</button>
+            <div id="loginStatus">Faça login para começar.</div>
+        </div>
+        
+        <div class="app-main">
+            <div class="video-container">
+                <video id="videoElement" playsinline></video>
+                <canvas id="overlay"></canvas>
+            </div>
+
+            <div id="controls" class="controls">
+                <button id="startButton">▶ Iniciar Scanner</button>
+                <button id="stopButton" style="display: none;">■ Parar</button>
+                <button id="torchButton" style="display: none;">🔦 Flash</button>
+                
+                <div class="device-selector">
+                    <label id="deviceSelectLabel" style="font-size: 14px; color: #333; display: none;">Câmera:</label>
+                    <select id="deviceSelect" class="select-device" style="display: none;"></select>
+                </div>
+
+                <button id="exportBtn" class="secondary" style="display: none;">Exportar Tudo (Admin)</button>
+                <button id="clearBtn" class="secondary" style="display: none;">Limpar Tudo (Admin)</button>
+            </div>
+
+            <div id="output">Scanner inativo.</div>
+
+            <h2>📚 Últimos Scans</h2>
+            <div class="list">
+                <ul id="scansList">
+                    </ul>
+            </div>
+        </div>
+
+        <div id="scanPopup">OK!</div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
+    <script src="app.js"></script>
+    
+</body>
+</html><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanner QR/Link Móvel Avançado</title>
+    <style>
+        /* Estilos CSS simplificados e responsivos */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+            transition: margin-top 0.3s;
+        }
+
+        .app {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 15px;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* --- Estilos de Login --- */
+        .login-screen {
+            display: none; 
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        .login-screen input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #loginBtn { background-color: #28a745; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+        #loginStatus { margin-top: 10px; font-size: 14px; color: #dc3545; }
+        
+        /* Controle de visibilidade via classes do Body */
+        .app-main { display: none; } 
+        .logged-in .app-main { display: block; }
+        .login-active .login-screen { display: flex; }
+        
+        /* --- Estilos do Scanner e Controles --- */
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 75%; /* Proporção 4:3 */
+            background: #000;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #videoElement, #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #overlay {
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+
+        button, .select-device {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            flex-grow: 1;
+            min-width: 100px;
+        }
+
+        #startButton { background-color: #007bff; color: white; }
+        #stopButton { background-color: #dc3545; color: white; display: none; }
+        #torchButton { background-color: #ffc107; color: #333; display: none; }
+        .secondary { background-color: #6c757d; color: white; }
+        
+        button:hover:not(:disabled) { opacity: 0.9; }
+        button:disabled { background-color: #adb5bd; cursor: not-allowed; }
+
+        #output {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #495057;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .list {
+            max-height: 350px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5-px;
+            padding: 0 10-px;
+        }
+        
+        .item {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            color: #333;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+
+        #scanPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .select-device {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            color: #333;
+            max-width: 150px;
+        }
+        
+        .device-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-grow: 1;
+        }
+        
+    </style>
+</head>
+<body class="login-active">
+    <div class="app">
+        <h1>📦 Scanner Móvel</h1>
+        
+        <div id="loginScreen" class="login-screen">
+            <h2>Acesso Restrito</h2>
+            <input type="text" id="loginUser" placeholder="Usuário" required>
+            <input type="password" id="loginPass" placeholder="Senha" required>
+            <button id="loginBtn">Entrar</button>
+            <div id="loginStatus">Faça login para começar.</div>
+        </div>
+        
+        <div class="app-main">
+            <div class="video-container">
+                <video id="videoElement" playsinline></video>
+                <canvas id="overlay"></canvas>
+            </div>
+
+            <div id="controls" class="controls">
+                <button id="startButton">▶ Iniciar Scanner</button>
+                <button id="stopButton" style="display: none;">■ Parar</button>
+                <button id="torchButton" style="display: none;">🔦 Flash</button>
+                
+                <div class="device-selector">
+                    <label id="deviceSelectLabel" style="font-size: 14px; color: #333; display: none;">Câmera:</label>
+                    <select id="deviceSelect" class="select-device" style="display: none;"></select>
+                </div>
+
+                <button id="exportBtn" class="secondary" style="display: none;">Exportar Tudo (Admin)</button>
+                <button id="clearBtn" class="secondary" style="display: none;">Limpar Tudo (Admin)</button>
+            </div>
+
+            <div id="output">Scanner inativo.</div>
+
+            <h2>📚 Últimos Scans</h2>
+            <div class="list">
+                <ul id="scansList">
+                    </ul>
+            </div>
+        </div>
+
+        <div id="scanPopup">OK!</div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    
+    <script src="app.js"></script>
+    
+</body>
+</html>
