@@ -67,13 +67,13 @@
             width: 100%; 
             height: 100%;
             padding: 15px; 
-            background: var(--accent-blue-gray); /* NOVO FUNDO AZUL ACINZENTADO */
+            background: var(--accent-blue-gray); 
             overflow-y: auto;
             display: none;
             box-sizing: border-box;
         }
 
-        /* NOVO ESTILO DOS ITENS DA LISTA */
+        /* Estilo dos Itens da Lista */
         .delivery-item {
             background: var(--list-bg-color);
             padding: 15px;
@@ -81,7 +81,7 @@
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
             transition: transform 0.2s;
-            border-left: 5px solid var(--primary-color); /* Linha de destaque */
+            border-left: 5px solid var(--primary-color); 
         }
         .delivery-item:hover {
             transform: translateY(-2px);
@@ -107,8 +107,6 @@
             color: var(--secondary-color);
             padding-top: 5px;
             border-top: 1px dashed var(--border-color);
-            /* RECUO DE 1CM REMOVIDO/ORIGINAL */
-            /* padding-left: 10mm; */ 
         }
 
         /* Media Query para Layout de Celular (Responsividade) */
@@ -132,10 +130,10 @@
                 left: 0;
                 top: auto;
                 position: relative;
-                height: calc(100vh - 120px); /* Ajuste dinâmico */
+                height: calc(100vh - 120px); 
             }
             #cameraContainer {
-                border: 10px solid rgba(0, 0, 0, 0.5); /* Borda menor para celular */
+                border: 10px solid rgba(0, 0, 0, 0.5); 
             }
             #manualEntryBtn {
                 top: 10px;
@@ -279,7 +277,7 @@
             padding: 20px;
             border-radius: 8px;
             max-width: 400px;
-            margin: 50px auto;
+            margin: 20px auto; /* Margem reduzida para caber a tabela */
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .user-form-container input, .user-form-container select {
@@ -299,6 +297,40 @@
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
+        }
+        
+        /* Estilos da Tabela de Usuários */
+        .user-form-container table th, .user-form-container table td { 
+            padding: 10px; 
+            border: 1px solid var(--border-color); 
+            font-size: 0.9em;
+        }
+        .user-form-container table th {
+            font-weight: bold;
+            background: var(--accent-blue-gray);
+        }
+        .user-form-container .edit-btn { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 6px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin-right: 5px; 
+            width: auto;
+        }
+        .user-form-container .delete-btn { 
+            background: #dc3545; 
+            color: white; 
+            border: none; 
+            padding: 6px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            width: auto;
+        }
+        .user-form-container .delete-btn:disabled { 
+            background: #6c757d; 
+            cursor: not-allowed; 
         }
     </style>
 </head>
@@ -361,6 +393,24 @@
                     </select>
                 <button id="createUserBtn">Criar Usuário</button>
                 <p id="userFeedbackMessage" style="margin-top:10px; text-align:center; font-weight:bold;"></p>
+            </div>
+
+            <hr style="margin: 30px auto; width: 80%;">
+            
+            <div class="user-form-container" style="max-width: 700px;">
+                <h2>👥 Usuários Dinâmicos</h2>
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr style="background: var(--accent-blue-gray);">
+                            <th style="padding: 10px; border: 1px solid #ccc;">Usuário</th>
+                            <th style="padding: 10px; border: 1px solid #ccc;">Função</th>
+                            <th style="padding: 10px; border: 1px solid #ccc;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        </tbody>
+                </table>
+                <p style="margin-top: 15px; font-size: 0.8em; color: #dc3545;">*Usuários estáticos (thon, manager1, user1) não são editáveis/excluíveis.</p>
             </div>
         </div>
 
