@@ -1,201 +1,224 @@
-// =====================
+// ======================
 // LOGIN
-// =====================
+// ======================
 const VALID_USERS = {
-  "thon": {password:"882010", role:"admin"},
-  "manager1": {password:"123", role:"gestor"},
-  "user1": {password:"123", role:"colaborador"}
+  "thon": {password:"882010",role:"admin"},
+  "manager1": {password:"123",role:"gestor"},
+  "user1": {password:"321",role:"colaborador"}
 };
 
-let currentUser = null;
-let scans = JSON.parse(localStorage.getItem("pegazus_scans")||"[]");
+const loginBtn = document.getElementById("loginBtn");
+loginBtn.addEventListener("click",()=>{
+  const user = document.getElementById("loginUser").value.trim();
+  const pass = document.getElementById("loginPass").value.trim();
+  const feedback = document.getElementById("feedbackMessage");
 
-// Login
-document.getElementById("loginBtn").onclick = ()=>{
-  const username=document.getElementById("loginUser").value.trim();
-  const password=document.getElementById("loginPass").value.trim();
-  if(VALID_USERS[username] && VALID_USERS[username].password===password){
-    currentUser={username,role:VALID_USERS[username].role};
-    document.body.querySelector(".login-container").style.display="none";
-    document.getElementById("app").style.display="block";
-    initMap();
-    renderDeliveriesCount();
+  if(VALID_USERS[user] && VALID_USERS[user].password===pass){
+    document.querySelector(".login-container").style.display="none";
+    document.getElementById("app").style.display="flex";
+    document.getElementById("sidebar").style.display="flex";
+    feedback.textContent="";
+    localStorage.setItem("loggedUser",user);
+    initApp();
   } else {
-    document.getElementById("feedbackMessage").textContent="Usuário ou senha incorretos";
+    feedback.textContent="Usuário ou senha incorretos";
   }
-};
+});
 
-function logout(){
-  location.reload();
+// ======================
+// VARIÁVEIS GLOBAIS
+// ======================
+let video = document.getElementById("videoElement");
+let overlay = document.getElementById("overlay");
+let overlayCtx = overlay.getContext("2d");
+let scanning=false;
+let currentStream=null;
+let scans = JSON.parse(localStorage.getItem("pegazus_scans")||"[]");
+let map, userMarker, deliveryMarkers=[];
+
+// ======================
+// INICIALIZA APP
+// ======================
+function initApp(){
+  renderScansList();
+  initMap();
 }
 
-// =====================
-// MAPA
-// =====================
-let map, routeLayer;
-function initMap(){
-  map = L.map('map').setView([-23.5505,-46.6333],12); // Default SP
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'© OpenStreetMap'
-  }).addTo(map);
+// ======================
+// BOTÕES
+// ======================
+document.getElementById("btnCamera").addEventListener("click",()=>{
+  showCamera();
+});
 
-  // Geolocalização do usuário
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      map.setView([pos.coords.latitude,pos.coords.longitude],14);
-      L.marker([pos.coords.latitude,pos.coords.longitude]).addTo(map)
-        .bindPopup("Você está aqui").openPopup();
+document.getElementById("btnEntregas").addEventListener("click",()=>{
+  hideCamera();
+  hideMap();
+  renderScansList();
+  document.getElementById("scansList").style.display="block";
+});
+
+document.getElementById("btnMapa").addEventListener("click",()=>{
+  hideCamera();
+  document.getElementById("scansList").style.display="none";
+  showMap();
+});
+
+document.getElementById("btnSair").addEventListener("click",()=>{
+  localStorage.removeItem("loggedUser");
+  location.reload();
+});
+
+// ======================
+// EXPORTAR CSV
+// ======================
+const exportBtn = document.getElementById("exportBtn");
+const exportMenu = document.getElementById("exportMenu");
+
+exportBtn.addEventListener("click",()=>{ exportMenu.style.display=exportMenu.style.display==="block"?"none":"block"; });
+
+document.querySelectorAll(".exportOption").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    exportMenu.style.display="none";
+    exportCSV(btn.dataset.period);
+  });
+});
+
+function exportCSV(period){
+  if(scans.length===0){ alert("Nenhum registro!"); return; }
+
+  const now = new Date();
+  let filtered = scans;
+
+  if(period==="diario"){
+    filtered=scans.filter(s=>new Date(s.date).toDateString()===now.toDateString());
+  } else if(period==="quinzenal"){
+    filtered=scans.filter(s=>{
+      const d=new Date(s.date), day=d.getDate();
+      return d.getMonth()===now.getMonth() && ((day>=1 && day<=15)||(day>15&&day<=31));
+    });
+  } else if(period==="mensal"){
+    filtered=scans.filter(s=>{
+      const d=new Date(s.date);
+      return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
     });
   }
+
+  if(filtered.length===0){ alert("Nenhum registro neste período."); return; }
+
+  let csv = "nome,endereco,cep,telefone,data\n"+filtered.map(s=>`${s.nome},${s.endereco},${s.cep},${s.telefone},${s.date}`).join("\n");
+  const blob = new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`entregas_${period}.csv`;
+  a.click();
 }
 
-// =====================
+// ======================
 // SCANNER
-// =====================
-let video=document.getElementById("videoElement");
-let overlay=document.getElementById("overlay");
-let overlayCtx=overlay.getContext("2d");
-let scanning=false;
-
-document.getElementById("btnCamera").onclick=async()=>{
+// ======================
+function showCamera(){
   document.getElementById("map").style.display="none";
-  document.getElementById("deliveriesList").style.display="none";
-  document.getElementById("cameraContainer").style.display="flex";
+  document.getElementById("scansList").style.display="none";
+  video.style.display="block";
 
-  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-  video.srcObject=stream;
-  scanning=true;
-  video.onloadedmetadata=()=>{overlay.width=video.videoWidth; overlay.height=video.videoHeight; scanLoop();};
-};
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
+    .then(stream=>{
+      currentStream=stream;
+      video.srcObject=stream;
+      video.play();
+      scanning=true;
+      scanLoop();
+    }).catch(err=>alert("Erro câmera: "+err));
+}
 
-function stopScanner(){
+function hideCamera(){
+  video.style.display="none";
   scanning=false;
-  let stream=video.srcObject;
-  if(stream){stream.getTracks().forEach(t=>t.stop());}
-  document.getElementById("cameraContainer").style.display="none";
+  if(currentStream){ currentStream.getTracks().forEach(t=>t.stop()); }
 }
 
 function scanLoop(){
   if(!scanning) return;
+  overlay.width=video.videoWidth;
+  overlay.height=video.videoHeight;
   overlayCtx.drawImage(video,0,0,overlay.width,overlay.height);
-  const imgData=overlayCtx.getImageData(0,0,overlay.width,overlay.height);
-  const code=jsQR(imgData.data,imgData.width,imgData.height);
+
+  const imageData=overlayCtx.getImageData(0,0,overlay.width,overlay.height);
+  const code=jsQR(imageData.data,imageData.width,imageData.height);
   if(code){
-    registerScan(code.data);
-    beep();
+    processQRCode(code.data);
   }
   requestAnimationFrame(scanLoop);
 }
 
-// =====================
-// REGISTRO E GEOCODIFICAÇÃO
-// =====================
-async function geocodeAddress(scanObj){
-  if(!scanObj.endereco) return null;
-  const query=encodeURIComponent(`${scanObj.endereco}, ${scanObj.cep}, Brasil`);
-  try{
-    const resp=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`);
-    const data=await resp.json();
-    if(data.length>0){ scanObj.lat=parseFloat(data[0].lat); scanObj.lng=parseFloat(data[0].lon);}
-    else{scanObj.lat=scanObj.lng=null;}
-  } catch(e){scanObj.lat=scanObj.lng=null;}
-}
-
-async function registerScan(data){
-  if(scans.find(s=>s.raw===data)) return alert("QR Code já registrado!");
-  const nomeMatch=data.match(/NOME:([^\n]*)/i);
-  const enderecoMatch=data.match(/ENDEREÇO:([^\n]*)/i);
-  const cepMatch=data.match(/CEP:([^\n]*)/i);
-  const telMatch=data.match(/TELEFONE:([^\n]*)/i);
-
-  const scanObj={
-    raw:data,
-    nome:nomeMatch?nomeMatch[1].trim():"Desconhecido",
-    endereco:enderecoMatch?enderecoMatch[1].trim():"",
-    cep:cepMatch?cepMatch[1].trim():"",
-    telefone:telMatch?telMatch[1].trim():"",
-    gestor:currentUser.username,
-    date:new Date().toLocaleString()
-  };
-
-  await geocodeAddress(scanObj);
-  scans.unshift(scanObj);
+function processQRCode(data){
+  const parsed=parseQRData(data);
+  if(scans.find(s=>s.nome===parsed.nome && s.endereco===parsed.endereco)){
+    beep();
+    alert("QR Code já registrado!");
+    return;
+  }
+  scans.unshift({...parsed,date:new Date().toLocaleString()});
   localStorage.setItem("pegazus_scans",JSON.stringify(scans));
-  renderDeliveriesCount();
-  stopScanner();
+  beep();
+  renderScansList();
+  addDeliveryMarker(parsed);
+}
 
-  if(map && scanObj.lat && scanObj.lng){
-    L.marker([scanObj.lat,scanObj.lng]).addTo(map)
-      .bindPopup(`${scanObj.nome} - ${scanObj.endereco}`);
+function parseQRData(qrText){
+  const lines=qrText.split("\n");
+  let obj={nome:"",endereco:"",cep:"",telefone:""};
+  lines.forEach(line=>{
+    if(line.startsWith("NOME:")) obj.nome=line.replace("NOME:","").trim();
+    if(line.startsWith("ENDEREÇO:")) obj.endereco=line.replace("ENDEREÇO:","").trim();
+    if(line.startsWith("CEP:")) obj.cep=line.replace("CEP:","").trim();
+    if(line.startsWith("TELEFONE:")) obj.telefone=line.replace("TELEFONE:","").trim();
+  });
+  return obj;
+}
+
+function renderScansList(){
+  const listDiv=document.getElementById("scansList");
+  if(scans.length===0){
+    listDiv.innerHTML="Nenhuma entrega registrada";
+  } else {
+    listDiv.innerHTML=scans.map(s=>`<div>${s.nome} - ${s.endereco} - ${s.cep} - ${s.telefone} - ${s.date}</div>`).join("");
+  }
+  listDiv.style.display="block";
+}
+
+function beep(){ new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=").play(); }
+
+// ======================
+// MAPA
+// ======================
+function initMap(){
+  map=document.getElementById("map");
+  map.style.display="block";
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const userPos={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      map.style.display="block";
+      const gmap=new google.maps.Map(map,{center:userPos,zoom:14});
+      userMarker=new google.maps.Marker({position:userPos,map:gmap,title:"Você"});
+      deliveryMarkers.forEach(m=>m.setMap(null));
+      map.gmap=gmap;
+    });
   }
 }
 
-// =====================
-// ENTREGAS
-// =====================
-function renderDeliveriesCount(){
-  const btn=document.getElementById("btnDeliveries");
-  btn.textContent=`📦 Entregas (${scans.length})`;
+function addDeliveryMarker(delivery){
+  if(!map.gmap) return;
+  const geocoder=new google.maps.Geocoder();
+  geocoder.geocode({address:delivery.endereco},(results,status)=>{
+    if(status==="OK"){
+      const marker=new google.maps.Marker({position:results[0].geometry.location,map:map.gmap,title:delivery.nome});
+      deliveryMarkers.push(marker);
+    }
+  });
 }
 
-document.getElementById("btnDeliveries").onclick=()=>{
-  const listDiv=document.getElementById("deliveriesList");
-  if(listDiv.style.display==="block") listDiv.style.display="none";
-  else {
-    listDiv.innerHTML=scans.map(s=>`<div>${s.nome} - ${s.endereco} - ${s.cep} - ${s.telefone}</div>`).join("");
-    listDiv.style.display="block";
-  }
-};
-
-// =====================
-// ROTA OTIMIZADA
-// =====================
-function generateOptimizedRoute(){
-  if(!map) return alert("Mapa não inicializado");
-  if(routeLayer) map.removeLayer(routeLayer);
-
-  const points=scans.filter(s=>s.lat&&s.lng).map(s=>({lat:s.lat,lng:s.lng,nome:s.nome}));
-  if(points.length<2) return alert("Mais de um endereço necessário");
-
-  let visited=[], route=[points[0]]; visited.push(0);
-  while(route.length<points.length){
-    const last=route[route.length-1]; let nearestIdx=-1, nearestDist=Infinity;
-    points.forEach((p,i)=>{if(!visited.includes(i)){const dist=Math.hypot(last.lat-p.lat,last.lng-p.lng); if(dist<nearestDist){nearestDist=dist; nearestIdx=i;}}});
-    route.push(points[nearestIdx]); visited.push(nearestIdx);
-  }
-
-  const latlngs=route.map(p=>[p.lat,p.lng]);
-  routeLayer=L.polyline(latlngs,{color:'blue'}).addTo(map);
-  map.fitBounds(routeLayer.getBounds());
-}
-document.getElementById("btnRoute").onclick=generateOptimizedRoute;
-
-// =====================
-// EXPORT CSV
-// =====================
-document.getElementById("btnExport").onclick=()=>{
-  let csv="nome,endereco,cep,telefone,gestor,data\n"+scans.map(s=>`${s.nome},${s.endereco},${s.cep},${s.telefone},${s.gestor},${s.date}`).join("\n");
-  const blob=new Blob([csv],{type:"text/csv"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="entregas.csv";
-  a.click();
-};
-
-// =====================
-// AUDIO DE BIP
-// =====================
-function beep(){
-  const audio=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
-  audio.play();
-}
-
-// =====================
-// BOTÃO MAPA
-// =====================
-document.getElementById("btnMap").onclick=()=>{
-  stopScanner();
-  document.getElementById("cameraContainer").style.display="none";
-  document.getElementById("map").style.display="block";
-  document.getElementById("deliveriesList").style.display="none";
-};
+function showMap(){ map.style.display="block"; }
+function hideMap(){ map.style.display="none"; }
