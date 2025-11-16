@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.3 | Câmera Robusta, Tela Cheia e Filtro de Data
+// app.js — PegazusLog v0.4 | Câmera Quadrada e Botão Voltar Inferior
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -57,8 +57,6 @@ function showView(viewId) {
     const voltarBtn = document.getElementById("btnVoltarCamera");
     if (voltarBtn) {
         voltarBtn.style.display = "none";
-        // Reposiciona o botão Voltar para não flutuar na tela principal
-        voltarBtn.style.left = "230px"; 
     }
     document.getElementById("exportMenu").style.display = "none";
 
@@ -80,9 +78,7 @@ function showView(viewId) {
             document.querySelector(".view-container").style.left = "0"; // View-container ocupa toda a largura
             
             if (voltarBtn) {
-                voltarBtn.style.display = "block"; 
-                voltarBtn.style.left = "10px"; // Botão Voltar fixo no canto da tela cheia
-                voltarBtn.style.position = "fixed"; 
+                voltarBtn.style.display = "block"; // Apenas torna visível (a posição é fixa inferior)
             }
             
             document.getElementById("cameraContainer").style.display = "flex";
@@ -128,11 +124,28 @@ window.addEventListener('DOMContentLoaded', () => {
 function initApp() {
     initMap();
     
-    // Cria e configura o botão "Voltar" (Fixo na tela cheia da câmera)
+    // Cria e configura o botão "Voltar" (FIXO NA PARTE INFERIOR CENTRALIZADA)
     const voltarBtn = document.createElement('button');
     voltarBtn.id = "btnVoltarCamera";
     voltarBtn.textContent = "🔙 Voltar ao Início"; 
-    voltarBtn.style.cssText = "position:fixed; top:10px; left:230px; z-index:1000; display:none; padding:10px; border:none; border-radius:6px; cursor:pointer; background:#dc3545; color:white; font-weight:bold; width:180px;";
+    
+    // CSS para posicionar no rodapé e centralizar horizontalmente
+    voltarBtn.style.cssText = `
+        position: fixed; 
+        bottom: 10px; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        z-index: 1000; 
+        display: none; 
+        padding: 10px; 
+        border: none; 
+        border-radius: 6px; 
+        cursor: pointer; 
+        background: #dc3545; 
+        color: white; 
+        font-weight: bold; 
+        width: 180px;
+    `;
     voltarBtn.onclick = () => showView('list');
     document.getElementById("app").appendChild(voltarBtn);
 
@@ -199,10 +212,10 @@ async function startScanner(deviceId) {
 
         let constraints;
         if (deviceId) {
-             // Caso o deviceId seja fornecido (após falha na detecção automática)
+             // 1. Usa o ID específico fornecido (após seleção manual)
              constraints = { video: { deviceId: { exact: deviceId } } };
         } else {
-             // 1. Tenta automaticamente a câmera traseira ('environment')
+             // 2. Tenta automaticamente a câmera traseira ('environment')
              constraints = { video: { facingMode: { exact: "environment" } } };
         }
         
@@ -221,9 +234,10 @@ async function startScanner(deviceId) {
     } catch (e) {
         console.warn("Falha 1 (environment). Tentando fallback...", e);
         
-        // 2. Se a detecção de 'environment' falhar, tenta a frontal ('user')
+        // Se falhou e não estava usando um deviceId específico (i.e., falhou na tentativa automática)
         if (!deviceId) {
              try {
+                // 3. Tenta a câmera frontal ('user') como fallback
                 constraints = { video: { facingMode: { exact: "user" } } };
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = currentStream;
@@ -242,7 +256,7 @@ async function startScanner(deviceId) {
             }
         }
         
-        // 3. Último recurso: Mostra o seletor para o usuário escolher manualmente
+        // 4. Último recurso: Mostra o seletor para o usuário escolher manualmente
         await showCameraSelector();
     }
 }
@@ -395,7 +409,6 @@ function updateFilteredScans() {
         const end = currentFilters.dateEnd ? new Date(currentFilters.dateEnd) : null;
 
         filteredScans = filteredScans.filter(s => {
-            // Converte a data salva (DD/MM/AAAA) para objeto Date
             const parts = s.date.split(',')[0].trim().split('/');
             const scanDate = new Date(parts[2], parts[1] - 1, parts[0]);
             
