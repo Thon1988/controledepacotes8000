@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PegazusLog beta v0.1</title>
+    <title>PegazusLog beta v1.0 - Persistência Firebase</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         /* Variáveis para o tema moderno */
@@ -338,7 +338,7 @@
 
 <div class="login-container">
     <div class="login-box">
-        <h1>PegazusLog beta v0.1</h1>
+        <h1>PegazusLog beta v1.0</h1>
         <input type="text" id="loginUser" placeholder="Usuário" />
         <input type="password" id="loginPass" placeholder="Senha" />
         <button id="loginBtn">Entrar</button>
@@ -431,5 +431,10 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+<script src="firebase-config.js"></script>
 <script src="app.js"></script>
+</body>
 </html>
