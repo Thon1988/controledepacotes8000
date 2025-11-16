@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.4 | Câmera Quadrada e Botão Voltar Inferior
+// app.js — PegazusLog v0.4 (BETA) | Câmera Principal e Scanner Quadrado
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -211,51 +211,73 @@ async function startScanner(deviceId) {
         if(currentStream) stopScanner();
 
         let constraints;
-        if (deviceId) {
-             // 1. Usa o ID específico fornecido (após seleção manual)
-             constraints = { video: { deviceId: { exact: deviceId } } };
-        } else {
-             // 2. Tenta automaticamente a câmera traseira ('environment')
+        let successful = false;
+
+        // TENTATIVA 1: Prioriza a câmera traseira padrão ("environment")
+        if (!deviceId) {
              constraints = { video: { facingMode: { exact: "environment" } } };
+             try {
+                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                 successful = true;
+             } catch (e) {
+                 console.warn("Falha 1 (environment). Tentando TENTATIVA 2 (principal).", e);
+             }
         }
         
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = currentStream;
-        await video.play();
-
-        scanning = true;
-        video.onloadedmetadata = () => { 
-            overlay.width = video.videoWidth; 
-            overlay.height = video.videoHeight; 
-            scanLoop(); 
-        };
-        camSelect.style.display = "none";
-
-    } catch (e) {
-        console.warn("Falha 1 (environment). Tentando fallback...", e);
-        
-        if (!deviceId) {
-             try {
-                // 3. Tenta a câmera frontal ('user') como fallback
-                constraints = { video: { facingMode: { exact: "user" } } };
+        // TENTATIVA 2: Busca pela câmera principal (resolução alta) - Novo
+        if (!successful && !deviceId) {
+            // Tenta forçar alta resolução, geralmente associada à lente principal.
+            constraints = { video: { 
+                width: { min: 1280 }, // Exige resolução mínima de 720p (1280x720)
+                height: { min: 720 }, 
+                facingMode: { exact: "environment" }
+            }};
+            try {
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = currentStream;
-                await video.play();
-
-                scanning = true;
-                video.onloadedmetadata = () => { 
-                    overlay.width = video.videoWidth; 
-                    overlay.height = video.videoHeight; 
-                    scanLoop(); 
-                };
-                camSelect.style.display = "none";
-                return; // Sucesso com a câmera frontal
-            } catch (e2) {
-                console.warn("Falha 2 (user). Recorrendo ao seletor manual. Erro:", e2);
+                successful = true;
+            } catch (e) {
+                console.warn("Falha 2 (resolução alta). Tentando TENTATIVA 3 (frontal).", e);
             }
         }
         
-        // 4. Último recurso: Mostra o seletor para o usuário escolher manualmente
+        // TENTATIVA 3: Fallback para a câmera frontal ('user')
+        if (!successful && !deviceId) {
+            constraints = { video: { facingMode: { exact: "user" } } };
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                successful = true;
+            } catch (e) {
+                console.warn("Falha 3 (user). Recorrendo ao seletor manual. Erro:", e);
+            }
+        }
+        
+        // TENTATIVA ESPECÍFICA (via seletor manual)
+        if (deviceId) {
+             constraints = { video: { deviceId: { exact: deviceId } } };
+             currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+             successful = true;
+        }
+
+
+        if (successful) {
+            video.srcObject = currentStream;
+            await video.play();
+            scanning = true;
+            video.onloadedmetadata = () => { 
+                overlay.width = video.videoWidth; 
+                overlay.height = video.videoHeight; 
+                scanLoop(); 
+            };
+            camSelect.style.display = "none";
+            return; // Sucesso
+        }
+        
+        // 4. ÚLTIMO RECURSO: Mostra o seletor manual
+        await showCameraSelector();
+
+
+    } catch (e) {
+        console.error("Erro fatal na inicialização da câmera:", e);
         await showCameraSelector();
     }
 }
@@ -392,7 +414,7 @@ async function registerScan(data) {
     localStorage.setItem("pegazus_scans", JSON.stringify(scans));
     
     stopScanner();
-    // Confirmação para o usuário (pode ser o que estava faltando)
+    // Confirmação para o usuário
     alert(`✅ QR Code Registrado!\nComprador: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
     
     updateFilteredScans(); 
