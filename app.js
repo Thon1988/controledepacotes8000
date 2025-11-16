@@ -27,6 +27,7 @@
     let currentVideoTrack = null;
     let torchOn = false;
     
+    // A data selecionada é sempre o dia atual por padrão
     let selectedDate = new Date().toISOString().substring(0, 10); 
 
     // --- UTILS (Log, Popup) ---
@@ -51,7 +52,7 @@
         }
     }
     
-    function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''})[c]); }
+    function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
     function formatDate(date) { return date.toISOString().substring(0, 10); }
 
     // --- DADOS E LOCAL STORAGE ---
@@ -71,6 +72,7 @@
     function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
     function loadUsers() {
+        // Usuários Padrão para Teste
         const defaultUsers = {
             'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, 
             'manager1': { password: '123', role: 'manager', createdBy: 'system' },     
@@ -85,7 +87,7 @@
         
         // Garante que o usuário padrão sempre exista
         if (!loadedUsers['thon']) { loadedUsers['thon'] = defaultUsers['thon']; saveUsers(); }
-        return loadedUsers;
+        return Object.assign(defaultUsers, loadedUsers); // Combina padrões com carregados
     }
     
     function getLoggedInUser() {
@@ -119,3 +121,39 @@
         logLoginStatus('Login falhou: Usuário ou senha inválidos.', true);
         return false;
     }
+
+    function logoutUser() {
+        sessionStorage.removeItem(LOGIN_SESSION_KEY);
+        logOutput('Logout realizado.');
+        stopCamera();
+        updateUIForAuth();
+        renderScans(); 
+        logLoginStatus('Insira suas credenciais.', false);
+    }
+    
+    // --- LÓGICA DE FILTRAGEM E RENDERIZAÇÃO ---
+    
+    function getFilterableUsernames(currentUser) {
+        if (isAdmin()) { return Object.keys(users); }
+        if (isManager()) {
+            const managerCreatedUsernames = Object.keys(users).filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
+            managerCreatedUsernames.push(currentUser.username);
+            return managerCreatedUsernames;
+        }
+        return [currentUser.username];
+    }
+    
+    function getFilteredScans() {
+        const currentUser = getLoggedInUser();
+        if (!currentUser) return [];
+        const allowedUsers = getFilterableUsernames(currentUser);
+        return scannedData.filter(item => {
+            // Filtra por usuário e data selecionada
+            return item.scannedBy && allowedUsers.includes(item.scannedBy) && item.date === selectedDate;
+        });
+    }
+
+    function getCompradorInfo(mainId) {
+        // Simulação de dados do comprador (baseado no ID do QR para consistência)
+        const hash = (mainId || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const names = ["João Silva", "Maria Santos", "Pedro Almeida", "Ana Oliveira", "Carlos Souza", "Juliana Lima"];
