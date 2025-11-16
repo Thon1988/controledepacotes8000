@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -114,8 +116,8 @@
             max-height: 350px;
             overflow-y: auto;
             border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 0 10px;
+            border-radius: 5-px;
+            padding: 0 10-px;
         }
         
         .item {
@@ -157,53 +159,4 @@
         
     </style>
 </head>
-<body class="login-active">
-    <div class="app">
-        <h1>📦 Scanner Móvel</h1>
-        
-        <div id="loginScreen" class="login-screen">
-            <h2>Acesso Restrito</h2>
-            <input type="text" id="loginUser" placeholder="Usuário" required>
-            <input type="password" id="loginPass" placeholder="Senha" required>
-            <button id="loginBtn">Entrar</button>
-            <div id="loginStatus">Faça login para começar.</div>
-        </div>
-        
-        <div class="app-main">
-            <div class="video-container">
-                <video id="videoElement" playsinline></video>
-                <canvas id="overlay"></canvas>
-            </div>
-
-            <div id="controls" class="controls">
-                <button id="startButton">▶ Iniciar Scanner</button>
-                <button id="stopButton" style="display: none;">■ Parar</button>
-                <button id="torchButton" style="display: none;">🔦 Flash</button>
-                
-                <div class="device-selector">
-                    <label id="deviceSelectLabel" style="font-size: 14px; color: #333; display: none;">Câmera:</label>
-                    <select id="deviceSelect" class="select-device" style="display: none;"></select>
-                </div>
-
-                <button id="exportBtn" class="secondary" style="display: none;">Exportar Tudo (Admin)</button>
-                <button id="clearBtn" class="secondary" style="display: none;">Limpar Tudo (Admin)</button>
-            </div>
-
-            <div id="output">Scanner inativo.</div>
-
-            <h2>📚 Últimos Scans</h2>
-            <div class="list">
-                <ul id="scansList">
-                    </ul>
-            </div>
-        </div>
-
-        <div id="scanPopup">OK!</div>
-
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-    
-    <script src="app.js"></script>
-</body>
-</html>
+<body class="
