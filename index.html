@@ -1,24 +1,24 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>PegazusLog v0.1</title> <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-
-    <style>
-        /* ... (Seus estilos CSS) ... */
-    </style>
-</head>
-<body>
+<style>
+    /* ... (Seus :root, html, body) ... */
     
-    <div id="loginScreen" class="login-container">
-        </div>
+    /* 1. CENTRALIZAÇÃO DO NOME DO WEBAPP */
+    h1 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        color: #fff;
+        text-align: center; /* 🔄 ADICIONADO: Centraliza o texto do título */
+    }
+    
+    /* ... (Restante do CSS) ... */
 
-    <div class="app">
-        <h1>PegazusLog v0.1</h1> </div>
-
-    <div id="scanPopup" role="status" aria-live="polite"></div>
-
-    <script src="app.js"></script>
-</body>
-</html>
+    /* 2. AJUSTE NO CONTAINER DE LOGIN */
+    .login-container {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(17, 17, 17, 0.95);
+        display: flex; 
+        justify-content: center; /* 🔄 Garante a centralização horizontal do formulário */
+        align-items: center;    /* 🔄 Garante a centralização vertical do formulário */
+        z-index: 1000;
+    }
+    /* ... (Restante do CSS) ... */
+</style>
