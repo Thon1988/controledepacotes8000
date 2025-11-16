@@ -1,193 +1,155 @@
-// PegazusLog app.js (versão com QR scanner, login, CSV, geocodificação placeholder, TSP heurística)
+// app.js atualizado
 
-/* ==========================
-    LOGIN BÁSICO
-========================== */
+// === ESTADO GLOBAL ===
+let logged = false;
+let cameraStream = null;
+let scanning = false;
+let deliveries = []; // armazenará objetos: { id, nome, endereco, cep, telefone, data }
+
+// === LOGIN ===
 const loginBtn = document.getElementById("loginBtn");
-const feedbackMessage = document.getElementById("feedbackMessage");
-
 loginBtn.onclick = () => {
-  const u = document.getElementById("loginUser").value.trim();
-  const p = document.getElementById("loginPass").value.trim();
+  const user = document.getElementById("loginUser").value.trim();
+  const pass = document.getElementById("loginPass").value.trim();
 
-  if (u === "admin" && p === "1234") {
+  if (user === "admin" && pass === "123") {
     document.body.classList.add("logged-in");
-    feedbackMessage.textContent = "";
+    logged = true;
   } else {
-    feedbackMessage.textContent = "Usuário ou senha incorretos";
+    document.getElementById("feedbackMessage").innerText = "Credenciais inválidas";
   }
 };
 
 function logout() {
   document.body.classList.remove("logged-in");
+  logged = false;
 }
 
-/* ==========================
-    MENU LATERAL
-========================== */
+// === MENU LATERAL ===
 const menuBtn = document.getElementById("menuBtn");
 const sidebar = document.getElementById("sidebar");
+menuBtn.onclick = () => {
+  if (!logged) return;
+  sidebar.classList.toggle("open");
+};
 
-menuBtn.onclick = () => sidebar.classList.toggle("open");
+// === CAMERA E QR CODE ===
+const video = document.getElementById("videoElement");
+const canvas = document.getElementById("overlay");
+const ctx = canvas.getContext("2d");
 
-/* ==========================
-    SCANNER DE QR CODE
-========================== */
-let video = document.getElementById("videoElement");
-let overlay = document.getElementById("overlay");
-let ctx = overlay.getContext("2d");
-let scanning = false;
+function abrirCamera() {
+  if (scanning) return;
+  startScanner();
+}
 
-async function startCamera() {
+async function startScanner() {
+  scanning = true;
+  canvas.width = video.clientWidth;
+  canvas.height = video.clientHeight;
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = stream;
-    scanning = true;
-    scanLoop();
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = cameraStream;
+    tick();
   } catch (e) {
-    alert("Erro ao acessar câmera: " + e);
+    alert("Erro ao acessar a câmera");
   }
 }
 
-function stopCamera() {
-  if (video.srcObject) {
-    video.srcObject.getTracks().forEach(t => t.stop());
-  }
+function stopScanner() {
   scanning = false;
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
 }
 
-document.getElementById("startButton").onclick = startCamera;
-document.getElementById("stopButton").onclick = stopCamera;
+function tick() {
+  if (!scanning) return;
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-/* ==========================
-    LISTA DE ENTREGAS
-========================== */
-let entregas = []; // {nome, endereco, cep, telefone, raw, lat, lng, data}
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height);
 
-function parseQRCode(text) {
-  const obj = {
-    raw: text,
-    nome: "",
-    endereco: "",
-    cep: "",
-    telefone: "",
-    data: new Date().toISOString().slice(0, 10)
-  };
+    if (code) {
+      processQRCode(code.data);
+      stopScanner();
+    }
+  }
+  requestAnimationFrame(tick);
+}
 
-  text.split(/\n|\r/).forEach(l => {
-    l = l.trim();
+function processQRCode(text) {
+  const parsed = parseQRCode(text);
+  if (!parsed) return alert("Formato inválido do QR Code");
+
+  deliveries.push(parsed);
+  atualizarListaEntregas();
+}
+
+// === PARSING DO QR CODE ===
+function parseQRCode(raw) {
+  const lines = raw.split(/\n|;/).map(l => l.trim());
+  let obj = { id: Date.now(), data: new Date().toISOString() };
+
+  for (let l of lines) {
     if (l.startsWith("NOME:")) obj.nome = l.replace("NOME:", "").trim();
     if (l.startsWith("ENDEREÇO:")) obj.endereco = l.replace("ENDEREÇO:", "").trim();
     if (l.startsWith("CEP:")) obj.cep = l.replace("CEP:", "").trim();
     if (l.startsWith("TELEFONE:")) obj.telefone = l.replace("TELEFONE:", "").trim();
-  });
+  }
 
+  if (!obj.nome || !obj.endereco || !obj.cep) return null;
   return obj;
 }
 
-async function scanLoop() {
-  if (!scanning) return;
-
-  overlay.width = video.videoWidth;
-  overlay.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
-
-  const imageData = ctx.getImageData(0, 0, overlay.width, overlay.height);
-  const code = jsQR(imageData.data, overlay.width, overlay.height);
-
-  if (code) {
-    let obj = parseQRCode(code.data);
-
-    // opcional: geocodificação automática
-    obj = await geocodeAddress(obj);
-
-    entregas.push(obj);
-    renderLista();
-    alert("QR Lido: " + obj.nome);
-    scanning = false;
-    stopCamera();
-  }
-
-  requestAnimationFrame(scanLoop);
+// === LISTA DE ENTREGAS ===
+function listarEntregas() {
+  alert(JSON.stringify(deliveries, null, 2));
 }
 
-/* ==========================
-    GEOCODIFICAÇÃO (PLACEHOLDER)
-========================== */
-async function geocodeAddress(ent) {
-  // Plugue sua API aqui (Google, Mapbox, OpenRoute, etc)
-  // Aqui usamos valores fictícios
-  ent.lat = -23.55 + Math.random() * 0.02;
-  ent.lng = -46.63 + Math.random() * 0.02;
-  return ent;
+function atualizarListaEntregas() {
+  document.getElementById("scansList").innerText = deliveries.length + " entregas registradas.";
 }
 
-/* ==========================
-    LISTAGEM
-========================== */
-function renderLista() {
-  const div = document.getElementById("scansList");
-  div.innerHTML = "";
-
-  entregas.forEach((e, i) => {
-    div.innerHTML += `
-      <div style="padding:8px; margin:6px 0; background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.15)">
-        <b>${e.nome}</b><br>
-        ${e.endereco} — ${e.cep}<br>
-        Tel: ${e.telefone}<br>
-        Lat/Lng: ${e.lat?.toFixed(5)}, ${e.lng?.toFixed(5)}<br>
-        Data: ${e.data}
-      </div>
-    `;
-  });
+// === PESQUISA ===
+function pesquisarQRCode() {
+  const id = prompt("Digite o ID do QR Code:");
+  if (!id) return;
+  const item = deliveries.find(x => x.id == id);
+  if (!item) return alert("Não encontrado.");
+  alert(JSON.stringify(item, null, 2));
 }
 
-/* ==========================
-    FILTRO POR DATA
-========================== */
-function filtrarPorData(inicio, fim) {
-  return entregas.filter(e => e.data >= inicio && e.data <= fim);
-}
-
-/* ==========================
-    RELATÓRIO CSV
-========================== */
-document.getElementById("exportBtn").onclick = () => {
-  let csv = "NOME,ENDEREÇO,CEP,TELEFONE,LAT,LNG,DATA\n";
-  entregas.forEach(e => {
-    csv += `${e.nome},${e.endereco},${e.cep},${e.telefone},${e.lat},${e.lng},${e.data}\n`;
-  });
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "relatorio_entregas.csv";
-  a.click();
-
-  URL.revokeObjectURL(url);
-};
-
-/* ==========================
-    MAPA / ROTA (PLACEHOLDER)
-========================== */
+// === MAPA ===
 function openMapa() {
-  alert("Mapa será implementado (Google/Leaflet)");
+  if (deliveries.length === 0) return alert("Nenhuma entrega cadastrada.");
+  const addr = deliveries[0].endereco + ", " + deliveries[0].cep;
+  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
 }
 
 function gerarRota() {
-  alert("Otimização de rota (TSP heurística) será aplicada aqui.");
+  if (deliveries.length < 2) return alert("Necessário 2 ou mais entregas.");
+  const base = deliveries.map(d => d.endereco + ", " + d.cep).join("|");
+  window.open(`https://www.google.com/maps/dir/${encodeURIComponent(base)}`);
 }
 
-function listarEntregas() {
-  renderLista();
-}
+// === CSV ===
+const exportBtn = document.getElementById("exportBtn");
+exportBtn.onclick = () => {
+  if (deliveries.length === 0) return alert("Nada para exportar.");
+  let csv = "ID;Nome;Endereco;CEP;Telefone;Data\n";
+  deliveries.forEach(d => {
+    csv += `${d.id};${d.nome};${d.endereco};${d.cep};${d.telefone};${d.data}\n`;
+  });
 
-function pesquisarQRCode() {
-  const q = prompt("Digite nome ou CEP").toLowerCase();
-  const f = entregas.filter(e => e.nome.toLowerCase().includes(q) || e.cep.includes(q));
-
-  let msg = f.map(x => x.nome + " - " + x.endereco).join("\n");
-  alert(msg || "Nenhum encontrado");
-}
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "relatorio.csv";
+  a.click();
+};
