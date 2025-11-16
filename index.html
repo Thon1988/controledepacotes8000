@@ -1,86 +1,20 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light">
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PegazusLog • Scanner</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-
+  <title>Pegazus Log</title>
   <style>
-    :root {
-      --bg: #f4f6f9;
-      --card: #ffffff;
-      --text: #1a1a1a;
-      --muted: #6c757d;
-      --accent: #007bff;
-      --accent-hover: #0069d9;
-      --border: #e5e7eb;
-      --shadow: 0 6px 18px rgba(0,0,0,0.08);
-    }
-
-    body { margin:0; background:var(--bg); font-family:Inter; color:var(--text); }
-
-    /* SIDEBAR */
-    #sidebar {
-      position: fixed;
-      top: 0;
-      left: -260px;
-      width: 260px;
-      height: 100%;
-      background: var(--card);
-      box-shadow: var(--shadow);
-      padding: 20px;
-      transition: 0.3s;
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-      z-index: 9999;
-    }
-
-    #sidebar.open { left: 0; }
-
-    #menuBtn {
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      padding: 10px 14px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
-      cursor: pointer;
-      z-index: 9999;
-      display:none;
-    }
-
-    body.logged-in #menuBtn { display:block; }
-
-    .side-btn {
-      padding: 12px 14px;
-      border-radius: 10px;
-      background: var(--accent);
-      color:#fff;
-      font-weight:600;
-      cursor:pointer;
-      text-align:center;
-    }
-
-    /* LOGIN */
-    #loginScreen { display:flex; justify-content:center; align-items:center; min-height:100vh; }
-    #loginBox { background:var(--card); padding:30px; border-radius:12px; width:320px; box-shadow:var(--shadow); }
-
-    /* APP */
-    .app { display:none; padding:20px; max-width:900px; margin:auto; }
-    body.logged-in .app { display:block; }
-    body.logged-in #loginScreen { display:none; }
-
-    .controls { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
-
-    .camera-wrap { background:#000; height:55vh; border-radius:14px; overflow:hidden; position:relative; }
-
-    #scansList { margin-top:10px; padding:10px; background:#fff; border-radius:10px; box-shadow:var(--shadow); }
-    .item { padding:10px 4px; border-bottom:1px solid var(--border); }
-    .item:last-child { border-bottom:0; }
+    body { margin:0; font-family: Arial; background:#f0f0f0; }
+    #sidebar { display:none; position:fixed; left:0; top:0; width:260px; height:100%; background:#222; color:#fff; padding:20px; }
+    #sidebar.open { display:block; }
+    #menuBtn { display:none; position:fixed; left:15px; top:15px; background:#222; color:#fff; border:none; padding:10px 15px; border-radius:6px; cursor:pointer; }
+    #loginScreen { display:flex; flex-direction:column; gap:10px; width:280px; margin:80px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    .logged-in #loginScreen { display:none; }
+    .logged-in #menuBtn { display:block; }
+    #scannerContainer { margin-top:80px; text-align:center; }
+    #videoElement { width:80%; max-width:380px; border-radius:8px; }
+    #overlay { position:absolute; left:0; right:0; margin:auto; }
   </style>
 </head>
 <body>
@@ -88,45 +22,31 @@
 <button id="menuBtn">☰ Menu</button>
 
 <div id="sidebar">
-  <div class="side-btn" onclick="openMapa()">📍 Mapa de Entregas</div>
-  <div class="side-btn" onclick="gerarRota()">🧭 Gerar Rota</div>
-  <div class="side-btn" onclick="listarEntregas()">📦 Entregas</div>
-  <div class="side-btn" onclick="pesquisarQRCode()">🔍 Pesquisar QRCode</div>
-  <div class="side-btn" id="exportBtn">📄 Gerar Relatório</div>
-  <div class="side-btn" onclick="logout()">🚪 Sair</div>
+  <h2>Menu</h2>
+  <button onclick="abrirCamera()">📷 Abrir Câmera</button><br><br>
+  <button onclick="listarEntregas()">📦 Entregas</button><br><br>
+  <button onclick="openMapa()">📍 Mapa</button><br><br>
+  <button onclick="gerarRota()">🧭 Gerar Rota</button><br><br>
+  <button id="exportBtn">📄 Gerar CSV</button><br><br>
+  <button onclick="pesquisarQRCode()">🔎 Pesquisar QR</button><br><br>
+  <button onclick="logout()">🚪 Sair</button>
 </div>
 
 <div id="loginScreen">
-  <div id="loginBox">
-    <h2>🔑 Login</h2>
-    <input id="loginUser" placeholder="Usuário">
-    <input id="loginPass" type="password" placeholder="Senha">
-    <button id="loginBtn">Entrar</button>
-    <p id="feedbackMessage">Digite suas credenciais</p>
-  </div>
+  <h2>Login</h2>
+  <input id="loginUser" placeholder="Usuário" />
+  <input id="loginPass" placeholder="Senha" type="password" />
+  <button id="loginBtn">Entrar</button>
+  <div id="feedbackMessage" style="color:red"></div>
 </div>
 
-<div class="app">
-  <h1>PegazusLog • Scanner</h1>
-
-  <div class="controls">
-    <button id="cameraBtn">📷 Abrir Câmera</button>
-    <button id="stopButton" style="display:none">⏹️ Parar</button>
-  </div>
-
-  <div class="camera-wrap">
-    <video id="videoElement" autoplay muted playsinline></video>
-    <canvas id="overlay"></canvas>
-  </div>
-
-  <div class="panel">
-    <div id="output">Aguardando...</div>
-    <div id="scansList"></div>
-  </div>
+<div id="scannerContainer">
+  <video id="videoElement" autoplay></video>
+  <canvas id="overlay"></canvas>
+  <div id="scansList" style="margin-top:20px; font-size:18px;"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script src="app.js"></script>
-
 </body>
 </html>
