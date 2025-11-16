@@ -1,299 +1,270 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PegazusLog beta v0.1</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        /* Estilos Base */
-        body { margin: 0; font-family: Arial, sans-serif; background: #f0f2f5; }
+<style>
+    /* Variáveis para o tema moderno */
+    :root {
+        --primary-color: #007bff; /* Azul vibrante para botões */
+        --secondary-color: #6c757d; /* Cinza para textos secundários */
+        --bg-color: #f0f2f5; /* Fundo claro */
+        --list-bg-color: #ffffff; /* Fundo dos cards da lista */
+        --accent-blue-gray: #e9ecef; /* Tonalidade azul acinzentada clara */
+        --border-color: #dee2e6;
+    }
 
-        /* Login */
-        .login-container { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; width: 100%; }
-        .login-box { background: white; padding: 35px; border-radius: 12px; width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
-        .login-box h1 { margin-bottom: 25px; color: #007bff; }
-        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
-        .login-box button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 6px; background: #007bff; color: white; cursor: pointer; margin-top: 10px; }
+    /* Estilos Base */
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-color); color: #343a40; }
 
-        /* App Principal */
-        #app { display: none; height: 100vh; width: 100%; position: relative; }
-        
-        /* Menu Lateral (Sidebar) */
+    /* Login (Mantido simples) */
+    .login-container { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; width: 100%; }
+    .login-box { background: var(--list-bg-color); padding: 35px; border-radius: 12px; width: 320px; box-shadow: 0 8px 16px rgba(0,0,0,0.15); text-align: center; }
+    .login-box h1 { margin-bottom: 25px; color: var(--primary-color); }
+    .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid var(--border-color); border-radius: 6px; font-size: 16px; transition: border-color 0.3s; }
+    .login-box input:focus { border-color: var(--primary-color); outline: none; }
+    .login-box button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 6px; background: var(--primary-color); color: white; cursor: pointer; margin-top: 10px; transition: background 0.3s; }
+    .login-box button:hover { background: #0056b3; }
+
+    /* App Principal */
+    #app { display: none; height: 100vh; width: 100%; position: relative; }
+    
+    /* Menu Lateral (Sidebar) */
+    #sidebar {
+        width: 240px; /* Largura levemente aumentada */
+        background: var(--list-bg-color);
+        position: absolute;
+        top: 0; left: 0; bottom: 0;
+        box-shadow: 3px 0 10px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        padding: 15px;
+        gap: 12px;
+        z-index: 999;
+    }
+    #sidebar button { padding: 12px; border: none; border-radius: 8px; cursor: pointer; background: var(--primary-color); color: white; font-weight: 600; transition: background 0.3s, transform 0.1s; }
+    #sidebar button:hover { background: #0056b3; transform: translateY(-1px); }
+    #sidebar .backBtn { background: #dc3545; }
+    #sidebar .backBtn:hover { background: #c82333; }
+    #btnManageUsers { background: #ffc107 !important; color: #333 !important; }
+    #btnManageUsers:hover { background: #e0a800 !important; }
+    
+    /* Contêiner de Visualização */
+    .view-container { 
+        position: absolute; 
+        top: 0; 
+        left: 240px; /* Ajuste para nova largura do sidebar */
+        right: 0; 
+        bottom: 0; 
+        overflow: hidden; 
+    }
+
+    /* Mapa e Lista */
+    #map { height: 100%; width: 100%; display: none; }
+    #deliveriesList { 
+        width: 100%; 
+        height: 100%;
+        padding: 15px; 
+        background: var(--accent-blue-gray); /* NOVO FUNDO AZUL ACINZENTADO */
+        overflow-y: auto;
+        display: none;
+        box-sizing: border-box;
+    }
+
+    /* NOVO ESTILO DOS ITENS DA LISTA */
+    .delivery-item {
+        background: var(--list-bg-color);
+        padding: 15px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
+        border-left: 5px solid var(--primary-color); /* Linha de destaque */
+    }
+    .delivery-item:hover {
+        transform: translateY(-2px);
+    }
+    .delivery-item strong {
+        display: block;
+        font-size: 1.1em;
+        color: #343a40;
+        margin-bottom: 4px;
+    }
+    .delivery-item .id-label {
+        font-size: 0.8em;
+        color: var(--secondary-color);
+        font-weight: normal;
+        margin-left: 8px;
+    }
+    .delivery-item .address {
+        color: #495057;
+        margin-bottom: 8px;
+    }
+    .delivery-item .metadata {
+        font-size: 0.75em;
+        color: var(--secondary-color);
+        padding-top: 5px;
+        border-top: 1px dashed var(--border-color);
+    }
+
+    /* Media Query para Layout de Celular */
+    @media (max-width: 768px) {
         #sidebar {
-            width: 220px;
-            background: #fff;
-            position: absolute;
-            top: 0; left: 0; bottom: 0;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
+            width: 100%;
+            height: auto;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            flex-direction: row;
+            flex-wrap: wrap;
             padding: 10px;
-            gap: 8px;
-            z-index: 999;
+            gap: 5px;
         }
-        #sidebar button { padding: 10px; border: none; border-radius: 6px; cursor: pointer; background: #007bff; color: white; font-weight: bold; }
-        #sidebar button:hover { opacity: 0.9; }
-        #sidebar .backBtn { background: #dc3545; }
-        
-        /* Contêiner de Visualização */
-        .view-container { 
-            position: absolute; 
-            top: 0; 
-            left: 220px; 
-            right: 0; 
-            bottom: 0; 
-            overflow: hidden; 
+        #sidebar button {
+            flex-grow: 1;
+            font-size: 0.85em;
+            padding: 8px;
         }
-
-        /* Mapa e Lista */
-        #map { height: 100%; width: 100%; display: none; }
-        #deliveriesList { 
-            width: 100%; 
-            height: 100%;
-            padding: 15px; 
-            background: #f0f2f5;
-            overflow-y: auto;
-            display: none;
-        }
-
-        /* Contêiner da Câmera (Tela Cheia e Centralizador) */
-        #cameraContainer {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center; /* Centraliza Horizontalmente */
-            align-items: center; /* Centraliza Verticalmente */
-            position: relative;
-            background: black;
-            border: 50px solid rgba(0, 0, 0, 0.5); /* Borda de Foco */
-            box-sizing: border-box; 
-            overflow: hidden; 
-        }
-
-        /* Botão de Entrada Manual */
-        #manualEntryBtn {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 1001; /* Acima da câmera e scanner */
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 50%;
-            font-size: 20px;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            display: none; /* Controlado pelo JS */
-        }
-        #manualEntryBtn:hover {
-            background: #1e7e34;
-        }
-
-        /* Define o limite Quadrado e a área de Clipping */
-        #scannerFrame {
-            position: relative;
-            max-width: 90vh; 
-            max-height: 90vw; 
-            aspect-ratio: 1 / 1; 
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden; 
-        }
-        
-        /* O elemento de vídeo e canvas agora ocupam 100% do novo contêiner quadrado */
-        #videoElement, #overlay { 
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; 
-            height: 100%;
-            max-width: none; 
-            max-height: none;
-            aspect-ratio: auto; 
-            object-fit: cover; 
-        }
-
-        /* Animação da Linha Scanner (Limitada ao #scannerFrame) */
-        @keyframes scan-line {
-            0% { top: 0%; }
-            100% { top: 100%; }
-        }
-        #scanLine {
-            position: absolute;
+        .view-container {
             left: 0;
-            width: 100%; 
-            height: 3px;
-            background: red;
-            box-shadow: 0 0 10px red;
-            animation: scan-line 2s infinite alternate; 
-            z-index: 500;
-            display: none; 
+            top: auto;
+            position: relative;
+            height: calc(100vh - 120px); /* Ajuste dinâmico */
         }
-        
-        /* Filtro de Data (Calendário Interativo) */
-        #dateFilterContainer {
-            padding: 10px;
-            background: #f8f9fa;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            gap: 5px;
-            display: flex;
-            flex-direction: column;
-        }
-        #dateFilterContainer input, #dateFilterContainer select {
-            width: 100%;
-            padding: 6px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        
-        /* Exportação CSV */
-        #exportMenu {
-            padding: 10px;
-            background: #f8f9fa;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin-top: 5px;
-            gap: 5px;
-            display: none;
-            flex-direction: column;
-        }
-        #exportMenu button { font-weight: normal; }
-        
-        /* Estilo do Seletor de Câmera */
-        #cameraSelect { 
-            position: absolute; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%, -50%); 
-            z-index: 1000; 
-            padding: 10px; 
-            display: none; 
-            width: 80%;
-            max-width: 300px;
-            text-align: center;
-        }
-
-        /* Gerenciamento de Usuários */
-        #userManagementView {
-            width: 100%;
-            height: 100%;
-            padding: 20px;
-            background: #f0f2f5;
-            overflow-y: auto;
-            display: none; 
-            box-sizing: border-box;
-        }
-        .user-form-container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            max-width: 400px;
-            margin: 50px auto;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .user-form-container input, .user-form-container select {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .user-form-container button {
-            width: 100%;
-            padding: 10px;
-            margin-top: 15px;
-            background: #28a745;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-
-<div class="login-container">
-    <div class="login-box">
-        <h1>PegazusLog beta v0.1</h1>
-        <input type="text" id="loginUser" placeholder="Usuário" />
-        <input type="password" id="loginPass" placeholder="Senha" />
-        <button id="loginBtn">Entrar</button>
-        <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
-    </div>
-</div>
-
-<div id="app">
+    }
     
-    <div id="sidebar">
-        <button id="btnCamera">📷 Abrir Câmera</button>
-        <button id="btnDeliveries">📦 Entregas (0)</button> 
-        <button id="btnMap">🗺️ Mapa de Entregas</button>
-        <button id="btnRoute">🚗 Gerar Rota</button>
-
-        <button id="btnManageUsers" style="display:none; background:#ffc107; color:#333;">👥 Gerenciar Usuários</button>
-
-        <div id="dateFilterContainer">
-            <label style="font-weight: bold;">🗓️ Filtro por Data</label>
-            <label>Gestor:</label>
-            <select id="filterGestor"></select>
-            <label>Início:</label>
-            <input type="date" id="filterDateStart">
-            <label>Fim:</label>
-            <input type="date" id="filterDateEnd">
-            <button id="applyFilters" style="background:#28a745; margin-top: 10px;">Aplicar Filtro</button>
-        </div>
-
-        <div id="exportContainer" style="margin-top: auto;">
-            <button id="btnExport">⬇️ Exportar CSV</button>
-            <div id="exportMenu">
-                <button class="exportOption" data-period="diario" style="background: #28a745; color: white;">Diário</button>
-                <button class="exportOption" data-period="quinzenal" style="background: #ffc107; color: #333;">Quinzenal</button>
-                <button class="exportOption" data-period="mensal" style="background: #007bff;">Mensal</button>
-            </div>
-        </div>
-        
-        <button id="btnSair" class="backBtn">🔙 Sair</button>
-    </div>
-
-    <div class="view-container">
-        <div id="map"></div>
-
-        <div id="deliveriesList"></div>
-        
-        <div id="userManagementView">
-            <div class="user-form-container">
-                <h2>Criar Novo Usuário</h2>
-                <input type="text" id="newUsername" placeholder="Nome de Usuário" required />
-                <input type="password" id="newPassword" placeholder="Senha" required />
-                <select id="newUserRole">
-                    </select>
-                <button id="createUserBtn">Criar Usuário</button>
-                <p id="userFeedbackMessage" style="margin-top:10px; text-align:center; font-weight:bold;"></p>
-            </div>
-        </div>
-
-        <div id="cameraContainer">
-            <button id="manualEntryBtn" title="Entrada Manual">✏️</button>
-
-            <div id="scannerFrame">
-                <div id="scanLine"></div> 
-                
-                <select id="cameraSelect"></select>
-                <video id="videoElement" autoplay playsinline></video>
-                <canvas id="overlay"></canvas>
-            </div>
-        </div>
-    </div>
+    /* Estilos restantes (Camera, Filtros, Usuários) - Mantidos para brevidade */
+    /* ... (Mantenha o resto dos estilos da versão anterior aqui, exceto o bloco do .delivery-item) */
     
-    </div>
+    /* Contêiner da Câmera (Tela Cheia e Centralizador) */
+    #cameraContainer {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center; 
+        align-items: center; 
+        position: relative;
+        background: black;
+        border: 50px solid rgba(0, 0, 0, 0.5); 
+        box-sizing: border-box; 
+        overflow: hidden; 
+    }
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-<script src="app.js"></script>
-</html>
+    /* Botão de Entrada Manual */
+    #manualEntryBtn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 1001; 
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 50%;
+        font-size: 20px;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        display: none; 
+    }
+
+    /* Define o limite Quadrado e a área de Clipping */
+    #scannerFrame {
+        position: relative;
+        max-width: 90vh; 
+        max-height: 90vw; 
+        aspect-ratio: 1 / 1; 
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden; 
+    }
+    
+    /* O elemento de vídeo e canvas agora ocupam 100% do novo contêiner quadrado */
+    #videoElement, #overlay { 
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; 
+        height: 100%;
+        max-width: none; 
+        max-height: none;
+        aspect-ratio: auto; 
+        object-fit: cover; 
+    }
+
+    /* Animação da Linha Scanner (Limitada ao #scannerFrame) */
+    @keyframes scan-line {
+        0% { top: 0%; }
+        100% { top: 100%; }
+    }
+    #scanLine {
+        position: absolute;
+        left: 0;
+        width: 100%; 
+        height: 3px;
+        background: red;
+        box-shadow: 0 0 10px red;
+        animation: scan-line 2s infinite alternate; 
+        z-index: 500;
+        display: none; 
+    }
+    
+    /* Filtro de Data (Calendário Interativo) */
+    #dateFilterContainer {
+        padding: 10px;
+        background: var(--accent-blue-gray);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        gap: 5px;
+        display: flex;
+        flex-direction: column;
+    }
+    #dateFilterContainer label { font-weight: 500; }
+    #dateFilterContainer input, #dateFilterContainer select {
+        width: 100%;
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+    }
+    
+    /* Exportação CSV */
+    #exportMenu {
+        padding: 10px;
+        background: var(--accent-blue-gray);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-top: 5px;
+        gap: 5px;
+        display: none;
+        flex-direction: column;
+    }
+    #exportMenu button { font-weight: normal; }
+    
+    /* Estilo do Seletor de Câmera */
+    #cameraSelect { 
+        position: absolute; 
+        top: 50%; 
+        left: 50%; 
+        transform: translate(-50%, -50%); 
+        z-index: 1000; 
+        padding: 10px; 
+        display: none; 
+        width: 80%;
+        max-width: 300px;
+        text-align: center;
+    }
+
+    /* Gerenciamento de Usuários */
+    #userManagementView {
+        width: 100%;
+        height: 100%;
+        padding: 20px;
+        background: var(--bg-color);
+        overflow-y: auto;
+        display: none; 
+        box-sizing: border-box;
+    }
+    .user-form-container {
+        background: var(--list-bg-color);
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 400px;
+        margin: 50px auto;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+</style>
