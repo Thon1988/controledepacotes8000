@@ -25,7 +25,8 @@ const overlay = document.getElementById("overlay");
 const deliveriesList = document.getElementById("deliveriesList");
 const sidebar = document.getElementById("sidebar");
 const camSelect = document.getElementById("cameraSelect");
-let overlayCtx = overlay ? overlay.getContext("2d") : null;
+// Checagem para evitar erro de inicialização se a overlay não for encontrada
+let overlayCtx = overlay ? overlay.getContext("2d") : null; 
 
 // Geração de ID simples
 const generateId = () => Math.random().toString(36).substring(2, 9);
