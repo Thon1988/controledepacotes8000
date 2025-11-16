@@ -36,11 +36,11 @@
         #sidebar button:hover { opacity: 0.9; }
         #sidebar .backBtn { background: #dc3545; }
         
-        /* Contêiner de Visualização (Map, Camera, List) */
+        /* Contêiner de Visualização (Mapa e Lista ficam ao lado da sidebar) */
         .view-container { 
             position: absolute; 
             top: 0; 
-            left: 220px;
+            left: 220px; /* Padrão: 220px para ter espaço da sidebar */
             right: 0; 
             bottom: 0; 
             overflow: hidden; 
@@ -57,7 +57,7 @@
             display: none;
         }
 
-        /* Contêiner da Câmera (Ocupa mais espaço para simular leitor) */
+        /* Contêiner da Câmera (Tela Cheia e Efeito Scanner) */
         #cameraContainer {
             width: 100%;
             height: 100%;
@@ -66,14 +66,15 @@
             justify-content: center;
             align-items: center;
             position: relative;
+            /* Estilo para simular leitor de código de barras centralizado */
+            border: 50px solid rgba(0, 0, 0, 0.5); 
+            box-sizing: border-box; 
+            overflow: hidden; 
         }
-        /* Centraliza a visualização do QR Code */
         #videoElement { 
-            width: 80%; 
-            height: 80%; 
-            max-width: 500px;
-            max-height: 500px;
-            object-fit: contain; 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; /* Cobre toda a área do container (dentro da borda) */
         }
         #overlay { 
             position: absolute; 
@@ -82,6 +83,23 @@
             width: 100%; 
             height: 100%; 
             pointer-events: none; 
+        }
+
+        /* Animação da Linha Scanner */
+        @keyframes scan-line {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+        #scanLine {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: red;
+            box-shadow: 0 0 10px red;
+            animation: scan-line 2s infinite alternate;
+            z-index: 500;
+            display: none; /* Controlado pelo JS */
         }
 
         /* Filtro de Data (Calendário Interativo) */
@@ -114,8 +132,19 @@
         }
         #exportMenu button { font-weight: normal; }
         
-        /* Estilo do Seletor de Câmera (Oculto por padrão, só aparece se a detecção falhar) */
-        #cameraSelect { display: none; }
+        /* Estilo do Seletor de Câmera (Só aparece em caso de falha de detecção) */
+        #cameraSelect { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            z-index: 1000; 
+            padding: 10px; 
+            display: none; 
+            width: 80%;
+            max-width: 300px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -167,6 +196,8 @@
         <div id="deliveriesList"></div>
         
         <div id="cameraContainer">
+            <div id="scanLine"></div> 
+            
             <select id="cameraSelect"></select>
             <video id="videoElement" autoplay playsinline></video>
             <canvas id="overlay"></canvas>
