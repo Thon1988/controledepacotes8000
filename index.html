@@ -1,52 +1,67 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pegazus Log</title>
-  <style>
-    body { margin:0; font-family: Arial; background:#f0f0f0; }
-    #sidebar { display:none; position:fixed; left:0; top:0; width:260px; height:100%; background:#222; color:#fff; padding:20px; }
-    #sidebar.open { display:block; }
-    #menuBtn { display:none; position:fixed; left:15px; top:15px; background:#222; color:#fff; border:none; padding:10px 15px; border-radius:6px; cursor:pointer; }
-    #loginScreen { display:flex; flex-direction:column; gap:10px; width:280px; margin:80px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-    .logged-in #loginScreen { display:none; }
-    .logged-in #menuBtn { display:block; }
-    #scannerContainer { margin-top:80px; text-align:center; }
-    #videoElement { width:80%; max-width:380px; border-radius:8px; }
-    #overlay { position:absolute; left:0; right:0; margin:auto; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PegazusLog v0.1</title>
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-<button id="menuBtn">☰ Menu</button>
+<!-- ============================ -->
+<!--        TELA DE LOGIN         -->
+<!-- ============================ -->
+<div id="loginContainer" class="login-container">
+    <h1 class="logo">PegazusLog v0.1</h1>
 
-<div id="sidebar">
-  <h2>Menu</h2>
-  <button onclick="abrirCamera()">📷 Abrir Câmera</button><br><br>
-  <button onclick="listarEntregas()">📦 Entregas</button><br><br>
-  <button onclick="openMapa()">📍 Mapa</button><br><br>
-  <button onclick="gerarRota()">🧭 Gerar Rota</button><br><br>
-  <button id="exportBtn">📄 Gerar CSV</button><br><br>
-  <button onclick="pesquisarQRCode()">🔎 Pesquisar QR</button><br><br>
-  <button onclick="logout()">🚪 Sair</button>
+    <div class="login-box">
+        <input id="loginUser" placeholder="Usuário" type="text" />
+        <input id="loginPass" placeholder="Senha" type="password" />
+        <button id="loginBtn">Entrar</button>
+        <div id="feedbackMessage" class="feedback"></div>
+    </div>
 </div>
 
-<div id="loginScreen">
-  <h2>Login</h2>
-  <input id="loginUser" placeholder="Usuário" />
-  <input id="loginPass" placeholder="Senha" type="password" />
-  <button id="loginBtn">Entrar</button>
-  <div id="feedbackMessage" style="color:red"></div>
+<!-- ============================ -->
+<!--        MENU LATERAL          -->
+<!-- ============================ -->
+<button id="menuBtn" class="menu-button" style="display:none;">☰</button>
+<div id="sidebar" class="sidebar" style="display:none;">
+    <h2 class="menu-title">Menu</h2>
+
+    <!-- ADMIN -->
+    <button class="menu-item menu-admin" onclick="adicionarUsuario('gestor')">Adicionar Gestor</button>
+    <button class="menu-item menu-admin" onclick="adicionarUsuario('colab')">Adicionar Colaborador</button>
+
+    <!-- GESTOR -->
+    <button class="menu-item menu-gestor" onclick="adicionarUsuario('colab')">Adicionar Colaborador</button>
+
+    <!-- COLAB / TODOS -->
+    <button class="menu-item menu-colab" id="openCameraBtn">📷 Abrir Câmera</button>
+    <button class="menu-item menu-colab" id="exportBtn">📄 Exportar CSV</button>
+
+    <button class="menu-item" onclick="logout()">🚪 Sair</button>
 </div>
 
-<div id="scannerContainer">
-  <video id="videoElement" autoplay></video>
-  <canvas id="overlay"></canvas>
-  <div id="scansList" style="margin-top:20px; font-size:18px;"></div>
+<!-- ============================ -->
+<!--     ÁREA PRINCIPAL APP      -->
+<!-- ============================ -->
+<div id="appContent" class="app-content" style="display:none;">
+
+    <!-- Câmera -->
+    <div class="camera-box">
+        <video id="videoElement" autoplay></video>
+        <canvas id="overlay"></canvas>
+    </div>
+
+    <!-- Lista de entregas -->
+    <div class="entregas-box">
+        <h3>Entregas Registradas</h3>
+        <div id="scansList">Nenhuma entrega ainda.</div>
+    </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="jsQR.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
