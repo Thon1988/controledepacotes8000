@@ -1,10 +1,21 @@
-// app.js atualizado
+// app.js atualizado com controle de permissões (Item 2)
 
 // === ESTADO GLOBAL ===
 let logged = false;
 let cameraStream = null;
 let scanning = false;
-let deliveries = []; // armazenará objetos: { id, nome, endereco, cep, telefone, data }
+let deliveries = []; // armazenará objetos: { id, nome, endereco, cep, telefone, data, user }
+
+// === BASE DE USUÁRIOS ===
+// admin pode tudo;
+// gestor pode adicionar colaboradores e ver CSV deles;
+// colaborador só escaneia e gera seu próprio CSV.
+
+let users = [
+  { username: "thon", password: "882010", role: "admin", owner: null },
+];
+
+let currentUser = null;
 
 // === LOGIN ===
 const loginBtn = document.getElementById("loginBtn");
@@ -12,22 +23,63 @@ loginBtn.onclick = () => {
   const user = document.getElementById("loginUser").value.trim();
   const pass = document.getElementById("loginPass").value.trim();
 
-  if (user === "admin" && pass === "123") {
-    document.body.classList.add("logged-in");
-    logged = true;
-  } else {
+  const found = users.find(u => u.username === user && u.password === pass);
+
+  if (!found) {
     document.getElementById("feedbackMessage").innerText = "Credenciais inválidas";
+    return;
   }
+
+  logged = true;
+  currentUser = found;
+  document.body.classList.add("logged-in");
+
+  atualizarMenuPorPermissao();
 };
 
 function logout() {
-  document.body.classList.remove("logged-in");
   logged = false;
+  currentUser = null;
+  document.body.classList.remove("logged-in");
+}
+
+// === CONFIGURAÇÃO DO MENU POR PERMISSÃO ===
+function atualizarMenuPorPermissao() {
+  if (!currentUser) return;
+
+  document.querySelectorAll(".menu-admin").forEach(e => e.style.display = "none");
+  document.querySelectorAll(".menu-gestor").forEach(e => e.style.display = "none");
+  document.querySelectorAll(".menu-colab").forEach(e => e.style.display = "none");
+
+  if (currentUser.role === "admin") {
+    document.querySelectorAll(".menu-admin").forEach(e => e.style.display = "block");
+    document.querySelectorAll(".menu-gestor").forEach(e => e.style.display = "block");
+    document.querySelectorAll(".menu-colab").forEach(e => e.style.display = "block");
+  }
+
+  if (currentUser.role === "gestor") {
+    document.querySelectorAll(".menu-gestor").forEach(e => e.style.display = "block");
+    document.querySelectorAll(".menu-colab").forEach(e => e.style.display = "block");
+  }
+
+  if (currentUser.role === "colab") {
+    document.querySelectorAll(".menu-colab").forEach(e => e.style.display = "block");
+  }
+}
+
+// === ADICIONAR USUÁRIOS ===
+function adicionarUsuario(role) {
+  const username = prompt("Usuário novo:");
+  const pass = prompt("Senha:");
+  if (!username || !pass) return;
+
+  users.push({ username, password: pass, role, owner: currentUser.username });
+
+  alert("Usuário criado com sucesso!");
 }
 
 // === MENU LATERAL ===
 const menuBtn = document.getElementById("menuBtn");
-menuBtn.style.display = "none"; // escondido no login = document.getElementById("menuBtn");
 const sidebar = document.getElementById("sidebar");
 menuBtn.onclick = () => {
   if (!logged) return;
@@ -83,34 +135,28 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+// === PROCESSAMENTO DO QR ===
 function processQRCode(text) {
-  // === BEEP ===
-  const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
-  audio.play();
-
   const parsed = parseQRCode(text);
   if (!parsed) return alert("Formato inválido do QR Code");
 
-  // === BLOQUEAR QR DUPLICADO ===
-  const exists = deliveries.some(d => d.nome === parsed.nome && d.endereco === parsed.endereco && d.cep === parsed.cep && d.telefone === parsed.telefone);
-  if (exists) {
-    alert("⚠️ Este QR Code já foi escaneado!");
+  // impedir duplicados por telefone
+  if (deliveries.some(x => x.telefone === parsed.telefone)) {
+    alert("⚠️ QR Code já escaneado!");
     return;
   }
 
+  parsed.user = currentUser.username;
   deliveries.push(parsed);
   atualizarListaEntregas();
-}(text) {
-  const parsed = parseQRCode(text);
-  if (!parsed) return alert("Formato inválido do QR Code");
 
-  deliveries.push(parsed);
-  atualizarListaEntregas();
+  const bip = new Audio("beep.mp3");
+  bip.play();
 }
 
-// === PARSING DO QR CODE ===
 function parseQRCode(raw) {
-  const lines = raw.split(/\n|;/).map(l => l.trim());
+  const lines = raw.split(/
+|;/).map(l => l.trim());
   let obj = { id: Date.now(), data: new Date().toISOString() };
 
   for (let l of lines) {
@@ -124,44 +170,33 @@ function parseQRCode(raw) {
   return obj;
 }
 
-// === LISTA DE ENTREGAS ===
-function listarEntregas() {
-  alert(JSON.stringify(deliveries, null, 2));
-}
-
 function atualizarListaEntregas() {
   document.getElementById("scansList").innerText = deliveries.length + " entregas registradas.";
 }
 
-// === PESQUISA ===
-function pesquisarQRCode() {
-  const id = prompt("Digite o ID do QR Code:");
-  if (!id) return;
-  const item = deliveries.find(x => x.id == id);
-  if (!item) return alert("Não encontrado.");
-  alert(JSON.stringify(item, null, 2));
-}
-
-// === MAPA ===
-function openMapa() {
-  if (deliveries.length === 0) return alert("Nenhuma entrega cadastrada.");
-  const addr = deliveries[0].endereco + ", " + deliveries[0].cep;
-  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
-}
-
-function gerarRota() {
-  if (deliveries.length < 2) return alert("Necessário 2 ou mais entregas.");
-  const base = deliveries.map(d => d.endereco + ", " + d.cep).join("|");
-  window.open(`https://www.google.com/maps/dir/${encodeURIComponent(base)}`);
-}
-
-// === CSV ===
+// === CSV — respeitando permissões ===
 const exportBtn = document.getElementById("exportBtn");
 exportBtn.onclick = () => {
-  if (deliveries.length === 0) return alert("Nada para exportar.");
-  let csv = "ID;Nome;Endereco;CEP;Telefone;Data\n";
-  deliveries.forEach(d => {
-    csv += `${d.id};${d.nome};${d.endereco};${d.cep};${d.telefone};${d.data}\n`;
+  let dataToExport = [];
+
+  if (currentUser.role === "admin") {
+    dataToExport = deliveries;
+  } else if (currentUser.role === "gestor") {
+    dataToExport = deliveries.filter(d => {
+      const u = users.find(x => x.username === d.user);
+      return u && u.owner === currentUser.username;
+    });
+  } else {
+    dataToExport = deliveries.filter(d => d.user === currentUser.username);
+  }
+
+  if (dataToExport.length === 0) return alert("Nada para exportar.");
+
+  let csv = "ID;Nome;Endereco;CEP;Telefone;Data;Colaborador
+";
+  dataToExport.forEach(d => {
+    csv += `${d.id};${d.nome};${d.endereco};${d.cep};${d.telefone};${d.data};${d.user}
+`;
   });
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
