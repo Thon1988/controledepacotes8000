@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.5 (FINAL) | Inclui Sons, Gerenciamento de Usuários e Correção na Leitura de QR/Manual
+// app.js — PegazusLog v0.6 (FINAL) | Inclui novo Design, Usuários e Parsing de QR Code por Linha
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -72,7 +72,7 @@ function showView(viewId) {
 
     sidebar.style.display = "flex";
     document.getElementById("exportMenu").style.display = "none";
-    document.querySelector(".view-container").style.left = "220px"; 
+    document.querySelector(".view-container").style.left = "240px"; // Ajustado para 240px
 
 
     switch (viewId) {
@@ -684,13 +684,20 @@ function renderDeliveriesList(listToRender = filteredScans) {
     if (!deliveriesList) return;
     
     if (listToRender.length === 0) {
-        deliveriesList.innerHTML = "<p style='text-align:center;'>Nenhuma entrega encontrada.</p>";
+        deliveriesList.innerHTML = "<p style='text-align:center; padding: 20px;'>Nenhuma entrega encontrada.</p>";
     } else {
          deliveriesList.innerHTML = listToRender.map(s => 
-            `<div style="padding: 10px 0; border-bottom: 1px solid #ddd;">
-                <strong>${s.nome}</strong> - ID: ${s.id}<br>
-                ${s.endereco}<br>
-                <span style="font-size: 11px; color: #6c757d;">Gestor: ${s.gestor} | ${s.date}</span>
+            // Usa a nova classe CSS para o visual moderno (definida no index.html)
+            `<div class="delivery-item">
+                <strong>${s.nome} <span class="id-label">(ID: ${s.id})</span></strong>
+                
+                <div class="address">${s.endereco}</div>
+                
+                <div class="metadata">
+                    📦 Registrado por: 
+                    <span style="font-weight: 600;">${s.gestor}</span> em 
+                    ${s.date.split(',')[0].trim()}
+                </div>
             </div>`
         ).join("");
     }
@@ -711,6 +718,7 @@ function generateOptimizedRoute(){
         const last=route[route.length-1]; let nearestIdx=-1, nearestDist=Infinity;
         points.forEach((p,i)=>{
             if(!visited.includes(i)){
+                // Calcula distância euclidiana simples (não é a distância real, mas serve como heurística)
                 const dist=Math.hypot(last.lat-p.lat,last.lng-p.lng); 
                 if(dist<nearestDist){ 
                     nearestDist=dist; 
