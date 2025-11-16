@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.4 (BETA) | Câmera Principal, Scanner Quadrado, Gerenciamento de Usuários e Sons
+// app.js — PegazusLog v0.5 (BETA) | Câmera, Scanner, Usuários, Sons e Entrada Manual Corrigida
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -170,7 +170,7 @@ function initApp() {
     initMenuEvents();
     populateGestorFilter(); 
 
-    // NOVO: Visibilidade do Gerenciamento de Usuários
+    // Visibilidade do Gerenciamento de Usuários
     const btnManageUsers = document.getElementById("btnManageUsers");
     if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'gestor')) {
         btnManageUsers.style.display = 'block';
@@ -208,7 +208,7 @@ function initMenuEvents() {
       };
     });
 
-    // NOVO: Evento para Gerenciar Usuários
+    // Evento para Gerenciar Usuários
     const btnManageUsers = document.getElementById("btnManageUsers");
     if (btnManageUsers) {
         btnManageUsers.onclick = () => { 
@@ -217,38 +217,84 @@ function initMenuEvents() {
         };
     }
 
-    // NOVO: Evento para Entrada Manual
+    // Evento para Entrada Manual
     const manualEntryBtn = document.getElementById("manualEntryBtn");
     if (manualEntryBtn) {
         manualEntryBtn.onclick = handleManualEntry;
     }
 
-    // NOVO: Evento para Criar Usuário
+    // Evento para Criar Usuário
     const createUserBtn = document.getElementById("createUserBtn");
     if (createUserBtn) {
         createUserBtn.onclick = createUser;
     }
 }
 
-// ======================// ENTRADA MANUAL // ======================
+// ======================// ENTRADA MANUAL CORRIGIDA // ======================
 
 function handleManualEntry() {
     stopScanner();
-    const manualId = prompt("✏️ Digite o ID (código QR completo) da entrega:");
     
-    if (manualId === null) {
+    const manualId = prompt("✏️ 1/4 Digite o ID da Entrega (código principal):");
+    
+    if (manualId === null || manualId.trim() === "") {
+        buzz(); // Som de erro para ID inválido
+        alert("ID inválido ou cancelado.");
         showView('list');
         return;
     }
+
+    const nome = prompt("✏️ 2/4 Digite o Nome do Cliente:");
+    const endereco = prompt("✏️ 3/4 Digite o Endereço completo (Rua, Número, Bairro):");
+    const telefone = prompt("✏️ 4/4 Digite o Telefone do Cliente:");
     
-    if (manualId.trim()) {
-        registerScan(manualId.trim()); 
-    } else {
-        buzz(); // ❌ Som de erro para ID inválido
-        alert("ID inválido ou vazio.");
-        showView('list');
-    }
+    // Chamamos registerManualEntry, passando os dados estruturados.
+    registerManualEntry({
+        rawId: manualId.trim(),
+        nome: nome ? nome.trim() : "Nome Não Informado",
+        endereco: endereco ? endereco.trim() : "",
+        telefone: telefone ? telefone.trim() : "",
+        cep: "" // Não solicitado, mas mantido para a estrutura
+    });
 }
+
+async function registerManualEntry(manualData) {
+    if (scans.find(s => s.rawId === manualData.rawId)) {
+        stopScanner();
+        buzz();
+        alert("ID de Entrega já registrado!");
+        showView('list');
+        return;
+    }
+
+    const scanObj = {
+        id: generateId(), 
+        rawId: manualData.rawId, 
+        nome: manualData.nome, 
+        endereco: manualData.endereco,
+        cep: manualData.cep,
+        telefone: manualData.telefone,
+        gestor: currentUser ? currentUser.username : "Desconhecido",
+        date: new Date().toLocaleString('pt-BR')
+    };
+    
+    // Tenta obter coordenadas geográficas
+    await geocodeAddress(scanObj);
+
+    // Salva o novo registro
+    scans.unshift(scanObj);
+    localStorage.setItem("pegazus_scans", JSON.stringify(scans));
+    
+    stopScanner();
+    beep(); // Som de sucesso
+    
+    // Confirmação para o usuário
+    alert(`✅ Registro Manual Concluído!\nCliente: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
+    
+    updateFilteredScans(); 
+    showView('list');
+}
+
 
 // ======================// GERENCIAMENTO DE USUÁRIOS //======================
 
@@ -523,7 +569,7 @@ async function geocodeAddress(scanObj) {
 async function registerScan(data) {
     if (scans.find(s => s.rawId === data)) {
         stopScanner();
-        buzz(); // ❌ Som de erro para código já registrado
+        buzz(); // Som de erro para código já registrado
         alert("QR Code já registrado!");
         showView('list');
         return;
@@ -548,7 +594,7 @@ async function registerScan(data) {
 
     const scanObj = {
         id: generateId(), 
-        rawId: data, // Código completo para relatórios
+        rawId: data, 
         nome: nome || "ID/Desconhecido", 
         endereco: endereco || "",
         cep: cep || "",
@@ -565,10 +611,10 @@ async function registerScan(data) {
     localStorage.setItem("pegazus_scans", JSON.stringify(scans));
     
     stopScanner();
-    beep(); // ✅ Som de sucesso após registro
+    beep(); // Som de sucesso
     
     // Confirmação para o usuário
-    alert(`✅ Registro Concluído!\nComprador: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
+    alert(`✅ Registro QR Code Concluído!\nComprador: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
     
     updateFilteredScans(); 
     showView('list');
