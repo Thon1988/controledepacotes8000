@@ -36,7 +36,7 @@
         #sidebar button:hover { opacity: 0.9; }
         #sidebar .backBtn { background: #dc3545; }
         
-        /* Contêiner de Visualização (Mapa e Lista ficam ao lado da sidebar) */
+        /* Contêiner de Visualização */
         .view-container { 
             position: absolute; 
             top: 0; 
@@ -57,7 +57,7 @@
             display: none;
         }
 
-        /* Contêiner da Câmera (Tela Cheia, Quadrado e Centralizado) */
+        /* Contêiner da Câmera (Tela Cheia e Centralizador) */
         #cameraContainer {
             width: 100%;
             height: 100%;
@@ -65,25 +65,41 @@
             justify-content: center; /* Centraliza Horizontalmente */
             align-items: center; /* Centraliza Verticalmente */
             position: relative;
-            
             background: black;
-            border: 50px solid rgba(0, 0, 0, 0.5); /* Borda para focar */
+            border: 50px solid rgba(0, 0, 0, 0.5); /* Borda de Foco */
             box-sizing: border-box; 
             overflow: hidden; 
         }
-        
-        /* Força o elemento de vídeo e canvas a ser quadrado e limitado */
-        #videoElement, #overlay { 
+
+        /* ---------------------------------------------------- */
+        /* NOVO: Define o limite Quadrado e a área de Clipping */
+        /* ---------------------------------------------------- */
+        #scannerFrame {
+            position: relative;
             max-width: 90vh; /* Limita a largura máxima a 90% da altura da viewport */
             max-height: 90vw; /* Limita a altura máxima a 90% da largura da viewport */
             aspect-ratio: 1 / 1; /* FORÇA O FORMATO QUADRADO */
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* ESSENCIAL: Recorta a linha do scanner nos limites do quadrado */
+        }
+        
+        /* O elemento de vídeo e canvas agora ocupam 100% do novo contêiner quadrado */
+        #videoElement, #overlay { 
+            position: absolute;
+            top: 0; left: 0;
             width: 100%; 
             height: 100%;
+            max-width: none; 
+            max-height: none;
+            aspect-ratio: auto; 
             object-fit: cover; 
-            position: absolute;
         }
 
-        /* Animação da Linha Scanner */
+        /* Animação da Linha Scanner (Limitada ao #scannerFrame) */
         @keyframes scan-line {
             0% { top: 0%; }
             100% { top: 100%; }
@@ -91,14 +107,18 @@
         #scanLine {
             position: absolute;
             left: 0;
-            width: 100%;
+            width: 100%; /* 100% da largura do #scannerFrame */
             height: 3px;
             background: red;
             box-shadow: 0 0 10px red;
-            animation: scan-line 2s infinite alternate;
+            animation: scan-line 2s infinite alternate; 
             z-index: 500;
             display: none; 
         }
+        /* ---------------------------------------------------- */
+        /* FIM DAS ALTERAÇÕES DE SCANNER */
+        /* ---------------------------------------------------- */
+
 
         /* Filtro de Data (Calendário Interativo) */
         #dateFilterContainer {
@@ -130,7 +150,7 @@
         }
         #exportMenu button { font-weight: normal; }
         
-        /* Estilo do Seletor de Câmera (Só aparece em caso de falha de detecção) */
+        /* Estilo do Seletor de Câmera */
         #cameraSelect { 
             position: absolute; 
             top: 50%; 
@@ -194,11 +214,13 @@
         <div id="deliveriesList"></div>
         
         <div id="cameraContainer">
-            <div id="scanLine"></div> 
-            
-            <select id="cameraSelect"></select>
-            <video id="videoElement" autoplay playsinline></video>
-            <canvas id="overlay"></canvas>
+            <div id="scannerFrame">
+                <div id="scanLine"></div> 
+                
+                <select id="cameraSelect"></select>
+                <video id="videoElement" autoplay playsinline></video>
+                <canvas id="overlay"></canvas>
+            </div>
         </div>
     </div>
     
