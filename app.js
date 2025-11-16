@@ -234,7 +234,6 @@ async function startScanner(deviceId) {
     } catch (e) {
         console.warn("Falha 1 (environment). Tentando fallback...", e);
         
-        // Se falhou e não estava usando um deviceId específico (i.e., falhou na tentativa automática)
         if (!deviceId) {
              try {
                 // 3. Tenta a câmera frontal ('user') como fallback
@@ -357,27 +356,45 @@ async function registerScan(data) {
     }
     
     const regex = (key) => {
+        // Busca a chave seguida por dois pontos e captura tudo até uma nova linha
         const match = data.match(new RegExp(`${key}:([^\n]*)`, 'i'));
         return match ? match[1].trim() : "";
     };
 
+    let nome = regex("NOME");
+    let endereco = regex("ENDEREÇO");
+    let cep = regex("CEP");
+    let telefone = regex("TELEFONE");
+    
+    // Fallback: Se não encontrar NOME ou ENDEREÇO por regex, 
+    // usa os primeiros caracteres do rawId como nome/ID de rastreamento.
+    if (!nome && !endereco) { 
+        nome = `ID: ${data.substring(0, 20).trim()}`;
+    }
+
+
     const scanObj = {
         id: generateId(), 
-        rawId: data, 
-        nome: regex("NOME") || "Desconhecido",
-        endereco: regex("ENDEREÇO") || "",
-        cep: regex("CEP") || "",
-        telefone: regex("TELEFONE") || "",
+        rawId: data, // IMPORTANTE: Salva o código completo para relatório!
+        nome: nome || "ID/Desconhecido", 
+        endereco: endereco || "",
+        cep: cep || "",
+        telefone: telefone || "",
         gestor: currentUser ? currentUser.username : "Desconhecido",
         date: new Date().toLocaleString('pt-BR')
     };
     
+    // Tenta obter coordenadas geográficas
     await geocodeAddress(scanObj);
 
+    // Salva o novo registro
     scans.unshift(scanObj);
     localStorage.setItem("pegazus_scans", JSON.stringify(scans));
     
     stopScanner();
+    // Confirmação para o usuário (pode ser o que estava faltando)
+    alert(`✅ QR Code Registrado!\nComprador: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
+    
     updateFilteredScans(); 
     showView('list');
 }
@@ -512,10 +529,11 @@ function exportCSV(period){
   }
 
   if(filtered.length===0){ alert(`Nenhum registro encontrado para o período ${period}.`); return; }
-
+  
+  // CSV HEADER: rawId (código completo) incluído
   let csv = "id,rawId,nome,endereco,cep,telefone,gestor,data,latitude,longitude\n" + 
             filtered.map(s => 
-                `${s.id},${s.rawId},${s.nome},${s.endereco},${s.cep},${s.telefone},${s.gestor},${s.date},${s.lat || ''},${s.lng || ''}`
+                `${s.id},"${s.rawId.replace(/"/g, '""')}",${s.nome},${s.endereco},${s.cep},${s.telefone},${s.gestor},${s.date},${s.lat || ''},${s.lng || ''}`
             ).join("\n");
             
   const bom = "\uFEFF";
