@@ -3,9 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>📦 Scanner de Pacotes</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <title>PegazusLog v0.1</title> <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
     :root{
@@ -20,14 +18,22 @@
     .app{ max-width:920px; margin:18px auto; padding:18px; }
     h1{ margin:0 0 12px; font-size:20px; text-align: center; }
     
-    /* Login Specific Styling */
-    #login-container { max-width: 350px; margin: 80px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: var(--card); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    /* Login Specific Styling - Otimizado e Suave */
+    #login-container { 
+        max-width: 350px; 
+        margin: 80px auto; 
+        padding: 20px; 
+        border: 1px solid #eee; /* Borda mais suave */
+        border-radius: 8px; 
+        background: var(--card); 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Sombra mais sutil */
+    }
     #login-container h2 { margin-top: 0; font-size: 18px; text-align: center; }
     #loginForm input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
     #loginForm button { width: 100%; }
     #feedbackMessage { text-align: center; margin-top: 10px; font-weight: bold; }
 
-    /* Controls and Scanner Styling (Mantido) */
+    /* Controls and Scanner Styling */
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
     button{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:6px;cursor:pointer}
     button.secondary{background:#6c757d}
@@ -52,9 +58,7 @@
 </head>
 <body>
   <div class="app">
-    <h1>📦 Scanner de Pacotes</h1>
-
-    <div id="login-container">
+    <h1>PegazusLog v0.1</h1> <div id="login-container">
         <h2>Acesso Restrito</h2>
         <form id="loginForm">
             <input type="text" id="username" placeholder="Usuário" required>
@@ -95,4 +99,3 @@
   <script src="app.js"></script>
 </body>
 </html>
-
