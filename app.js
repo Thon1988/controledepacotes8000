@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.2 | Funcionalidades Completas
+// app.js — PegazusLog v0.3 | Câmera Automática e Filtro de Data Interativo
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -18,7 +18,6 @@ let filteredScans = [];
 
 const video = document.getElementById("videoElement");
 const overlay = document.getElementById("overlay");
-const cameraContainer = document.getElementById("cameraContainer");
 const deliveriesList = document.getElementById("deliveriesList");
 const sidebar = document.getElementById("sidebar");
 const camSelect = document.getElementById("cameraSelect");
@@ -47,18 +46,15 @@ function showView(viewId) {
     document.getElementById("map").style.display = "none";
     document.getElementById("deliveriesList").style.display = "none";
     document.getElementById("cameraContainer").style.display = "none";
-    stopScanner(); // Garante que a câmera esteja parada
+    stopScanner(); 
 
     // Esconde/Mostra o menu lateral principal e o botão Voltar
     sidebar.style.display = "flex";
-    
-    // O botão "Voltar" é dinâmico, garantindo que ele não esteja visível
     const voltarBtn = document.getElementById("btnVoltarCamera");
     if (voltarBtn) voltarBtn.style.display = "none";
     
     // Esconde menus extras
     document.getElementById("exportMenu").style.display = "none";
-    document.getElementById("filterOptions").style.display = "none";
 
 
     switch (viewId) {
@@ -71,12 +67,12 @@ function showView(viewId) {
             if (map) map.invalidateSize(); 
             break;
         case 'camera':
-            sidebar.style.display = "none"; // Esconde o menu principal
-            if (voltarBtn) voltarBtn.style.display = "block"; // Mostra o botão Voltar
+            sidebar.style.display = "none"; 
+            if (voltarBtn) voltarBtn.style.display = "block"; 
             document.getElementById("cameraContainer").style.display = "flex";
             
-            // Inicia o processo de detecção e seleção de câmera
-            document.getElementById("btnCamera").onclick();
+            // Tenta iniciar a câmera traseira automaticamente
+            startScanner(); 
             break;
     }
 }
@@ -116,7 +112,6 @@ window.addEventListener('DOMContentLoaded', () => {
 function initApp() {
     initMap();
     
-    // Cria e configura o botão "Voltar" (para a câmera)
     const voltarBtn = document.createElement('button');
     voltarBtn.id = "btnVoltarCamera";
     voltarBtn.textContent = "🔙 Voltar";
@@ -124,31 +119,24 @@ function initApp() {
     voltarBtn.onclick = () => showView('list');
     document.getElementById("app").appendChild(voltarBtn);
 
-    // Inicializa a lista de entregas como tela principal
     showView('list'); 
     
-    // Inicializa os eventos do menu 
     initMenuEvents();
+    populateGestorFilter(); // Popula o filtro de gestores na inicialização
 }
 
 function initMenuEvents() {
     document.getElementById("btnMap").onclick = () => { showView('map'); };
     document.getElementById("btnDeliveries").onclick = () => { showView('list'); };
     document.getElementById("btnRoute").onclick = generateOptimizedRoute;
-    
-    // Filtros
-    document.getElementById("btnFilter").onclick = () => {
-        const options = document.getElementById("filterOptions");
-        options.style.display = options.style.display === "flex" ? "none" : "flex";
-        document.getElementById("exportMenu").style.display = "none";
-        if (options.style.display === "flex") populateGestorFilter();
-    };
+    document.getElementById("btnCamera").onclick = () => showView('camera'); // Simplificado para chamar a view
+
+    // Evento para o Calendário Interativo
     document.getElementById("applyFilters").onclick = () => {
         currentFilters.gestor = document.getElementById("filterGestor").value;
         currentFilters.dateStart = document.getElementById("filterDateStart").value;
         currentFilters.dateEnd = document.getElementById("filterDateEnd").value;
         updateFilteredScans();
-        document.getElementById("filterOptions").style.display = "none";
     };
 }
 
@@ -185,61 +173,22 @@ function updateMapMarkers(listToRender) {
     });
 }
 
-// ======================// SCANNER AVANÇADO (Seleção de Câmera) // ======================
-
-document.getElementById("btnCamera").onclick = async () => {
-    // A função showView('camera') já esconde a sidebar e mostra o botão Voltar
-    showView('camera');
-    
-    // Popula as câmeras disponíveis
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        
-        camSelect.innerHTML = '<option value="">Selecione a Câmera</option>';
-        videoDevices.forEach(device => {
-            const option = document.createElement('option');
-            option.value = device.deviceId;
-            // Tenta usar o label fornecido pelo sistema operacional (ex: "Câmera Traseira")
-            option.textContent = device.label || `Câmera ${camSelect.options.length}`; 
-            camSelect.appendChild(option);
-        });
-
-        // Mostra o seletor para o usuário escolher manualmente
-        if (videoDevices.length > 0) {
-            camSelect.style.display = "block";
-        } else {
-             alert("Nenhuma câmera detectada.");
-             showView('list');
-        }
-
-    } catch (e) {
-        alert("Erro ao detectar câmeras: " + e.message);
-        console.error(e);
-        showView('list');
-    }
-};
-
-camSelect.onchange = (e) => {
-    const deviceId = e.target.value;
-    if (deviceId) {
-        camSelect.style.display = "none"; // Esconde o seletor após a escolha
-        startScanner(deviceId);
-    }
-};
+// ======================// SCANNER AVANÇADO (Lógica Automática) // ======================
 
 async function startScanner(deviceId) {
     try {
         if (!video || !overlayCtx) throw new Error("Elementos do scanner não encontrados.");
-        
         if(currentStream) stopScanner();
 
-        const constraints = { 
-            video: { 
-                // Usa o deviceId para selecionar a câmera específica escolhida pelo usuário
-                deviceId: deviceId ? { exact: deviceId } : undefined 
-            } 
-        };
+        let constraints;
+        if (deviceId) {
+             // Caso o deviceId seja fornecido (após falha na detecção automática)
+             constraints = { video: { deviceId: { exact: deviceId } } };
+        } else {
+             // Tenta automaticamente a câmera traseira (environment)
+             constraints = { video: { facingMode: { exact: "environment" } } };
+        }
+        
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = currentStream;
         await video.play();
@@ -250,13 +199,49 @@ async function startScanner(deviceId) {
             overlay.height = video.videoHeight; 
             scanLoop(); 
         };
+        camSelect.style.display = "none"; // Garante que o seletor esteja oculto
 
     } catch (e) {
-        alert("Erro ao acessar a câmera: " + e.message + "\nCertifique-se de estar em HTTPS.");
-        console.error(e);
+        console.warn("Falha na detecção automática da câmera traseira. Erro:", e);
+        
+        // Se a detecção automática falhar, cai para a seleção manual
+        await showCameraSelector();
+    }
+}
+
+async function showCameraSelector() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        
+        camSelect.innerHTML = '<option value="">Selecione a Câmera</option>';
+        videoDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Câmera ${camSelect.options.length}`; 
+            camSelect.appendChild(option);
+        });
+
+        // Mostra o seletor para escolha manual
+        if (videoDevices.length > 0) {
+            camSelect.style.display = "block";
+        } else {
+             alert("Nenhuma câmera detectada.");
+             showView('list');
+        }
+
+    } catch (e) {
+        alert("Erro fatal ao listar câmeras: " + e.message);
         showView('list');
     }
 }
+
+camSelect.onchange = (e) => {
+    const deviceId = e.target.value;
+    if (deviceId) {
+        startScanner(deviceId); // Chama startScanner com o ID escolhido
+    }
+};
 
 function stopScanner() {
     scanning = false;
@@ -406,7 +391,6 @@ function generateOptimizedRoute(){
     const points=filteredScans.filter(s=>s.lat&&s.lng).map(s=>({lat:s.lat,lng:s.lng,nome:s.nome}));
     if(points.length<2) return alert("São necessários pelo menos 2 endereços com geolocalização.");
 
-    // Algoritmo do Vizinho Mais Próximo (Heurística simples)
     let visited=[], route=[points[0]]; visited.push(0);
     while(route.length<points.length){
         const last=route[route.length-1]; let nearestIdx=-1, nearestDist=Infinity;
@@ -426,7 +410,6 @@ const exportBtn = document.getElementById("btnExport");
 const exportMenu = document.getElementById("exportMenu");
 
 exportBtn.onclick = () => {
-    document.getElementById("filterOptions").style.display = "none";
     if (exportMenu) exportMenu.style.display = exportMenu.style.display === "flex" ? "none" : "flex";
 };
 
