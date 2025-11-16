@@ -1,9 +1,9 @@
-// app.js — PegazusLog v0.9 (Login Corrigido)
+// app.js — PegazusLog v0.9 (Login Corrigido e manager1 Excluído)
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
     "thon": {password:"882010", role:"admin"},
-    "manager1": {password:"123", role:"gestor"},
+    // Usuário "manager1" foi removido
     "user1": {password:"123", role:"colaborador"}
 };
 
@@ -141,7 +141,6 @@ document.getElementById("loginBtn").onclick = () => {
 document.getElementById("btnSair").onclick = logout;
 function logout() { 
     localStorage.removeItem("loggedUser");
-    // O reload garante que o estado inicial das variáveis seja carregado
     location.reload(); 
 }
 
@@ -149,7 +148,6 @@ function logout() {
 window.addEventListener('DOMContentLoaded', () => {
     const loggedUser = localStorage.getItem("loggedUser");
     
-    // Usa ALL_USERS inicial, que é a combinação na carga da página
     if (loggedUser && ALL_USERS[loggedUser]) {
         currentUser = { username: loggedUser, role: ALL_USERS[loggedUser].role };
         document.body.querySelector(".login-container").style.display = "none";
@@ -468,7 +466,6 @@ function populateGestorFilter() {
     const filterSelect = document.getElementById("filterGestor");
     filterSelect.innerHTML = '<option value="all">Todos os Gestores/Usuários</option>';
     
-    // Coleta todos os usuários que podem registrar (todos, exceto admin se necessário, mas aqui usaremos todos)
     const gestores = Object.keys(ALL_USERS);
     
     gestores.forEach(username => {
@@ -478,12 +475,10 @@ function populateGestorFilter() {
         filterSelect.appendChild(option);
     });
     
-    // Aplica o filtro atual se houver
     filterSelect.value = currentFilters.gestor;
 }
 
 function parseStoredDate(dateStr) {
-    // Função utilitária para garantir que a comparação de datas funcione corretamente
     const date = new Date(dateStr);
     return date.getTime();
 }
@@ -499,7 +494,6 @@ function updateFilteredScans() {
 
         if (currentFilters.dateStart) {
             const startDate = new Date(currentFilters.dateStart);
-            // Define o início do dia
             startDate.setHours(0, 0, 0, 0); 
             if (scanDate.getTime() < startDate.getTime()) {
                 dateMatch = false;
@@ -508,7 +502,6 @@ function updateFilteredScans() {
 
         if (dateMatch && currentFilters.dateEnd) {
             const endDate = new Date(currentFilters.dateEnd);
-            // Define o fim do dia
             endDate.setHours(23, 59, 59, 999); 
             if (scanDate.getTime() > endDate.getTime()) {
                 dateMatch = false;
@@ -586,19 +579,16 @@ function exportCSV(period) {
         return alert("Nenhuma entrega para exportar com os filtros atuais.");
     }
     
-    // Define o nome do arquivo
     const fileName = `pegazus_entregas_${period}_${new Date().toISOString().slice(0, 10)}.csv`;
 
-    // Cabeçalho do CSV
     const headers = ["ID", "Código", "Endereço", "Latitude", "Longitude", "Data/Hora", "Tipo", "Gestor"];
     let csvContent = headers.join(";") + "\n";
 
-    // Adiciona os dados filtrados
     filteredScans.forEach(scan => {
         const row = [
             scan.id,
             scan.code,
-            `"${scan.address.replace(/"/g, '""')}"`, // Garante que aspas e vírgulas em endereços funcionem
+            `"${scan.address.replace(/"/g, '""')}"`, 
             scan.lat || '',
             scan.lng || '',
             new Date(scan.timestamp).toLocaleString('pt-BR'),
@@ -608,7 +598,6 @@ function exportCSV(period) {
         csvContent += row.join(";") + "\n";
     });
 
-    // Cria e baixa o arquivo
     const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     if (link.download !== undefined) { 
@@ -628,11 +617,13 @@ function exportCSV(period) {
 // ======================// GERENCIAMENTO DE USUÁRIOS (CRUD) //======================
 
 function saveUsers() {
+    // Armazena usuários dinâmicos no localStorage (Persistência)
     localStorage.setItem("pegazus_users", JSON.stringify(DYNAMIC_USERS));
-    // CRÍTICO: Atualiza ALL_USERS na memória imediatamente para uso em tempo real na app (e.g., filtros)
+    
+    // Atualiza ALL_USERS na memória imediatamente para uso em tempo real (Filtros, Limitações)
     ALL_USERS = Object.assign({}, VALID_USERS, DYNAMIC_USERS); 
     applyUserLimitations(); 
-    populateGestorFilter(); // Atualiza a lista de gestores no filtro
+    populateGestorFilter(); 
 }
 
 function renderUserManagementView() {
@@ -701,7 +692,7 @@ function createUser() {
 
     DYNAMIC_USERS[username] = { password: password, role: role };
     
-    // Salva no localStorage e atualiza ALL_USERS (correção 1)
+    // Salva no localStorage e atualiza ALL_USERS
     saveUsers(); 
 
     feedback.textContent = `✅ Usuário "${username}" (${role}) criado com sucesso. Autorizado para Login.`;
