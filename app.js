@@ -581,7 +581,7 @@ async function registerScan(data) {
     let telefone = "";
     let cep = "";
     
-    // Tentativa 1: Parsing baseado em Ordem (assumindo quebras de linha)
+    // Tentativa 1: Parsing baseado em Ordem (assumindo quebras de linha para Destinatário e Endereço)
     const lines = data.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
     if (lines.length >= 2) {
