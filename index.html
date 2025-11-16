@@ -50,7 +50,10 @@
       box-shadow: var(--shadow);
       cursor: pointer;
       z-index: 9999;
+      display:none;
     }
+
+    body.logged-in #menuBtn { display:block; }
 
     .side-btn {
       padding: 12px 14px;
@@ -73,7 +76,11 @@
 
     .controls { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
 
-    .camera-wrap { background:#000; height:55vh; border-radius:14px; overflow:hidden; }
+    .camera-wrap { background:#000; height:55vh; border-radius:14px; overflow:hidden; position:relative; }
+
+    #scansList { margin-top:10px; padding:10px; background:#fff; border-radius:10px; box-shadow:var(--shadow); }
+    .item { padding:10px 4px; border-bottom:1px solid var(--border); }
+    .item:last-child { border-bottom:0; }
   </style>
 </head>
 <body>
@@ -103,9 +110,8 @@
   <h1>PegazusLog • Scanner</h1>
 
   <div class="controls">
-    <button id="startButton">▶️ Iniciar</button>
-    <button id="stopButton">⏹️ Parar</button>
-    <button id="clearBtn">🧹 Limpar</button>
+    <button id="cameraBtn">📷 Abrir Câmera</button>
+    <button id="stopButton" style="display:none">⏹️ Parar</button>
   </div>
 
   <div class="camera-wrap">
