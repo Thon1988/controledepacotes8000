@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.3 | Câmera Automática e Filtro de Data Interativo
+// app.js — PegazusLog v0.3 | Câmera Robusta, Tela Cheia e Filtro de Data
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -48,31 +48,47 @@ function showView(viewId) {
     document.getElementById("cameraContainer").style.display = "none";
     stopScanner(); 
 
-    // Esconde/Mostra o menu lateral principal e o botão Voltar
+    // Oculta a linha scanner por padrão
+    const scanLine = document.getElementById("scanLine");
+    if(scanLine) scanLine.style.display = "none";
+
+    // Prepara a sidebar e o botão Voltar
     sidebar.style.display = "flex";
     const voltarBtn = document.getElementById("btnVoltarCamera");
-    if (voltarBtn) voltarBtn.style.display = "none";
-    
-    // Esconde menus extras
+    if (voltarBtn) {
+        voltarBtn.style.display = "none";
+        // Reposiciona o botão Voltar para não flutuar na tela principal
+        voltarBtn.style.left = "230px"; 
+    }
     document.getElementById("exportMenu").style.display = "none";
 
 
     switch (viewId) {
         case 'list':
             document.getElementById("deliveriesList").style.display = "block";
+            // Reposiciona o view-container ao lado da sidebar (padrão)
+            document.querySelector(".view-container").style.left = "220px";
             updateFilteredScans(); 
             break;
         case 'map':
             document.getElementById("map").style.display = "block";
+            document.querySelector(".view-container").style.left = "220px";
             if (map) map.invalidateSize(); 
             break;
         case 'camera':
-            sidebar.style.display = "none"; 
-            if (voltarBtn) voltarBtn.style.display = "block"; 
-            document.getElementById("cameraContainer").style.display = "flex";
+            sidebar.style.display = "none"; // Esconde a sidebar
+            document.querySelector(".view-container").style.left = "0"; // View-container ocupa toda a largura
             
-            // Tenta iniciar a câmera traseira automaticamente
-            startScanner(); 
+            if (voltarBtn) {
+                voltarBtn.style.display = "block"; 
+                voltarBtn.style.left = "10px"; // Botão Voltar fixo no canto da tela cheia
+                voltarBtn.style.position = "fixed"; 
+            }
+            
+            document.getElementById("cameraContainer").style.display = "flex";
+            if(scanLine) scanLine.style.display = "block"; // Mostra a linha scanner
+            
+            startScanner(); // Inicia a câmera automaticamente
             break;
     }
 }
@@ -112,24 +128,25 @@ window.addEventListener('DOMContentLoaded', () => {
 function initApp() {
     initMap();
     
+    // Cria e configura o botão "Voltar" (Fixo na tela cheia da câmera)
     const voltarBtn = document.createElement('button');
     voltarBtn.id = "btnVoltarCamera";
-    voltarBtn.textContent = "🔙 Voltar";
-    voltarBtn.style.cssText = "position:absolute; top:10px; left:10px; z-index:1000; display:none; padding:10px; border:none; border-radius:6px; cursor:pointer; background:#dc3545; color:white; font-weight:bold; width:150px;";
+    voltarBtn.textContent = "🔙 Voltar ao Início"; 
+    voltarBtn.style.cssText = "position:fixed; top:10px; left:230px; z-index:1000; display:none; padding:10px; border:none; border-radius:6px; cursor:pointer; background:#dc3545; color:white; font-weight:bold; width:180px;";
     voltarBtn.onclick = () => showView('list');
     document.getElementById("app").appendChild(voltarBtn);
 
     showView('list'); 
     
     initMenuEvents();
-    populateGestorFilter(); // Popula o filtro de gestores na inicialização
+    populateGestorFilter(); 
 }
 
 function initMenuEvents() {
     document.getElementById("btnMap").onclick = () => { showView('map'); };
     document.getElementById("btnDeliveries").onclick = () => { showView('list'); };
     document.getElementById("btnRoute").onclick = generateOptimizedRoute;
-    document.getElementById("btnCamera").onclick = () => showView('camera'); // Simplificado para chamar a view
+    document.getElementById("btnCamera").onclick = () => showView('camera');
 
     // Evento para o Calendário Interativo
     document.getElementById("applyFilters").onclick = () => {
@@ -173,7 +190,7 @@ function updateMapMarkers(listToRender) {
     });
 }
 
-// ======================// SCANNER AVANÇADO (Lógica Automática) // ======================
+// ======================// SCANNER AVANÇADO (Câmera Robusta) // ======================
 
 async function startScanner(deviceId) {
     try {
@@ -185,7 +202,7 @@ async function startScanner(deviceId) {
              // Caso o deviceId seja fornecido (após falha na detecção automática)
              constraints = { video: { deviceId: { exact: deviceId } } };
         } else {
-             // Tenta automaticamente a câmera traseira (environment)
+             // 1. Tenta automaticamente a câmera traseira ('environment')
              constraints = { video: { facingMode: { exact: "environment" } } };
         }
         
@@ -199,12 +216,33 @@ async function startScanner(deviceId) {
             overlay.height = video.videoHeight; 
             scanLoop(); 
         };
-        camSelect.style.display = "none"; // Garante que o seletor esteja oculto
+        camSelect.style.display = "none";
 
     } catch (e) {
-        console.warn("Falha na detecção automática da câmera traseira. Erro:", e);
+        console.warn("Falha 1 (environment). Tentando fallback...", e);
         
-        // Se a detecção automática falhar, cai para a seleção manual
+        // 2. Se a detecção de 'environment' falhar, tenta a frontal ('user')
+        if (!deviceId) {
+             try {
+                constraints = { video: { facingMode: { exact: "user" } } };
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                await video.play();
+
+                scanning = true;
+                video.onloadedmetadata = () => { 
+                    overlay.width = video.videoWidth; 
+                    overlay.height = video.videoHeight; 
+                    scanLoop(); 
+                };
+                camSelect.style.display = "none";
+                return; // Sucesso com a câmera frontal
+            } catch (e2) {
+                console.warn("Falha 2 (user). Recorrendo ao seletor manual. Erro:", e2);
+            }
+        }
+        
+        // 3. Último recurso: Mostra o seletor para o usuário escolher manualmente
         await showCameraSelector();
     }
 }
@@ -222,9 +260,8 @@ async function showCameraSelector() {
             camSelect.appendChild(option);
         });
 
-        // Mostra o seletor para escolha manual
         if (videoDevices.length > 0) {
-            camSelect.style.display = "block";
+            camSelect.style.display = "block"; 
         } else {
              alert("Nenhuma câmera detectada.");
              showView('list');
@@ -254,15 +291,22 @@ function stopScanner() {
         rafId = null;
     }
     if(camSelect) camSelect.style.display = "none";
+    
+    // Esconde a linha scanner
+    const scanLine = document.getElementById("scanLine");
+    if(scanLine) scanLine.style.display = "none";
 }
 
 function scanLoop() {
     if (!scanning || !video || !overlayCtx) return;
+    
+    // Desenha o vídeo no canvas para processamento
     overlayCtx.drawImage(video, 0, 0, overlay.width, overlay.height);
     const imgData = overlayCtx.getImageData(0, 0, overlay.width, overlay.height);
     const code = jsQR(imgData.data, imgData.width, imgData.height);
     
     if (code) {
+        // Desenha o retângulo de detecção do QR Code
         const { topLeftCorner, topRightCorner, bottomRightCorner, bottomLeftCorner } = code.location;
         overlayCtx.strokeStyle = "#00FF00"; overlayCtx.lineWidth = 4; overlayCtx.beginPath();
         overlayCtx.moveTo(topLeftCorner.x, topLeftCorner.y); overlayCtx.lineTo(topRightCorner.x, topRightCorner.y);
@@ -351,6 +395,7 @@ function updateFilteredScans() {
         const end = currentFilters.dateEnd ? new Date(currentFilters.dateEnd) : null;
 
         filteredScans = filteredScans.filter(s => {
+            // Converte a data salva (DD/MM/AAAA) para objeto Date
             const parts = s.date.split(',')[0].trim().split('/');
             const scanDate = new Date(parts[2], parts[1] - 1, parts[0]);
             
