@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.4 (BETA) | Câmera Principal e Scanner Quadrado
+// app.js — PegazusLog v0.4 (BETA) | Câmera Principal, Scanner Quadrado, Gerenciamento de Usuários e Sons
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -6,6 +6,10 @@ const VALID_USERS = {
     "manager1": {password:"123", role:"gestor"},
     "user1": {password:"123", role:"colaborador"}
 };
+
+// Carrega usuários dinâmicos e combina com os estáticos
+let DYNAMIC_USERS = JSON.parse(localStorage.getItem("pegazus_users") || "{}");
+let ALL_USERS = Object.assign({}, VALID_USERS, DYNAMIC_USERS);
 
 let currentUser = null;
 let scans = JSON.parse(localStorage.getItem("pegazus_scans") || "[]");
@@ -28,10 +32,18 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 function beep() {
     try {
-        // Gera um som simples para confirmação de leitura
+        // Som Simples de Sucesso (Curto, Frequência Alta)
         const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
         audio.play();
     } catch (e) { console.warn("Falha ao emitir beep."); }
+}
+
+function buzz() {
+    try {
+        // Som Simples de Erro (Mais longo, Frequência Baixa)
+        const audio = new Audio("data:audio/wav;base64,UklGRqIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YR4AAABoZGhkaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGg==");
+        audio.play();
+    } catch (e) { console.warn("Falha ao emitir buzz."); }
 }
 
 function updateDeliveriesCount() {
@@ -47,45 +59,44 @@ function showView(viewId) {
     document.getElementById("map").style.display = "none";
     document.getElementById("deliveriesList").style.display = "none";
     document.getElementById("cameraContainer").style.display = "none";
+    document.getElementById("userManagementView").style.display = "none"; 
     stopScanner(); 
 
-    // Oculta a linha scanner por padrão
+    // Oculta elementos flutuantes
     const scanLine = document.getElementById("scanLine");
     if(scanLine) scanLine.style.display = "none";
-
-    // Prepara a sidebar e o botão Voltar
-    sidebar.style.display = "flex";
+    const manualEntryBtn = document.getElementById("manualEntryBtn");
+    if(manualEntryBtn) manualEntryBtn.style.display = "none"; 
     const voltarBtn = document.getElementById("btnVoltarCamera");
-    if (voltarBtn) {
-        voltarBtn.style.display = "none";
-    }
+    if (voltarBtn) voltarBtn.style.display = "none";
+
+    sidebar.style.display = "flex";
     document.getElementById("exportMenu").style.display = "none";
+    document.querySelector(".view-container").style.left = "220px"; 
 
 
     switch (viewId) {
         case 'list':
             document.getElementById("deliveriesList").style.display = "block";
-            // Reposiciona o view-container ao lado da sidebar (padrão)
-            document.querySelector(".view-container").style.left = "220px";
             updateFilteredScans(); 
             break;
         case 'map':
             document.getElementById("map").style.display = "block";
-            document.querySelector(".view-container").style.left = "220px";
             if (map) map.invalidateSize(); 
             break;
         case 'camera':
-            sidebar.style.display = "none"; // Esconde a sidebar
-            document.querySelector(".view-container").style.left = "0"; // View-container ocupa toda a largura
+            sidebar.style.display = "none"; 
+            document.querySelector(".view-container").style.left = "0"; 
             
-            if (voltarBtn) {
-                voltarBtn.style.display = "block"; // Torna o botão Voltar visível
-            }
+            if (voltarBtn) voltarBtn.style.display = "block";
+            if(manualEntryBtn) manualEntryBtn.style.display = "block"; 
+            if(scanLine) scanLine.style.display = "block"; 
             
             document.getElementById("cameraContainer").style.display = "flex";
-            if(scanLine) scanLine.style.display = "block"; // Mostra a linha scanner
-            
-            startScanner(); // Inicia a câmera automaticamente
+            startScanner(); 
+            break;
+        case 'user-management':
+            document.getElementById("userManagementView").style.display = "block";
             break;
     }
 }
@@ -94,8 +105,10 @@ function showView(viewId) {
 document.getElementById("loginBtn").onclick = () => {
     const username = document.getElementById("loginUser").value.trim();
     const password = document.getElementById("loginPass").value.trim();
-    if (VALID_USERS[username] && VALID_USERS[username].password === password) {
-        currentUser = { username, role: VALID_USERS[username].role };
+    
+    // Usa ALL_USERS para verificar credenciais
+    if (ALL_USERS[username] && ALL_USERS[username].password === password) {
+        currentUser = { username, role: ALL_USERS[username].role };
         localStorage.setItem("loggedUser", username); 
         document.body.querySelector(".login-container").style.display = "none";
         document.getElementById("app").style.display = "block";
@@ -114,8 +127,10 @@ function logout() {
 // ======================// INICIALIZAÇÃO // ======================
 window.addEventListener('DOMContentLoaded', () => {
     const loggedUser = localStorage.getItem("loggedUser");
-    if (loggedUser && VALID_USERS[loggedUser]) {
-        currentUser = { username: loggedUser, role: VALID_USERS[loggedUser].role };
+    
+    // Usa ALL_USERS para verificar login
+    if (loggedUser && ALL_USERS[loggedUser]) {
+        currentUser = { username: loggedUser, role: ALL_USERS[loggedUser].role };
         document.body.querySelector(".login-container").style.display = "none";
         document.getElementById("app").style.display = "block";
         initApp();
@@ -154,6 +169,14 @@ function initApp() {
     
     initMenuEvents();
     populateGestorFilter(); 
+
+    // NOVO: Visibilidade do Gerenciamento de Usuários
+    const btnManageUsers = document.getElementById("btnManageUsers");
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'gestor')) {
+        btnManageUsers.style.display = 'block';
+    } else {
+        btnManageUsers.style.display = 'none';
+    }
 }
 
 function initMenuEvents() {
@@ -169,7 +192,7 @@ function initMenuEvents() {
         currentFilters.dateEnd = document.getElementById("filterDateEnd").value;
         updateFilteredScans();
     };
-    
+
     // Eventos de Exportação
     const exportBtn = document.getElementById("btnExport");
     const exportMenu = document.getElementById("exportMenu");
@@ -184,6 +207,116 @@ function initMenuEvents() {
         exportCSV(btn.dataset.period);
       };
     });
+
+    // NOVO: Evento para Gerenciar Usuários
+    const btnManageUsers = document.getElementById("btnManageUsers");
+    if (btnManageUsers) {
+        btnManageUsers.onclick = () => { 
+            showView('user-management'); 
+            renderUserManagementView(); 
+        };
+    }
+
+    // NOVO: Evento para Entrada Manual
+    const manualEntryBtn = document.getElementById("manualEntryBtn");
+    if (manualEntryBtn) {
+        manualEntryBtn.onclick = handleManualEntry;
+    }
+
+    // NOVO: Evento para Criar Usuário
+    const createUserBtn = document.getElementById("createUserBtn");
+    if (createUserBtn) {
+        createUserBtn.onclick = createUser;
+    }
+}
+
+// ======================// ENTRADA MANUAL // ======================
+
+function handleManualEntry() {
+    stopScanner();
+    const manualId = prompt("✏️ Digite o ID (código QR completo) da entrega:");
+    
+    if (manualId === null) {
+        showView('list');
+        return;
+    }
+    
+    if (manualId.trim()) {
+        registerScan(manualId.trim()); 
+    } else {
+        buzz(); // ❌ Som de erro para ID inválido
+        alert("ID inválido ou vazio.");
+        showView('list');
+    }
+}
+
+// ======================// GERENCIAMENTO DE USUÁRIOS //======================
+
+function renderUserManagementView() {
+    const roleSelect = document.getElementById("newUserRole");
+    const feedback = document.getElementById("userFeedbackMessage");
+    
+    if (!roleSelect || !currentUser) return;
+    
+    roleSelect.innerHTML = '';
+    feedback.textContent = '';
+    
+    const roles = [];
+    
+    // Admin pode criar gestor e colaborador
+    if (currentUser.role === 'admin') {
+        roles.push('gestor', 'colaborador');
+    } 
+    // Gestor pode criar colaborador
+    else if (currentUser.role === 'gestor') {
+        roles.push('colaborador');
+    }
+    
+    roles.forEach(role => {
+        const option = document.createElement('option');
+        option.value = role;
+        option.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+        roleSelect.appendChild(option);
+    });
+    
+    // Limpa campos
+    document.getElementById("newUsername").value = '';
+    document.getElementById("newPassword").value = '';
+}
+
+function createUser() {
+    const username = document.getElementById("newUsername").value.trim();
+    const password = document.getElementById("newPassword").value.trim();
+    const role = document.getElementById("newUserRole").value;
+    const feedback = document.getElementById("userFeedbackMessage");
+    
+    if (!username || !password || !role) {
+        feedback.textContent = "Preencha todos os campos.";
+        feedback.style.color = "red";
+        return;
+    }
+
+    if (ALL_USERS[username]) {
+        feedback.textContent = `Usuário "${username}" já existe.`;
+        feedback.style.color = "red";
+        return;
+    }
+
+    // Adiciona ao objeto dinâmico e persiste
+    const newUser = { password: password, role: role };
+    DYNAMIC_USERS[username] = newUser;
+    
+    // Atualiza ALL_USERS (combina estáticos + dinâmicos)
+    ALL_USERS = Object.assign({}, VALID_USERS, DYNAMIC_USERS); 
+    
+    localStorage.setItem("pegazus_users", JSON.stringify(DYNAMIC_USERS));
+
+    feedback.textContent = `✅ Usuário "${username}" (${role}) criado com sucesso.`;
+    feedback.style.color = "green";
+    
+    // Limpa formulário após sucesso
+    document.getElementById("newUsername").value = '';
+    document.getElementById("newPassword").value = '';
 }
 
 // ======================// MAPA LEAFLET // ======================
@@ -240,9 +373,8 @@ async function startScanner(deviceId) {
              }
         }
         
-        // TENTATIVA 2: Busca pela câmera principal (resolução alta) - NOVO
+        // TENTATIVA 2: Busca pela câmera principal (resolução alta)
         if (!successful && !deviceId) {
-            // Tenta forçar alta resolução (pelo menos 720p), geralmente associada à lente principal.
             constraints = { video: { 
                 width: { min: 1280 }, 
                 height: { min: 720 }, 
@@ -343,9 +475,11 @@ function stopScanner() {
     }
     if(camSelect) camSelect.style.display = "none";
     
-    // Esconde a linha scanner
+    // Esconde a linha scanner e botão manual
     const scanLine = document.getElementById("scanLine");
     if(scanLine) scanLine.style.display = "none";
+    const manualEntryBtn = document.getElementById("manualEntryBtn");
+    if(manualEntryBtn) manualEntryBtn.style.display = "none";
 }
 
 function scanLoop() {
@@ -364,8 +498,8 @@ function scanLoop() {
         overlayCtx.lineTo(bottomRightCorner.x, bottomRightCorner.y); overlayCtx.lineTo(bottomLeftCorner.x, bottomLeftCorner.y);
         overlayCtx.closePath(); overlayCtx.stroke();
 
+        // O registro é feito aqui. O som de sucesso é emitido dentro de registerScan.
         registerScan(code.data);
-        beep();
     }
     rafId = requestAnimationFrame(scanLoop);
 }
@@ -389,13 +523,14 @@ async function geocodeAddress(scanObj) {
 async function registerScan(data) {
     if (scans.find(s => s.rawId === data)) {
         stopScanner();
+        buzz(); // ❌ Som de erro para código já registrado
         alert("QR Code já registrado!");
         showView('list');
         return;
     }
     
+    // Função para extrair campos do código QR (formato Chave: Valor)
     const regex = (key) => {
-        // Busca a chave seguida por dois pontos e captura tudo até uma nova linha
         const match = data.match(new RegExp(`${key}:([^\n]*)`, 'i'));
         return match ? match[1].trim() : "";
     };
@@ -405,8 +540,7 @@ async function registerScan(data) {
     let cep = regex("CEP");
     let telefone = regex("TELEFONE");
     
-    // Fallback: Se não encontrar NOME ou ENDEREÇO por regex, 
-    // usa os primeiros caracteres do rawId como nome/ID de rastreamento.
+    // Fallback
     if (!nome && !endereco) { 
         nome = `ID: ${data.substring(0, 20).trim()}`;
     }
@@ -414,7 +548,7 @@ async function registerScan(data) {
 
     const scanObj = {
         id: generateId(), 
-        rawId: data, // IMPORTANTE: Salva o código completo para relatório!
+        rawId: data, // Código completo para relatórios
         nome: nome || "ID/Desconhecido", 
         endereco: endereco || "",
         cep: cep || "",
@@ -431,8 +565,10 @@ async function registerScan(data) {
     localStorage.setItem("pegazus_scans", JSON.stringify(scans));
     
     stopScanner();
+    beep(); // ✅ Som de sucesso após registro
+    
     // Confirmação para o usuário
-    alert(`✅ QR Code Registrado!\nComprador: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
+    alert(`✅ Registro Concluído!\nComprador: ${scanObj.nome}\nEndereço: ${scanObj.endereco || 'Não Encontrado'}`); 
     
     updateFilteredScans(); 
     showView('list');
@@ -441,7 +577,7 @@ async function registerScan(data) {
 // ======================// FILTROS E LISTAGEM // ======================
 function populateGestorFilter() {
     const select = document.getElementById("filterGestor");
-    const uniqueGestores = [...new Set(scans.map(s => s.gestor).concat(Object.keys(VALID_USERS)))]; 
+    const uniqueGestores = [...new Set(scans.map(s => s.gestor).concat(Object.keys(ALL_USERS).filter(u => ALL_USERS[u].role !== 'colaborador')))]; 
 
     select.innerHTML = '<option value="all">Todos</option>';
     uniqueGestores.sort().forEach(gestor => {
@@ -453,9 +589,7 @@ function populateGestorFilter() {
     });
 }
 
-// Função auxiliar para parsear a data do formato "DD/MM/YYYY" para Date object
 function parseStoredDate(s) {
-    // Assume que a data está no formato "DD/MM/YYYY, HH:MM:SS"
     const parts = s.date.split(',')[0].trim().split('/');
     // Cria a data no formato YYYY, MM-1, DD
     return new Date(parts[2], parts[1] - 1, parts[0]); 
@@ -469,14 +603,12 @@ function updateFilteredScans() {
     }
     
     if (currentFilters.dateStart || currentFilters.dateEnd) {
-        // Criamos as datas de corte no fuso horário local, ignorando o tempo, para comparação apenas da data.
         const start = currentFilters.dateStart ? new Date(currentFilters.dateStart + 'T00:00:00') : null;
         const end = currentFilters.dateEnd ? new Date(currentFilters.dateEnd + 'T23:59:59') : null;
 
         filteredScans = filteredScans.filter(s => {
             const scanDate = parseStoredDate(s);
             
-            // Compara apenas a data (dia, mês e ano)
             let isAfterStart = start ? scanDate >= start : true;
             let isBeforeEnd = end ? scanDate <= end : true;
             
@@ -499,7 +631,7 @@ function renderDeliveriesList(listToRender = filteredScans) {
             `<div style="padding: 10px 0; border-bottom: 1px solid #ddd;">
                 <strong>${s.nome}</strong> - ID: ${s.id}<br>
                 ${s.endereco}<br>
-                <span style="font-size: 11px; color: #6c757d;">CEP: ${s.cep} | Tel: ${s.telefone} | Gestor: ${s.gestor} | ${s.date}</span>
+                <span style="font-size: 11px; color: #6c757d;">Gestor: ${s.gestor} | ${s.date}</span>
             </div>`
         ).join("");
     }
@@ -514,13 +646,12 @@ function generateOptimizedRoute(){
     const points=filteredScans.filter(s=>s.lat&&s.lng).map(s=>({lat:s.lat,lng:s.lng,nome:s.nome}));
     if(points.length<2) return alert("São necessários pelo menos 2 endereços com geolocalização.");
 
-    // Implementação simplificada do Algoritmo do Vizinho Mais Próximo
+    // Implementação simplificada do Algoritmo do Vizinho Mais Próximo (Heurística)
     let visited=[], route=[points[0]]; visited.push(0);
     while(route.length<points.length){
         const last=route[route.length-1]; let nearestIdx=-1, nearestDist=Infinity;
         points.forEach((p,i)=>{
             if(!visited.includes(i)){
-                // Calcula distância euclidiana (aproximação)
                 const dist=Math.hypot(last.lat-p.lat,last.lng-p.lng); 
                 if(dist<nearestDist){ 
                     nearestDist=dist; 
@@ -532,7 +663,6 @@ function generateOptimizedRoute(){
             route.push(points[nearestIdx]); 
             visited.push(nearestIdx);
         } else {
-            // Caso de erro, ou se todos foram visitados
             break; 
         }
     }
@@ -549,10 +679,11 @@ function generateOptimizedRoute(){
 function exportCSV(period){
   if(scans.length===0){ alert("Nenhum registro!"); return; }
 
-  const now = new new Date();
+  const now = new Date();
   let filtered = [...scans];
   let filename = "entregas_geral";
 
+  // Lógica de filtro por período
   if(period==="diario"){
     filtered=scans.filter(s=>parseStoredDate(s).toDateString()===now.toDateString());
     filename = "entregas_diario";
