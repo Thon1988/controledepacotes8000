@@ -1,73 +1,188 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pegazus v0.1</title>
-<link rel="stylesheet" href="style.css">
-<style>
-  body { margin:0; font-family: Arial,sans-serif; background:#f0f2f5; height:100vh; display:flex; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pegazus v0.1</title>
+  <script src="jsQR.js"></script>
+  
+  <style>
+    /* Estilos base */
+    body { 
+      margin: 0; 
+      font-family: Arial, sans-serif; 
+      background: #f0f2f5; 
+      height: 100vh; 
+      display: flex; 
+    }
 
-  .login-container {
-    background:#fff; padding:35px; border-radius:12px; width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.1); text-align:center; margin:auto;
-  }
-  .login-container h1 { color:#007bff; margin-bottom:25px; font-size:26px; }
-  .login-container input { width:100%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:6px; font-size:16px; }
-  .login-container button { width:100%; padding:12px; font-size:16px; border:none; border-radius:6px; background:#007bff; color:#fff; cursor:pointer; margin-top:10px; }
-  #feedbackMessage { color:red; margin-top:10px; }
+    /* Estilos do Login */
+    .login-container {
+      background: #fff; 
+      padding: 35px; 
+      border-radius: 12px; 
+      width: 320px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+      text-align: center; 
+      margin: auto;
+    }
+    .login-container h1 { 
+      color: #007bff; 
+      margin-bottom: 25px; 
+      font-size: 26px; 
+    }
+    .login-container input { 
+      width: 100%; 
+      padding: 12px; 
+      margin: 10px 0; 
+      border: 1px solid #ccc; 
+      border-radius: 6px; 
+      font-size: 16px; 
+    }
+    .login-container button { 
+      width: 100%; 
+      padding: 12px; 
+      font-size: 16px; 
+      border: none; 
+      border-radius: 6px; 
+      background: #007bff; 
+      color: #fff; 
+      cursor: pointer; 
+      margin-top: 10px; 
+    }
+    #feedbackMessage { 
+      color: red; 
+      margin-top: 10px; 
+    }
 
-  #app { display:none; flex:1; height:100vh; flex-direction:row; }
-  #sidebar { width:220px; background:#fff; border-right:1px solid #ccc; padding:10px; display:none; flex-shrink:0; flex-direction:column; }
-  #sidebar button { width:100%; margin:5px 0; padding:10px; border:none; border-radius:6px; cursor:pointer; background:#007bff; color:#fff; font-size:14px; }
-  #sidebar button:hover { background:#0056b3; }
-  #sidebar .backBtn { background:#6c757d; margin-top:10px; }
+    /* Estilos do Aplicativo Principal (Pós-Login) */
+    #app { 
+      display: none; /* Oculto por padrão, ativado após o login */
+      flex: 1; 
+      height: 100vh; 
+      flex-direction: row; 
+      width: 100%; /* Garante que ocupe a largura total */
+    }
+    
+    /* Menu Lateral */
+    #sidebar { 
+      width: 220px; 
+      background: #fff; 
+      border-right: 1px solid #ccc; 
+      padding: 10px; 
+      display: none; /* Oculto por padrão, ativado após o login */
+      flex-shrink: 0; 
+      flex-direction: column; 
+    }
+    #sidebar button { 
+      width: 100%; 
+      margin: 5px 0; 
+      padding: 10px; 
+      border: none; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      background: #007bff; 
+      color: #fff; 
+      font-size: 14px; 
+    }
+    #sidebar button:hover { 
+      background: #0056b3; 
+    }
+    #sidebar .backBtn { 
+      background: #6c757d; 
+      margin-top: 10px; 
+    }
 
-  #content { flex:1; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:10px; overflow:hidden; background:#f0f2f5; }
-
-  video#videoElement { width:100%; max-width:600px; border-radius:12px; background:#000; display:none; }
-  canvas#overlay { position:absolute; top:0; left:0; pointer-events:none; }
-  #map { width:100%; height:100%; display:none; }
-  #scansList { width:90%; max-width:600px; margin-top:10px; display:none; overflow:auto; background:#fff; border-radius:8px; padding:10px; box-shadow:0 2px 6px rgba(0,0,0,0.1);}
-</style>
+    /* Conteúdo Principal (Ocupa o resto da tela) */
+    #content { 
+      flex: 1; /* ESSENCIAL: Ocupa todo o espaço restante */
+      position: relative; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: flex-start; 
+      padding: 10px; 
+      overflow: hidden; 
+      background: #f0f2f5; 
+    }
+    
+    /* Elementos dentro do Content */
+    video#videoElement { 
+      width: 100%; 
+      max-width: 600px; 
+      border-radius: 12px; 
+      background: #000; 
+      display: none; /* Oculto por padrão */
+      height: 400px; /* Altura fixa para evitar tela branca */
+    }
+    
+    canvas#overlay { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      pointer-events: none; 
+      width: 100%; /* Ajuste a largura e altura no JS ao iniciar a câmera */
+      height: 100%;
+    }
+    
+    #map { 
+      width: 100%; 
+      height: 100%; /* ESSENCIAL: Ocupa o espaço total do #content quando visível */
+      display: none; /* Oculto por padrão */
+    }
+    
+    #scansList { 
+      width: 90%; 
+      max-width: 600px; 
+      margin-top: 10px; 
+      display: none; /* O JS ativa a visualização */
+      overflow-y: auto; 
+      background: #fff; 
+      border-radius: 8px; 
+      padding: 10px; 
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      /* Define uma altura máxima para a lista rolar, se necessário */
+      height: 100%; 
+    }
+  </style>
 </head>
 <body>
 
-<!-- Login -->
-<div class="login-container">
-  <h1>Pegazus v0.1</h1>
-  <input type="text" id="loginUser" placeholder="Usuário">
-  <input type="password" id="loginPass" placeholder="Senha">
-  <button id="loginBtn">Entrar</button>
-  <p id="feedbackMessage"></p>
-</div>
+  <div class="login-container">
+    <h1>Pegazus v0.1</h1>
+    <input type="text" id="loginUser" placeholder="Usuário">
+    <input type="password" id="loginPass" placeholder="Senha">
+    <button id="loginBtn">Entrar</button>
+    <p id="feedbackMessage"></p>
+  </div>
 
-<!-- App -->
-<div id="app">
-  <div id="sidebar">
-    <button id="btnCamera">📷 Camera</button>
-    <button id="btnEntregas">📦 Entregas</button>
-    <button id="btnMapa">🗺️ Mapa</button>
-    <div id="exportContainer" style="position:relative;">
-      <button id="exportBtn">⬇️ Exportar CSV</button>
-      <div id="exportMenu" style="display:none; position:absolute; top:100%; left:0; background:#fff; border:1px solid #ccc; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); z-index:10;">
-        <button class="exportOption" data-period="diario">Diário</button>
-        <button class="exportOption" data-period="quinzenal">Quinzenal</button>
-        <button class="exportOption" data-period="mensal">Mensal</button>
+  <div id="app">
+    
+    <div id="sidebar">
+      <button id="btnCamera">📷 Camera</button>
+      <button id="btnEntregas">📦 Entregas</button>
+      <button id="btnMapa">🗺️ Mapa</button>
+      <div id="exportContainer" style="position:relative;">
+        <button id="exportBtn">⬇️ Exportar CSV</button>
+        <div id="exportMenu" style="display:none; position:absolute; top:100%; left:0; background:#fff; border:1px solid #ccc; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.15); z-index:10; width:100%;">
+          <button class="exportOption" data-period="diario" style="width:100%; margin:0; border-radius:0;">Diário</button>
+          <button class="exportOption" data-period="quinzenal" style="width:100%; margin:0; border-radius:0;">Quinzenal</button>
+          <button class="exportOption" data-period="mensal" style="width:100%; margin:0; border-radius:0;">Mensal</button>
+        </div>
       </div>
+      <button id="btnSair" class="backBtn">Sair</button>
     </div>
-    <button id="btnSair" class="backBtn">Sair</button>
+
+    <div id="content">
+      <video id="videoElement" autoplay playsinline></video>
+      <canvas id="overlay"></canvas>
+      <div id="map"></div>
+      <div id="scansList"></div>
+    </div>
   </div>
 
-  <div id="content">
-    <video id="videoElement" autoplay playsinline></video>
-    <canvas id="overlay"></canvas>
-    <div id="map"></div>
-    <div id="scansList"></div>
-  </div>
-</div>
-
-<script src="jsQR.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
-<script src="app.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
+  
+  <script src="app.js"></script>
 </body>
 </html>
