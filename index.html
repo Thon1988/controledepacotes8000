@@ -1,94 +1,175 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PegazusLog v0.1</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>
-  body {
-    margin:0;
-    font-family: Arial, sans-serif;
-    background: #f0f2f5;
-  }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PegazusLog v0.2</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* Estilos Base */
+        body { margin: 0; font-family: Arial, sans-serif; background: #f0f2f5; }
 
-  /* Login */
-  .login-container {
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    min-height:100vh;
-    width:100%;
-  }
-  .login-box {
-    background:white;
-    padding:35px;
-    border-radius:12px;
-    width:320px;
-    box-shadow:0 4px 12px rgba(0,0,0,0.1);
-    text-align:center;
-  }
-  .login-box h1 {margin-bottom:25px;}
-  .login-box input {width:100%; padding:12px; margin:10px 0; border:1px solid #ccc; border-radius:6px; font-size:16px;}
-  .login-box button {width:100%; padding:12px; font-size:16px; border:none; border-radius:6px; background:#007bff; color:white; cursor:pointer; margin-top:10px;}
+        /* Login */
+        .login-container { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; width: 100%; }
+        .login-box { background: white; padding: 35px; border-radius: 12px; width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
+        .login-box h1 { margin-bottom: 25px; color: #007bff; }
+        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+        .login-box button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 6px; background: #007bff; color: white; cursor: pointer; margin-top: 10px; }
 
-  /* App */
-  #app {display:none; height:100vh; width:100%; position:relative;}
-  #sidebar {
-    width:200px;
-    background:#fff;
-    position:absolute;
-    top:0; left:0; bottom:0;
-    box-shadow:2px 0 5px rgba(0,0,0,0.1);
-    display:flex;
-    flex-direction:column;
-    padding:10px;
-    gap:10px;
-    z-index:999;
-  }
-  #sidebar button {padding:10px; border:none; border-radius:6px; cursor:pointer; background:#007bff; color:white; font-weight:bold;}
-  #map {position:absolute; top:0; left:200px; right:0; bottom:0;}
-  #cameraContainer {position:absolute; top:0; left:200px; right:0; bottom:0; display:none; background:black; justify-content:center; align-items:center;}
-  #videoElement {width:100%; height:100%; object-fit:cover;}
-  #overlay {position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;}
-  #deliveriesList {position:absolute; top:10px; left:220px; background:white; padding:10px; max-height:300px; overflow:auto; border-radius:6px; display:none;}
-</style>
+        /* App Principal */
+        #app { display: none; height: 100vh; width: 100%; position: relative; }
+        
+        /* Menu Lateral (Sidebar) */
+        #sidebar {
+            width: 220px;
+            background: #fff;
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 8px;
+            z-index: 999;
+        }
+        #sidebar button { padding: 10px; border: none; border-radius: 6px; cursor: pointer; background: #007bff; color: white; font-weight: bold; }
+        #sidebar button:hover { opacity: 0.9; }
+        #sidebar .backBtn { background: #dc3545; }
+        
+        /* Contêiner de Visualização (Map, Camera, List) */
+        .view-container { 
+            position: absolute; 
+            top: 0; 
+            left: 220px; /* Começa após a sidebar */
+            right: 0; 
+            bottom: 0; 
+            overflow: hidden; 
+        }
+
+        /* Mapa */
+        #map { height: 100%; width: 100%; display: none; }
+        
+        /* Lista de Entregas (Tela Padrão) */
+        #deliveriesList { 
+            width: 100%; 
+            height: 100%;
+            padding: 15px; 
+            background: #f0f2f5;
+            overflow-y: auto;
+            display: none;
+        }
+
+        /* Contêiner da Câmera */
+        #cameraContainer {
+            width: 100%;
+            height: 100%;
+            display: none;
+            background: black;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        #videoElement { width: 100%; height: 100%; object-fit: cover; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        /* Elementos de Filtro e Exportação */
+        #filterOptions, #exportMenu {
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-top: 5px;
+            gap: 5px;
+            display: flex;
+            flex-direction: column;
+        }
+        #filterOptions input, #filterOptions select, #exportMenu button {
+            width: 100%;
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        #exportMenu button { font-weight: normal; }
+        #exportMenu button[data-period="diario"] { background: #28a745; color: white; }
+        #exportMenu button[data-period="quinzenal"] { background: #ffc107; color: #333; }
+        #exportMenu button[data-period="mensal"] { background: #007bff; }
+        
+        /* Estilo do Seletor de Câmera */
+        #cameraSelect {
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            z-index: 1000; 
+            padding: 10px; 
+            display: none; 
+            width: 80%;
+            max-width: 300px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
 
-<!-- Login -->
 <div class="login-container">
-  <div class="login-box">
-    <h1>PegazusLog v0.1</h1>
-    <input type="text" id="loginUser" placeholder="Usuário" />
-    <input type="password" id="loginPass" placeholder="Senha" />
-    <button id="loginBtn">Entrar</button>
-    <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
-  </div>
+    <div class="login-box">
+        <h1>PegazusLog v0.2</h1>
+        <input type="text" id="loginUser" placeholder="Usuário" />
+        <input type="password" id="loginPass" placeholder="Senha" />
+        <button id="loginBtn">Entrar</button>
+        <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
+    </div>
 </div>
 
-<!-- App -->
 <div id="app">
-  <div id="sidebar">
-    <button id="btnCamera">📷 Abrir Câmera</button>
-    <button id="btnMap">🗺️ Mapa de Entregas</button>
-    <button id="btnDeliveries">📦 Entregas</button>
-    <button id="btnRoute">🚗 Gerar Rota</button>
-    <button id="btnExport">⬇️ Exportar CSV</button>
-    <button onclick="logout()">🔙 Sair</button>
-  </div>
+    
+    <div id="sidebar">
+        <button id="btnCamera">📷 Abrir Câmera</button>
+        <button id="btnDeliveries">📦 Entregas (0)</button> 
+        <button id="btnMap">🗺️ Mapa de Entregas</button>
+        <button id="btnRoute">🚗 Gerar Rota</button>
 
-  <div id="map"></div>
+        <div id="filterContainer">
+            <button id="btnFilter" style="background:#6c757d;">🔎 Filtros</button>
+            <div id="filterOptions" style="display:none;">
+                <label>Gestor:</label>
+                <select id="filterGestor"></select>
+                <label>Início:</label>
+                <input type="date" id="filterDateStart">
+                <label>Fim:</label>
+                <input type="date" id="filterDateEnd">
+                <button id="applyFilters" style="background:#28a745; margin-top: 10px;">Aplicar</button>
+            </div>
+        </div>
 
-  <div id="cameraContainer">
-    <video id="videoElement" autoplay playsinline></video>
-    <canvas id="overlay"></canvas>
-  </div>
+        <div id="exportContainer" style="margin-top: auto;">
+            <button id="btnExport">⬇️ Exportar CSV</button>
+            <div id="exportMenu" style="display:none;">
+                <button class="exportOption" data-period="diario">Diário</button>
+                <button class="exportOption" data-period="quinzenal">Quinzenal</button>
+                <button class="exportOption" data-period="mensal">Mensal</button>
+            </div>
+        </div>
+        
+        <button id="btnSair" class="backBtn">🔙 Sair</button>
+    </div>
 
-  <div id="deliveriesList"></div>
-</body>
+    <div class="view-container">
+        <div id="map"></div>
+
+        <div id="deliveriesList"></div>
+        
+        <div id="cameraContainer">
+            <select id="cameraSelect"></select>
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+        </div>
+    </div>
+    
+    </div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script src="app.js"></script>
 </html>
+
