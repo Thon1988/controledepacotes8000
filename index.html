@@ -107,8 +107,8 @@
             color: var(--secondary-color);
             padding-top: 5px;
             border-top: 1px dashed var(--border-color);
-            /* RECUO DE 1CM SOLICITADO */
-            padding-left: 10mm; 
+            /* RECUO DE 1CM REMOVIDO/ORIGINAL */
+            /* padding-left: 10mm; */ 
         }
 
         /* Media Query para Layout de Celular (Responsividade) */
@@ -317,4 +317,69 @@
 <div id="app">
     
     <div id="sidebar">
-        <button id="btnCamera">📷 Abrir
+        <button id="btnCamera">📷 Abrir Câmera</button>
+        <button id="btnDeliveries">📦 Entregas (0)</button> 
+        <button id="btnMap">🗺️ Mapa de Entregas</button>
+        <button id="btnRoute">🚗 Gerar Rota</button>
+
+        <button id="btnManageUsers" style="display:none;">👥 Gerenciar Usuários</button>
+
+        <div id="dateFilterContainer">
+            <label style="font-weight: bold;">🗓️ Filtro por Data</label>
+            <label>Gestor:</label>
+            <select id="filterGestor"></select>
+            <label>Início:</label>
+            <input type="date" id="filterDateStart">
+            <label>Fim:</label>
+            <input type="date" id="filterDateEnd">
+            <button id="applyFilters" style="background:#28a745; margin-top: 10px;">Aplicar Filtro</button>
+        </div>
+
+        <div id="exportContainer" style="margin-top: auto;">
+            <button id="btnExport">⬇️ Exportar CSV</button>
+            <div id="exportMenu">
+                <button class="exportOption" data-period="diario" style="background: #28a745; color: white;">Diário</button>
+                <button class="exportOption" data-period="quinzenal" style="background: #ffc107; color: #333;">Quinzenal</button>
+                <button class="exportOption" data-period="mensal" style="background: #007bff;">Mensal</button>
+            </div>
+        </div>
+        
+        <button id="btnSair" class="backBtn">🔙 Sair</button>
+    </div>
+
+    <div class="view-container">
+        <div id="map"></div>
+
+        <div id="deliveriesList"></div>
+        
+        <div id="userManagementView">
+            <div class="user-form-container">
+                <h2>Criar Novo Usuário</h2>
+                <input type="text" id="newUsername" placeholder="Nome de Usuário" required />
+                <input type="password" id="newPassword" placeholder="Senha" required />
+                <select id="newUserRole">
+                    </select>
+                <button id="createUserBtn">Criar Usuário</button>
+                <p id="userFeedbackMessage" style="margin-top:10px; text-align:center; font-weight:bold;"></p>
+            </div>
+        </div>
+
+        <div id="cameraContainer">
+            <button id="manualEntryBtn" title="Entrada Manual">✏️</button>
+
+            <div id="scannerFrame">
+                <div id="scanLine"></div> 
+                
+                <select id="cameraSelect"></select>
+                <video id="videoElement" autoplay playsinline></video>
+                <canvas id="overlay"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="app.js"></script>
+</html>
