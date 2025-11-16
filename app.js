@@ -1,231 +1,211 @@
-// ========================================
-// PegazusLog v0.1 - app.js
-// ========================================
-
-// Usuários válidos com níveis
+// Usuários válidos e níveis
 const USERS = {
-    "thon": { pass: "882010", level: "admin" },
-    "manager1": { pass: "123", level: "gestor" },
-    "colab1": { pass: "456", level: "colaborador" }
+  "thon": { password: "882010", role: "admin" },
+  "manager1": { password: "123", role: "gestor" },
+  "colab1": { password: "321", role: "colaborador" }
 };
 
-// Elementos HTML
+let currentUser = null;
+
+// LOGIN
 const loginBtn = document.getElementById("loginBtn");
 const loginUser = document.getElementById("loginUser");
 const loginPass = document.getElementById("loginPass");
 const feedbackMessage = document.getElementById("feedbackMessage");
 
-const sidebar = document.getElementById("sidebar");
-const btnAddUser = document.getElementById("btnAddUser");
-const btnAllCSV = document.getElementById("btnAllCSV");
-const btnAddColab = document.getElementById("btnAddColab");
-const btnGestorCSV = document.getElementById("btnGestorCSV");
-const btnStartScanner = document.getElementById("btnStartScanner");
-const btnMap = document.getElementById("btnMap");
-const btnRoute = document.getElementById("btnRoute");
-const btnSearchQR = document.getElementById("btnSearchQR");
-const btnFilterDate = document.getElementById("btnFilterDate");
+loginBtn.addEventListener("click", () => {
+  const user = loginUser.value.trim();
+  const pass = loginPass.value.trim();
 
-const video = document.getElementById("videoElement");
-const overlay = document.getElementById("overlay");
-const overlayCtx = overlay.getContext("2d");
-const scansList = document.getElementById("scansList");
+  if (USERS[user] && USERS[user].password === pass) {
+    feedbackMessage.textContent = "✔ Login realizado com sucesso!";
+    feedbackMessage.style.color = "green";
+    currentUser = { username: user, role: USERS[user].role };
+    document.body.classList.add("logged-in");
+    renderSidebarByRole();
+    document.getElementById("scannerSection").style.display = "block";
+  } else {
+    feedbackMessage.textContent = "❌ Usuário ou senha inválidos";
+    feedbackMessage.style.color = "red";
+  }
+});
 
-// Estado
-let currentUser = null;
+// SIDEBAR por função
+function renderSidebarByRole() {
+  const sidebar = document.getElementById("sidebar");
+  const allButtons = sidebar.querySelectorAll("button");
+  allButtons.forEach(btn => btn.style.display = "block");
+
+  if (currentUser.role === "colaborador") {
+    sidebar.querySelector("#btnMap").style.display = "none";
+    sidebar.querySelector("#btnRoute").style.display = "none";
+    sidebar.querySelector("#btnSearchQR").style.display = "none";
+    sidebar.querySelector("#btnFilterDate").style.display = "none";
+    sidebar.querySelector("#btnAllCSV").style.display = "none";
+  }
+  if (currentUser.role === "gestor") {
+    // Gestor não vê adicionar admin
+  }
+}
+
+// LOGOUT
+function logout() {
+  location.reload();
+}
+
+// ============================
+// SCANNER QR CODE
+// ============================
+let video = document.getElementById("videoElement");
+let overlay = document.getElementById("overlay");
+let overlayCtx = overlay.getContext("2d");
+
 let scanning = false;
 let currentStream = null;
 let scans = JSON.parse(localStorage.getItem("pegazus_scans") || "[]");
+let scansList = document.getElementById("scansList");
 
-// ================================
-// LOGIN
-// ================================
-loginBtn.addEventListener("click", () => {
-    const username = loginUser.value.trim();
-    const password = loginPass.value.trim();
+// Ajusta canvas
+function adjustCanvas() {
+  overlay.width = video.videoWidth;
+  overlay.height = video.videoHeight;
+}
 
-    if (USERS[username] && USERS[username].pass === password) {
-        feedbackMessage.textContent = "✔ Login realizado com sucesso!";
-        feedbackMessage.style.color = "green";
+// Desenha borda QR
+function drawFrame(result) {
+  overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!result) return;
+  overlayCtx.strokeStyle = "lime";
+  overlayCtx.lineWidth = 4;
+  overlayCtx.strokeRect(
+    result.location.topLeftCorner.x,
+    result.location.topLeftCorner.y,
+    result.location.bottomRightCorner.x - result.location.topLeftCorner.x,
+    result.location.bottomRightCorner.y - result.location.topLeftCorner.y
+  );
+}
 
-        currentUser = { name: username, level: USERS[username].level };
-        document.body.classList.add("logged-in");
-        renderMenu();
-        renderScans();
-    } else {
-        feedbackMessage.textContent = "❌ Usuário ou senha incorretos";
-        feedbackMessage.style.color = "red";
-    }
+// Iniciar câmera
+async function startScanner() {
+  try {
+    const constraints = { video: { facingMode: "environment" }, audio: false };
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = currentStream;
+    video.style.display = "block";
+    overlay.style.display = "block";
+
+    video.onloadedmetadata = () => {
+      adjustCanvas();
+      video.play();
+      scanning = true;
+      scanLoop();
+    };
+  } catch (err) {
+    alert("Erro ao acessar câmera: " + err);
+  }
+}
+
+// Parar câmera
+function stopScanner() {
+  scanning = false;
+  overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+  }
+  video.style.display = "none";
+  overlay.style.display = "none";
+}
+
+// Loop de scanner
+function scanLoop() {
+  if (!scanning) return;
+  overlayCtx.drawImage(video, 0, 0, overlay.width, overlay.height);
+  const imageData = overlayCtx.getImageData(0, 0, overlay.width, overlay.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+  if (code) {
+    drawFrame(code);
+    registerScan(code.data);
+    beep();
+  }
+  requestAnimationFrame(scanLoop);
+}
+
+// ============================
+// REGISTRO DE SCANS
+// ============================
+function saveScans() {
+  localStorage.setItem("pegazus_scans", JSON.stringify(scans));
+}
+
+function renderScans() {
+  if (scans.length === 0) {
+    scansList.innerHTML = "0 entregas registradas.";
+    return;
+  }
+  scansList.innerHTML = scans.map(item => `
+    <div class="item">
+      <strong>${item.nome}</strong>
+      <small>${item.endereco} | ${item.cep} | ${item.telefone}</small>
+      <small>Registrado por: ${item.gestor}</small>
+      <small>${item.date}</small>
+    </div>
+  `).join("");
+}
+
+// Registrar scan
+function registerScan(data) {
+  const alreadyScanned = scans.find(s => s.raw === data);
+  if (alreadyScanned) {
+    alert("QR Code já registrado!");
+    return;
+  }
+
+  const nomeMatch = data.match(/NOME:([^\n]*)/i);
+  const enderecoMatch = data.match(/ENDEREÇO:([^\n]*)/i);
+  const cepMatch = data.match(/CEP:([^\n]*)/i);
+  const telMatch = data.match(/TELEFONE:([^\n]*)/i);
+
+  const scanObj = {
+    raw: data,
+    nome: nomeMatch ? nomeMatch[1].trim() : "Desconhecido",
+    endereco: enderecoMatch ? enderecoMatch[1].trim() : "",
+    cep: cepMatch ? cepMatch[1].trim() : "",
+    telefone: telMatch ? telMatch[1].trim() : "",
+    gestor: currentUser.username,
+    date: new Date().toLocaleString()
+  };
+
+  scans.unshift(scanObj);
+  saveScans();
+  renderScans();
+}
+
+// ============================
+// BEEP
+// ============================
+function beep() {
+  const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
+  audio.play();
+}
+
+// ============================
+// EXPORT CSV
+// ============================
+document.getElementById("btnAllCSV").addEventListener("click", () => {
+  if (scans.length === 0) return alert("Sem registros para exportar.");
+  let csv = "nome,endereco,cep,telefone,gestor,data\n" +
+    scans.map(s => `${s.nome},${s.endereco},${s.cep},${s.telefone},${s.gestor},${s.date}`).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "registros.csv";
+  a.click();
 });
 
-function logout() {
-    document.body.classList.remove("logged-in");
-    currentUser = null;
-    video.pause();
-    if(currentStream) currentStream.getTracks().forEach(t => t.stop());
-}
+// BOTÃO CAMERA
+document.getElementById("btnStartScanner").addEventListener("click", startScanner);
 
-// ================================
-// MENU DINÂMICO
-// ================================
-function renderMenu() {
-    btnAddUser.style.display = currentUser.level === "admin" ? "block" : "none";
-    btnAllCSV.style.display = currentUser.level === "admin" ? "block" : "none";
-    btnAddColab.style.display = currentUser.level === "gestor" || currentUser.level === "admin" ? "block" : "none";
-    btnGestorCSV.style.display = currentUser.level === "gestor" ? "block" : "none";
-    btnStartScanner.style.display = currentUser.level === "colaborador" || currentUser.level === "gestor" || currentUser.level === "admin" ? "block" : "none";
-}
-
-// ================================
-// SCANNER QR CODE
-// ================================
-function adjustCanvas() {
-    overlay.width = video.videoWidth;
-    overlay.height = video.videoHeight;
-}
-
-function drawFrame(result) {
-    overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-    if (!result) return;
-    overlayCtx.strokeStyle = "lime";
-    overlayCtx.lineWidth = 4;
-    overlayCtx.strokeRect(result.location.topLeftCorner.x, result.location.topLeftCorner.y,
-        result.location.bottomRightCorner.x - result.location.topLeftCorner.x,
-        result.location.bottomRightCorner.y - result.location.topLeftCorner.y);
-}
-
-async function startScanner() {
-    try {
-        const constraints = { audio: false, video: { facingMode: "environment" } };
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = currentStream;
-
-        video.onloadedmetadata = () => {
-            adjustCanvas();
-            video.play();
-            scanning = true;
-            scanLoop();
-        };
-    } catch (err) {
-        alert("Erro ao acessar câmera: " + err);
-    }
-}
-
-function stopScanner() {
-    scanning = false;
-    overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-    if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-}
-
-function beep() {
-    const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
-    audio.play();
-}
-
-function scanLoop() {
-    if (!scanning) return;
-    overlayCtx.drawImage(video, 0, 0, overlay.width, overlay.height);
-    const imageData = overlayCtx.getImageData(0, 0, overlay.width, overlay.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-    if (code) {
-        drawFrame(code);
-
-        // Bloquear duplicados
-        if (scans.find(s => s.qrcode === code.data)) {
-            feedbackMessage.textContent = "⚠ QR Code já escaneado!";
-            feedbackMessage.style.color = "orange";
-        } else {
-            registerScan(code.data);
-            beep();
-        }
-    }
-
-    requestAnimationFrame(scanLoop);
-}
-
-// ================================
-// REGISTRO DE SCANS
-// ================================
-function registerScan(data) {
-    const date = new Date().toLocaleString();
-    scans.unshift({ qrcode: data, date: date, user: currentUser.name });
-    localStorage.setItem("pegazus_scans", JSON.stringify(scans));
-    renderScans();
-}
-
-function renderScans(filtered = scans) {
-    if (filtered.length === 0) {
-        scansList.innerHTML = "0 entregas registradas.";
-        return;
-    }
-    scansList.innerHTML = filtered.map(s => `
-        <div class="item">
-            <strong>${escapeHtml(s.qrcode)}</strong>
-            <small>${s.date} - ${s.user}</small>
-        </div>
-    `).join("");
-}
-
-function escapeHtml(text) {
-    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-    return text.replace(/[&<>"']/g, m => map[m]);
-}
-
-// ================================
-// CSV
-// ================================
-function exportCSV() {
-    const csv = "qrcode,date,user\n" + scans.map(s => `${s.qrcode},${s.date},${s.user}`).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "registros.csv";
-    a.click();
-}
-
-// ================================
-// BOTÕES
-// ================================
-btnStartScanner.onclick = startScanner;
-btnAllCSV.onclick = exportCSV;
-btnGestorCSV.onclick = exportCSV;
-
-// ================================
-// FILTRO POR DATA
-// ================================
-btnFilterDate.onclick = () => {
-    const start = prompt("Data inicial (YYYY-MM-DD):");
-    const end = prompt("Data final (YYYY-MM-DD):");
-    if (!start || !end) return;
-    const filtered = scans.filter(s => {
-        const d = new Date(s.date);
-        return d >= new Date(start) && d <= new Date(end);
-    });
-    renderScans(filtered);
-};
-
-// ================================
-// PESQUISA QR CODE
-// ================================
-btnSearchQR.onclick = () => {
-    const qrcode = prompt("Digite o QR Code:");
-    if (!qrcode) return;
-    const result = scans.filter(s => s.qrcode.includes(qrcode));
-    renderScans(result);
-};
-
-// ================================
-// MAPA & ROTA (abrir Google Maps/Waze)
-// ================================
-btnMap.onclick = () => {
-    if(scans.length === 0) { alert("Nenhum QR Code registrado"); return; }
-    const addresses = scans.map(s => encodeURIComponent(s.qrcode));
-    const url = "https://www.google.com/maps/dir/" + addresses.join("/");
-    window.open(url, "_blank");
-};
-
-btnRoute.onclick = () => {
-    alert("Função de rota otimizada ainda não implementada. Apenas exporte o CSV e use seu app de mapa favorito.");
-};
+// Render inicial
+renderScans();
