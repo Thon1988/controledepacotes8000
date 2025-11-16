@@ -35,7 +35,8 @@
             width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc;
             border-radius: 8px; box-sizing: border-box;
         }
-        #loginStatus { color: #6c757d; font-size: 14px; min-height: 20px; }
+        /* Cor de erro/sucesso para o feedback de login */
+        #loginStatus { color: #6c757d; font-size: 14px; min-height: 20px; } 
         
         /* Oculta o aplicativo e mostra o login por padrão (sem a classe 'logged-in' no body) */
         .app { display: none; }
@@ -95,6 +96,7 @@
           background:#f8f9fa;
           padding:4px 6px;
           border-radius:6px;
+          display:inline-block; /* Importante para o overflow funcionar corretamente */
         }
         @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} .camera-wrap{height:50vh} }
     </style>
@@ -102,13 +104,13 @@
 <body>
     
     <div id="loginScreen" class="login-container">
-        <div id="loginForm">
+        <form id="loginForm">
             <h2 style="margin-top: 0; color: #343a40;">🔑 Acesso do Scanner</h2>
             <p id="loginStatus" style="color: #333; font-weight: bold;">Insira suas credenciais e clique em Entrar.</p>
             <input type="text" id="loginUser" placeholder="Usuário" required>
             <input type="password" id="loginPass" placeholder="Senha" required>
-            <button id="loginBtn" style="width: 100%; padding: 10px; background: var(--primary-color);">Entrar</button>
-        </div>
+            <button type="submit" id="loginBtn" style="width: 100%; padding: 10px; background: var(--primary-color);">Entrar</button>
+        </form>
     </div>
     <div class="app">
         <h1>PegazusLog v0.1</h1>
@@ -122,4 +124,23 @@
             <select id="deviceSelect" class="select-device" style="display:none" aria-labelledby="deviceSelectLabel"></select>
 
             <button id="exportBtn" class="secondary" aria-label="Exportar CSV" style="display:none">⬇️ Exportar CSV</button>
-            <button id="
+            <button id="clearBtn" class="secondary" aria-label="Limpar registros" style="display:none">🧹 Limpar</button>
+            
+            </div>
+
+        <div class="camera-wrap" id="cameraWrap">
+            <video id="videoElement" muted playsinline autoplay></video>
+            <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="panel">
+            <div id="output">Pronto.</div>
+            <div class="list" id="scansList" aria-live="polite"></div>
+        </div>
+    </div>
+
+    <div id="scanPopup" role="status" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
