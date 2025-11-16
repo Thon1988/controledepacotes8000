@@ -1,4 +1,4 @@
-// app.js — Versão V10: Scanner Completo com Login e Controle de Telas.
+// app.js — Versão V11: Scanner Completo com Login Corrigido, Controle de Telas e Funcionalidades Mantidas.
 // Requisitos: index.html no mesmo diretório. Abra via HTTPS (GitHub Pages) ou localhost.
 
 (() => {
@@ -27,6 +27,7 @@
     const tempCtx = tempCanvas.getContext('2d');
 
     // --- Dicionário de Usuários e Senhas (Credenciais Fixas) ---
+    // ESTAS SÃO AS CREDENCIAIS: thon com senha 882010
     const defaultUsers = {
         'thon': { password: '882010', role: 'administrator' }, 
         'manager1': { password: '123', role: 'manager' },
@@ -37,7 +38,6 @@
     function showScanner() {
         if (loginContainer) loginContainer.style.display = 'none';
         if (scannerContainer) scannerContainer.style.display = 'block';
-        // Inicia o resto das funcionalidades do scanner
         loadScannedData();
         renderScans();
         logOutput('Aguardando início do scanner. Clique em Iniciar.');
@@ -51,7 +51,8 @@
     // --- FUNÇÕES DE LOGIN ---
 
     function handleLogin(event) {
-        event.preventDefault();
+        // ESSENCIAL: Evita que o formulário recarregue a página
+        event.preventDefault(); 
 
         const username = usernameInput.value.trim();
         const password = passwordInput.value.trim();
@@ -63,7 +64,7 @@
             feedbackMessage.textContent = '✅ Login efetuado com sucesso!';
             feedbackMessage.style.color = 'green';
             
-            // Espera um pouco para o usuário ler a mensagem e transiciona para o scanner
+            // Transiciona para o scanner
             setTimeout(showScanner, 500); 
 
         } else {
@@ -75,10 +76,9 @@
         }
     }
 
-    // --- UTILS (Mantidos do V9) ---
+    // --- UTILS (Beep, Popup, Storage) ---
     function beep(duration = 90, freq = 1400, vol = 0.12) {
-        try { /* ... código do beep ... */ } catch (e) {}
-        try {
+        try { 
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const o = ctx.createOscillator();
             const g = ctx.createGain();
@@ -112,13 +112,10 @@
 
     function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&','<':'>','>':'>','"':'"',"'":'''})[c]); }
 
-    // --- EXTRAÇÃO DE ID (Mantido do V9) ---
+    // --- EXTRAÇÃO DE ID ---
     function extractLinkSpecificId(link) {
-        // ... Lógica de extração Shopee/ML ...
         if (!link || typeof link !== 'string') return { type: null, value: null };
         const l = link.toLowerCase();
-
-        // 1. Shopee
         if (l.includes('shopee.com')) {
             const shopeePattern = /-(\w)\.(\d+)\.(\d+)/i;
             const productPattern = /\/product\/(\d+)\/?$/i;
@@ -129,8 +126,6 @@
             const numMatch = link.match(/(\d{8,})/); 
             if (numMatch) return { type: 'shopee_fallback', value: numMatch[1] };
         }
-
-        // 2. Mercado Livre
         if (l.includes('mercadolivre.com') || l.includes('mercadolibre.com')) {
             const mlbPattern = /MLB-(\d+)/i;
             const numPattern = /(\d{9,})/;
@@ -139,12 +134,10 @@
             match = link.match(numPattern);
             if (match) return { type: 'ml_fallback', value: match[1] };
         }
-
         return { type: 'link_url', value: link.length > 50 ? link.substring(0, 47) + '...' : link };
     }
 
     function extractQrId(payload) {
-        // ... Lógica de extração de QR ID ...
         if (!payload || typeof payload !== 'string') return { type: null, value: null };
         const paramsMatch = payload.match(/[?&](qrid|id|sku|tracking|qr)=([^&]+)/i);
         if (paramsMatch) return { type: 'qr_param:' + paramsMatch[1].toLowerCase(), value: paramsMatch[2] };
@@ -155,8 +148,8 @@
         return { type: 'full_payload', value: payload.length > 50 ? payload.substring(0, 47) + '...' : payload };
     }
     
-    // --- GESTÃO DA CÂMERA E PERMISSÕES (Mantido do V9) ---
-    async function enumerateVideoDevices() { /* ... código para enumerar dispositivos ... */
+    // --- GESTÃO DA CÂMERA E PERMISSÕES ---
+    async function enumerateVideoDevices() { 
         try { 
             await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             const devices = await navigator.mediaDevices.enumerateDevices(); 
@@ -167,7 +160,7 @@
             return [];
         }
     }
-    async function getCameraStream(constraints) { /* ... código para obter stream da câmera ... */
+    async function getCameraStream(constraints) { 
         return new Promise((resolve, reject) => {
             const timeoutId = setTimeout(() => reject(new Error('TIMEOUT: Câmera demorou a abrir.')), DEFAULT_TIMEOUT);
             
@@ -246,7 +239,7 @@
         }
     }
 
-    function stopCamera() { /* ... código para parar a câmera ... */
+    function stopCamera() { 
         if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
         mediaStream = null; currentVideoTrack = null; torchOn = false;
         if (rafId) cancelAnimationFrame(rafId);
@@ -262,7 +255,7 @@
         logOutput('Scanner parado. Clique em Iniciar para continuar.');
     }
 
-    async function toggleTorch() { /* ... código para ligar/desligar o flash ... */
+    async function toggleTorch() { 
         if (!currentVideoTrack) return;
         try { 
             torchOn = !torchOn; 
@@ -271,8 +264,8 @@
         } catch (e) { logOutput('Flash não suportado neste dispositivo.'); }
     }
     
-    // --- SCANNER E PROCESSAMENTO (Mantido do V9) ---
-    function fitCanvases() { /* ... código para ajustar canvas ... */
+    // --- SCANNER E PROCESSAMENTO ---
+    function fitCanvases() { 
         const vw = video.videoWidth || video.clientWidth || 640; 
         const vh = video.videoHeight || video.clientHeight || 480;
         overlay.width = vw; overlay.height = vh; 
@@ -281,7 +274,7 @@
         tempCanvas.width = processW; tempCanvas.height = processH; 
         drawBoundingBox(null);
     }
-    function drawBoundingBox(location) { /* ... código para desenhar mira e box ... */
+    function drawBoundingBox(location) { 
         if (!overlayCtx) return;
         overlayCtx.clearRect(0,0,overlay.width,overlay.height);
         const w = overlay.width, h = overlay.height; 
@@ -301,7 +294,7 @@
         overlayCtx.closePath(); overlayCtx.stroke(); 
         overlayCtx.fillStyle = 'rgba(0,200,83,0.14)'; overlayCtx.fill();
     }
-    function tick() { /* ... código para processar frame e chamar jsQR ... */
+    function tick() { 
         if (!scanning) return;
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
             try {
@@ -338,7 +331,7 @@
         rafId = requestAnimationFrame(tick);
     }
 
-    function handleScanResult(payload) { /* ... código para salvar resultado, beep, copy, etc. ... */
+    function handleScanResult(payload) { 
         if (!payload) return;
         const isDuplicate = scannedData.some(item => item.link === payload && (Date.now() - item.timestamp) < DUPLICATE_WINDOW);
         if (isDuplicate) { logOutput('Código já escaneado recentemente.'); showPopup('Já escaneado'); return; }
@@ -369,8 +362,8 @@
         if (autoOpenToggle && autoOpenToggle.checked) { try { window.open(payload, '_blank'); } catch (e) {} }
     }
 
-    // --- UI E DADOS (Mantido do V9) ---
-    function renderScans() { /* ... código para renderizar lista ... */
+    // --- UI E DADOS ---
+    function renderScans() { 
         if (!scansList) return;
         scansList.innerHTML = '';
         if (scannedData.length === 0) {
@@ -399,8 +392,8 @@
         });
     }
 
-    // --- EXPORTAÇÃO E LIMPEZA (Mantido do V9) ---
-    function convertToCSV(data) { /* ... código para converter para CSV ... */
+    // --- EXPORTAÇÃO E LIMPEZA ---
+    function convertToCSV(data) { 
         if (!data || data.length === 0) return '';
         const headers = ['Plataforma', 'Link_Completo', 'QR_ID_Tipo', 'QR_ID_Valor', 'ID_Tipo', 'ID_Valor', 'Data_Hora_Scan', 'Timestamp_MS']; 
         const rows = [headers.join(';')];
@@ -416,7 +409,7 @@
         return rows.join('\r\n');
     }
 
-    function exportCSV() { /* ... código para exportar CSV ... */
+    function exportCSV() { 
         if (scannedData.length === 0) { alert('Nenhum dado escaneado para exportar!'); return; }
         const csv = convertToCSV(scannedData);
         const bom = '\uFEFF'; 
@@ -428,7 +421,7 @@
         logOutput(`CSV exportado com ${scannedData.length} registros.`);
     }
 
-    function clearScans() { /* ... código para limpar registros ... */
+    function clearScans() { 
         if (!confirm('Deseja limpar todos os registros escaneados? Esta ação não pode ser desfeita.')) return; 
         scannedData = []; 
         saveScannedData(); 
@@ -505,7 +498,7 @@
         if (stopButton) stopButton.style.display = 'none';
         if (torchButton) torchButton.style.display = 'none';
 
-        console.log('Scanner inicializado com controle de Login. Versão V10.');
+        console.log('PegazusLog v0.1: Inicializado com controle de Login. Versão V11.');
     }
 
     if (document.readyState === 'loading') {
