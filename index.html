@@ -1,51 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PegazusLog v0.1</title> 
+  <title>PegazusLog v0.1 - V12</title>
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
   <style>
-    :root{
-      --bg:#f4f6f8;
-      --card:#ffffff;
-      --accent:#007bff;
-      --muted:#666;
-    }
-
-    /* Base Styling */
+    :root{ --bg:#f4f6f8; --card:#ffffff; --accent:#007bff; --muted:#666; }
     html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:#111}
     .app{ max-width:920px; margin:18px auto; padding:18px; }
-    h1{ margin:0 0 12px; font-size:20px; text-align: center; }
-    
-    /* Login Specific Styling */
-    #login-container { 
-        max-width: 350px; 
-        margin: 80px auto; 
-        padding: 20px; 
-        border: 1px solid #eee; 
-        border-radius: 8px; 
-        background: var(--card); 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
-    }
-    #login-container h2 { margin-top: 0; font-size: 18px; text-align: center; }
-    #loginForm input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-    #loginForm button { width: 100%; }
-    #feedbackMessage { text-align: center; margin-top: 10px; font-weight: bold; }
-
-    /* Controls and Scanner Styling */
+    h1{ margin:0 0 12px; font-size:20px; text-align:center }
+    #login-container { max-width:350px; margin:80px auto; padding:20px; border:1px solid #eee; border-radius:8px; background:var(--card); box-shadow:0 2px 4px rgba(0,0,0,0.05); }
+    #login-container h2 { margin-top:0; font-size:18px; text-align:center }
+    #loginForm input { width:100%; padding:10px; margin-bottom:10px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box }
+    #loginForm button { width:100% }
+    #feedbackMessage { text-align:center; margin-top:10px; font-weight:bold }
     .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
     button{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:6px;cursor:pointer}
     button.secondary{background:#6c757d}
     button.warn{background:#d9534f}
     button:disabled{opacity:.6;cursor:default}
-    .camera-wrap{position:relative;max-width:720px;margin:0 auto;border-radius:10px;overflow:hidden;background:#000; display:flex; justify-content:center; align-items:center; height: 350px;}
+    .camera-wrap{position:relative;max-width:720px;margin:0 auto;border-radius:10px;overflow:hidden;background:#000; display:flex; justify-content:center; align-items:center; height:350px}
     video#videoElement{width:100%;height:100%;object-fit:cover;display:block}
     canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
     .panel{background:var(--card);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    #output{min-height:44px;display:flex;align-items:center;gap:8px;color:var(--muted); font-weight: bold;}
+    #output{min-height:44px;display:flex;align-items:center;gap:8px;color:var(--muted); font-weight:bold}
     .list{max-height:240px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
     .item{padding:8px;border-bottom:1px solid #f0f0f0;display:flex;flex-direction:column;gap:6px}
     .item:last-child{border-bottom:0}
@@ -53,33 +34,33 @@
     .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px}
     .actions{margin-left:auto;display:flex;gap:8px}
     .row{display:flex;align-items:center;gap:8px}
-    .auto-open-control { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); padding: 4px; margin-left: auto; }
+    .auto-open-control { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--muted); padding:4px; margin-left:auto }
     #scanPopup{position:fixed;right:16px;bottom:16px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;display:none;z-index:9999}
     @media (max-width:520px){ .controls{flex-direction:column;align-items:stretch} }
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>PegazusLog v0.1</h1>
+    <h1>PegazusLog v0.1 — V12</h1>
 
     <div id="login-container">
         <h2>Acesso Restrito</h2>
         <form id="loginForm">
-            <input type="text" id="username" placeholder="Usuário" required>
-            <input type="password" id="password" placeholder="Senha" required>
+            <input type="text" id="username" placeholder="Usuário" required autocomplete="username">
+            <input type="password" id="password" placeholder="Senha" required autocomplete="current-password">
             <button type="submit">Entrar</button>
-            <div id="feedbackMessage"></div>
+            <div id="feedbackMessage" role="status" aria-live="polite"></div>
         </form>
     </div>
 
-    <div id="scanner-container" style="display: none;">
+    <div id="scanner-container" style="display:none;">
         <div class="controls">
             <button id="startButton">▶️ Abrir Câmera / Iniciar</button>
             <button id="stopButton" class="secondary" style="display:none">⏹️ Parar</button>
             <button id="torchButton" class="secondary" style="display:none">🔦 Flash Off</button>
             <button id="exportBtn" class="secondary">⬇️ Exportar CSV</button>
             <button id="clearBtn" class="warn">🧹 Limpar registros</button>
-            
+            <button id="logoutBtn" class="secondary">🔒 Sair</button>
             <div class="auto-open-control">
                 <input type="checkbox" id="autoOpenToggle">
                 <label for="autoOpenToggle" id="autoOpenStatus">Auto-abrir: Desativado</label>
@@ -100,6 +81,131 @@
 
   <div id="scanPopup" role="status" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script>
+  // ===== PegazusLog V12 — Código inline (corrigido e otimizado) =====
+  (function(){
+    'use strict';
+
+    // Element references
+    let loginContainer, scannerContainer, loginForm, usernameInput, passwordInput, feedbackMessage;
+    let video, overlay, overlayCtx, output, startButton, stopButton, torchButton, exportBtn, clearBtn, scansList, scanPopup, autoOpenToggle, autoOpenStatus, logoutBtn;
+
+    // State & constants
+    const STORAGE_KEY = 'scannedPackages_v3';
+    const LOGIN_KEY = 'scanner_loggedIn';
+    const SCAN_INTERVAL = 700;
+    const DUPLICATE_WINDOW = 60 * 1000;
+    const DEFAULT_TIMEOUT = 8000;
+
+    let mediaStream = null; let rafId = null; let scanning = false; let lastScanTime = 0; let scannedData = []; let currentVideoTrack = null; let torchOn = false;
+
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Simple credential store (for demo only)
+    const defaultUsers = {
+      'thon': { password: '882010', role: 'administrator' },
+      'manager1': { password: '123', role: 'manager' }
+    };
+
+    // --- Utilities ---
+    function escapeHtml(s){
+      const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"};
+      return String(s).replace(/[&<>"']/g, c=>map[c]);
+    }
+
+    function beep(duration=90,freq=1400,vol=0.12){ try{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.type='sine'; o.frequency.value=freq; g.gain.value=vol; o.connect(g); g.connect(ctx.destination); o.start(); setTimeout(()=>{ try{o.stop(); ctx.close();}catch(e){} },duration);}catch(e){} }
+    function showPopup(text,ms=900){ if(!scanPopup) return; scanPopup.textContent=text; scanPopup.style.display='block'; setTimeout(()=>{ scanPopup.style.display='none'; },ms); }
+    function logOutput(msg){ if(output) output.textContent=msg; console.info(msg); }
+
+    function loadScannedData(){ try{ const raw=localStorage.getItem(STORAGE_KEY); return raw?JSON.parse(raw):[] }catch(e){ console.warn('Erro ao carregar dados',e); return []; } }
+    function saveScannedData(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(scannedData)); }catch(e){ console.warn('Falha ao salvar dados',e); } }
+
+    // --- Extraction helpers ---
+    function extractLinkSpecificId(link){ if(!link||typeof link!=='string') return {type:null,value:null}; const l=link.toLowerCase(); if(l.includes('shopee.com')){ const shopeePattern=/(?:-)(\w)\.(\d+)\.(\d+)/i; const productPattern=/\/product\/(\d+)\/?$/i; let m=link.match(shopeePattern); if(m) return {type:'shopee_item', value:m[3], shopId:m[2]}; m=link.match(productPattern); if(m) return {type:'shopee_item', value:m[1]}; const num=link.match(/(\d{8,})/); if(num) return {type:'shopee_fallback', value:num[1]}; }
+      if(l.includes('mercadolivre.com')||l.includes('mercadolibre.com')){ const mlb=link.match(/MLB-(\d+)/i); const num=link.match(/(\d{9,})/); if(mlb) return {type:'mlb_id', value:mlb[1]}; if(num) return {type:'ml_fallback', value:num[1]}; }
+      return {type:'link_url', value: link.length>50?link.substring(0,47)+'...':link};
+    }
+
+    function extractQrId(payload){ if(!payload||typeof payload!=='string') return {type:null,value:null}; const paramsMatch = payload.match(/[?&](qrid|id|sku|tracking|qr)=([^&]+)/i); if(paramsMatch) return { type:'qr_param:'+paramsMatch[1].toLowerCase(), value: paramsMatch[2] }; const numMatch = payload.match(/(\d{6,})/); if(numMatch) return { type:'numeric', value: numMatch[1] }; const textMatch = payload.match(/([\w-]{6,})/); if(textMatch) return { type:'text_token', value: textMatch[1] }; return { type:'full_payload', value: payload.length>50?payload.substring(0,47)+'...':payload } }
+
+    // --- Camera management ---
+    async function enumerateVideoDevices(){ try{ await navigator.mediaDevices.getUserMedia({video:true,audio:false}); const devices = await navigator.mediaDevices.enumerateDevices(); return devices.filter(d=>d.kind==='videoinput'); }catch(e){ console.warn('Falha ao enumerar dispositivos',e); return []; } }
+
+    function getCameraStream(constraints){ return new Promise((resolve,reject)=>{ const timeoutId=setTimeout(()=>reject(new Error('TIMEOUT: Câmera demorou a abrir.')),DEFAULT_TIMEOUT); navigator.mediaDevices.getUserMedia(constraints).then(stream=>{ clearTimeout(timeoutId); resolve(stream); }).catch(err=>{ clearTimeout(timeoutId); reject(err); }); }); }
+
+    async function startCamera(){ if(scanning) return; logOutput('Solicitando acesso à câmera...'); if(startButton) startButton.disabled=true; if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ logOutput('Seu navegador não suporta a API de mídia.'); if(startButton) startButton.disabled=false; return; }
+      let constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+      let stream=null; let lastError=null;
+      try{ stream = await getCameraStream(constraints); }catch(err){ lastError=err; console.warn('Erro no facingMode:',err); logOutput('Tentando fallback...'); constraints={video:true,audio:false}; try{ stream = await getCameraStream(constraints); }catch(err2){ lastError=err2; console.warn('Fallback falhou',err2); try{ const devices=await enumerateVideoDevices(); if(devices.length>0){ constraints={video:{deviceId:{exact:devices[0].deviceId}}, audio:false}; stream = await getCameraStream(constraints); } }catch(err3){ lastError=err3; console.error('Falha geral ao abrir câmera',err3); } } }
+
+      if(stream){ mediaStream=stream; video.srcObject=mediaStream; try{ await video.play(); }catch(e){ console.error('Erro ao play',e); }
+        currentVideoTrack = mediaStream.getVideoTracks()[0]||null; scanning=true; if(currentVideoTrack && typeof currentVideoTrack.getCapabilities==='function'){ try{ const caps = currentVideoTrack.getCapabilities(); if(caps && caps.torch){ torchButton.style.display='inline-block'; } else torchButton.style.display='none'; }catch(e){ torchButton.style.display='none'; } } else torchButton.style.display='none';
+        if(startButton) startButton.style.display='none'; if(stopButton) stopButton.style.display='inline-block'; logOutput('✅ Scanner ativo! Aponte para o QR.'); if(video.readyState>=1) fitCanvases(); else video.addEventListener('loadedmetadata', fitCanvases, {once:true}); lastScanTime=0; rafId=requestAnimationFrame(tick);
+      } else { let msg='🛑 Erro Crítico: Falha ao acessar a câmera.'; if(lastError && (lastError.name==='NotAllowedError' || lastError.name==='PermissionDeniedError')) msg='🛑 Permissão negada. Permita a câmera nas configurações do navegador.'; else if(lastError && lastError.name==='NotFoundError') msg='Câmera não encontrada.'; else if(lastError && lastError.name==='SecurityError') msg='⚠️ Erro de segurança. Serviço requer HTTPS ou localhost.'; logOutput(msg); console.error('Erro getUserMedia:', lastError); if(startButton) startButton.disabled=false; }
+    }
+
+    function stopCamera(){ if(mediaStream) mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; currentVideoTrack=null; torchOn=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; scanning=false; if(video){ video.pause(); video.srcObject=null; }
+      if(startButton){ startButton.disabled=false; startButton.style.display='inline-block'; }
+      if(stopButton) stopButton.style.display='none'; if(torchButton) torchButton.style.display='none'; if(overlayCtx && overlay) overlayCtx.clearRect(0,0,overlay.width,overlay.height); logOutput('Scanner parado. Clique em Iniciar para continuar.'); }
+
+    async function toggleTorch(){ if(!currentVideoTrack) return; try{ torchOn=!torchOn; await currentVideoTrack.applyConstraints({ advanced:[{ torch: torchOn }] }); torchButton.textContent = torchOn ? '🔦 Flash On' : '🔦 Flash Off'; }catch(e){ logOutput('Flash não suportado neste dispositivo.'); } }
+
+    function fitCanvases(){ if(!video) return; const vw = video.videoWidth || video.clientWidth || 640; const vh = video.videoHeight || video.clientHeight || 480; overlay.width = vw; overlay.height = vh; const processW = Math.min(1024, Math.max(320, Math.round(vw * 0.6))); const processH = Math.round((vh / vw) * processW) || 480; tempCanvas.width = processW; tempCanvas.height = processH; drawBoundingBox(null); }
+
+    function drawBoundingBox(location){ if(!overlayCtx || !overlay) return; overlayCtx.clearRect(0,0,overlay.width,overlay.height); const w=overlay.width,h=overlay.height; const focusW=Math.round(w*0.6), focusH=Math.round(h*0.6); const x=Math.round((w-focusW)/2), y=Math.round((h-focusH)/2); overlayCtx.strokeStyle='rgba(255,255,255,0.4)'; overlayCtx.lineWidth=2; overlayCtx.setLineDash([10,5]); overlayCtx.strokeRect(x,y,focusW,focusH); overlayCtx.setLineDash([]); if(!location) return; overlayCtx.strokeStyle='rgba(0,200,83,0.95)'; overlayCtx.lineWidth=Math.max(3, overlay.width/200); overlayCtx.beginPath(); overlayCtx.moveTo(location.topLeftCorner.x, location.topLeftCorner.y); overlayCtx.lineTo(location.topRightCorner.x, location.topRightCorner.y); overlayCtx.lineTo(location.bottomRightCorner.x, location.bottomRightCorner.y); overlayCtx.lineTo(location.bottomLeftCorner.x, location.bottomLeftCorner.y); overlayCtx.closePath(); overlayCtx.stroke(); overlayCtx.fillStyle='rgba(0,200,83,0.14)'; overlayCtx.fill(); }
+
+    function tick(){ if(!scanning) return; if(video.readyState===video.HAVE_ENOUGH_DATA){ try{ const vw=video.videoWidth||video.clientWidth; const vh=video.videoHeight||video.clientHeight; if(!vw||!vh){ rafId=requestAnimationFrame(tick); return; }
+        const cropFactor=0.6; const sw=Math.floor(vw*cropFactor); const sh=Math.floor(vh*cropFactor); const sx=Math.floor((vw-sw)/2); const sy=Math.floor((vh-sh)/2);
+        tempCtx.drawImage(video,sx,sy,sw,sh,0,0,tempCanvas.width,tempCanvas.height);
+        const imageData = tempCtx.getImageData(0,0,tempCanvas.width,tempCanvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+        if(code && code.data){ if(code.location){ const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCanvas.height; const mapCorner = pt => ({ x: Math.round(pt.x * scaleX + sx), y: Math.round(pt.y * scaleY + sy) }); const loc = { topLeftCorner: mapCorner(code.location.topLeftCorner), topRightCorner: mapCorner(code.location.topRightCorner), bottomLeftCorner: mapCorner(code.location.bottomLeftCorner), bottomRightCorner: mapCorner(code.location.bottomRightCorner) }; drawBoundingBox(loc); }
+          const now = Date.now(); if(now - lastScanTime >= SCAN_INTERVAL){ lastScanTime = now; handleScanResult(code.data.trim()); }
+        } else { drawBoundingBox(null); }
+      }catch(e){ console.error('Erro no processamento do frame', e); }
+    }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function handleScanResult(payload){ if(!payload) return; const isDuplicate = scannedData.some(item => item.link===payload && (Date.now()-item.timestamp) < DUPLICATE_WINDOW); if(isDuplicate){ logOutput('Código já escaneado recentemente.'); showPopup('Já escaneado'); return; }
+      const linkSpecificId = extractLinkSpecificId(payload); const qrId = extractQrId(payload);
+      let plataforma = 'Outra'; const l = payload.toLowerCase(); if(l.includes('shopee.com')) plataforma='Shopee'; else if(l.includes('mercadolivre.com')||l.includes('mercadolibre.com')) plataforma='Mercado Livre';
+      const dataHora = new Date().toLocaleString('pt-BR'); const entry = { plataforma, link: payload, dataHora, timestamp: Date.now(), extractedId: linkSpecificId, qrId: qrId };
+      scannedData.unshift(entry); saveScannedData(); renderScans(); beep(); try{ if(navigator.vibrate) navigator.vibrate(80); }catch(e){}
+      const idToCopy = qrId.value || linkSpecificId.value || payload; try{ navigator.clipboard.writeText(idToCopy); showPopup(`✅ OK | Copiado: ${String(idToCopy).substring(0,30)}...`); }catch(e){ showPopup(`✅ OK | Salvo: ${String(idToCopy).substring(0,30)}...`); }
+      logOutput(`Lido: ${plataforma} • ID: ${idToCopy}`);
+      if(autoOpenToggle && autoOpenToggle.checked){ try{ window.open(payload, '_blank'); }catch(e){} }
+    }
+
+    function renderScans(){ if(!scansList) return; scansList.innerHTML=''; if(scannedData.length===0){ scansList.innerHTML='<div style="color:#6c757d; padding:8px;">Nenhum registro encontrado.</div>'; return; }
+      scannedData.forEach(item=>{ const el=document.createElement('div'); el.className='item'; const linkIdValue=item.extractedId?.value||'N/A'; const qrIdValue=item.qrId?.value||'N/A'; el.innerHTML = `\n          <div class="row">\n              <span class="badge" style="background:${item.plataforma==='Shopee'?'#F58120': item.plataforma==='Mercado Livre'?'#FFF200':'#eee'}; color: ${item.plataforma==='Mercado Livre'?'#111':'#fff'};">${item.plataforma}</span>\n              <strong style="flex-grow:1;">ID Link: ${escapeHtml(linkIdValue)}</strong>\n              <div class="actions">\n                  <a href="${escapeHtml(item.link)}" target="_blank" style="text-decoration:none;"><button style="padding:4px 8px; font-size:12px">🔗 Abrir</button></a>\n              </div>\n          </div>\n          <div class="meta">\n              QR ID: ${escapeHtml(qrIdValue)} | Escaneado em: ${escapeHtml(item.dataHora)}\n          </div>\n      `; scansList.appendChild(el); }); }
+
+    function convertToCSV(data){ if(!data||data.length===0) return ''; const headers=['Plataforma','Link_Completo','QR_ID_Tipo','QR_ID_Valor','ID_Tipo','ID_Valor','Data_Hora_Scan','Timestamp_MS']; const rows=[headers.join(';')]; data.forEach(item=>{ const safe=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`; const qrType=item.qrId?.type||''; const qrValue=item.qrId?.value||''; const idType=item.extractedId?.type||''; const idValue=item.extractedId?.value||''; rows.push([ safe(item.plataforma), safe(item.link), safe(qrType), safe(qrValue), safe(idType), safe(idValue), safe(item.dataHora), item.timestamp ].join(';')); }); return rows.join('\r\n'); }
+
+    function exportCSV(){ if(scannedData.length===0){ alert('Nenhum dado escaneado para exportar!'); return; } const csv=convertToCSV(scannedData); const bom='\uFEFF'; const blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`scans_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); logOutput(`CSV exportado com ${scannedData.length} registros.`); }
+
+    function clearScans(){ if(!confirm('Deseja limpar todos os registros escaneados? Esta ação não pode ser desfeita.')) return; scannedData=[]; saveScannedData(); renderScans(); logOutput('Registros limpos.'); }
+
+    // --- Login flow ---
+    function handleLogin(e){ e.preventDefault(); const username=String(usernameInput.value||'').trim(); const password=String(passwordInput.value||'').trim(); const user = defaultUsers[username]; if(user && user.password===password){ localStorage.setItem(LOGIN_KEY,'true'); feedbackMessage.textContent='✅ Login efetuado com sucesso!'; feedbackMessage.style.color='green'; setTimeout(showScanner,400); } else { feedbackMessage.textContent='❌ Usuário ou Senha inválidos. Tente novamente.'; feedbackMessage.style.color='red'; passwordInput.value=''; localStorage.removeItem(LOGIN_KEY); } }
+
+    function logout(){ localStorage.removeItem(LOGIN_KEY); stopCamera(); showLogin(); }
+
+    function showScanner(){ if(loginContainer) loginContainer.style.display='none'; if(scannerContainer) scannerContainer.style.display='block'; scannedData = loadScannedData() || []; renderScans(); logOutput('Aguardando início do scanner.'); }
+    function showLogin(){ if(loginContainer) loginContainer.style.display='block'; if(scannerContainer) scannerContainer.style.display='none'; }
+
+    // --- Setup ---
+    function setupDOMLinks(){ loginContainer=document.getElementById('login-container'); scannerContainer=document.getElementById('scanner-container'); loginForm=document.getElementById('loginForm'); usernameInput=document.getElementById('username'); passwordInput=document.getElementById('password'); feedbackMessage=document.getElementById('feedbackMessage'); video=document.getElementById('videoElement'); overlay=document.getElementById('overlay'); overlayCtx=overlay?overlay.getContext('2d'):null; output=document.getElementById('output'); startButton=document.getElementById('startButton'); stopButton=document.getElementById('stopButton'); torchButton=document.getElementById('torchButton'); exportBtn=document.getElementById('exportBtn'); clearBtn=document.getElementById('clearBtn'); scansList=document.getElementById('scansList'); scanPopup=document.getElementById('scanPopup'); autoOpenToggle=document.getElementById('autoOpenToggle'); autoOpenStatus=document.getElementById('autoOpenStatus'); logoutBtn=document.getElementById('logoutBtn'); }
+
+    function setupListeners(){ if(loginForm) loginForm.addEventListener('submit', handleLogin); if(startButton) startButton.addEventListener('click', startCamera); if(stopButton) stopButton.addEventListener('click', stopCamera); if(torchButton) torchButton.addEventListener('click', toggleTorch); if(exportBtn) exportBtn.addEventListener('click', exportCSV); if(clearBtn) clearBtn.addEventListener('click', clearScans); if(logoutBtn) logoutBtn.addEventListener('click', logout); window.addEventListener('resize', ()=>{ if(video && video.videoWidth) fitCanvases(); }); if(autoOpenToggle && autoOpenStatus){ autoOpenToggle.addEventListener('change', (e)=>{ const checked = e.target.checked; autoOpenStatus.textContent = checked ? 'Auto-abrir: Ativado' : 'Auto-abrir: Desativado'; localStorage.setItem('scanner_auto_open', checked); }); const savedState = localStorage.getItem('scanner_auto_open') === 'true'; autoOpenToggle.checked = savedState; autoOpenStatus.textContent = savedState ? 'Auto-abrir: Ativado' : 'Auto-abrir: Desativado'; }
+    }
+
+    function init(){ setupDOMLinks(); setupListeners(); if(!loginContainer||!scannerContainer){ console.error('ERRO CRÍTICO: Elementos HTML faltando'); return; } const isLoggedIn = localStorage.getItem(LOGIN_KEY) === 'true'; if(isLoggedIn) showScanner(); else showLogin(); if(overlayCtx) drawBoundingBox(null); if(stopButton) stopButton.style.display='none'; if(torchButton) torchButton.style.display='none'; scannedData = loadScannedData() || []; console.log('PegazusLog v0.1: V12 inicializado.'); }
+
+    if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+
+  })();
+  </script>
 </body>
 </html>
