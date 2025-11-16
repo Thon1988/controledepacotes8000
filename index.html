@@ -1,119 +1,162 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PegazusLog v0.1</title>
-<link rel="stylesheet" href="style.css" />
-<style>
-  body {
-    margin:0;
-    font-family: Arial, sans-serif;
-    background:#f0f2f5;
-  }
-  /* Login centralizado */
-  .login-container {
-    position: fixed;
-    top:50%;
-    left:50%;
-    transform: translate(-50%, -50%);
-    background:white;
-    padding:35px;
-    border-radius:12px;
-    width:320px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    text-align:center;
-  }
-  .login-container h1 { font-size:26px; margin-bottom:25px; }
-  .login-container input { width:100%; padding:12px; margin:10px 0; border-radius:6px; border:1px solid #ccc; font-size:16px; }
-  .login-container button { width:100%; padding:12px; font-size:16px; border:none; border-radius:6px; background:#007bff; color:white; cursor:pointer; margin-top:10px; }
-  #feedbackMessage { color:red; margin-top:10px; min-height:18px; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PegazusLog v0.1</title>
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      font-family: Arial, sans-serif;
+      background:#f0f2f5;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+    }
 
-  /* Sidebar menu */
-  #sidebar {
-    display:none;
-    position:fixed;
-    left:0;
-    top:0;
-    width:220px;
-    height:100%;
-    background:#007bff;
-    color:white;
-    padding:20px;
-    box-sizing:border-box;
-    overflow-y:auto;
-  }
-  #sidebar button {
-    width:100%;
-    margin:5px 0;
-    padding:10px;
-    font-size:14px;
-    border:none;
-    border-radius:6px;
-    cursor:pointer;
-  }
-  #sidebar button.logout { background:#dc3545; color:white; }
-  #sidebar h2 { font-size:18px; margin-bottom:15px; }
+    /* LOGIN */
+    .login-container {
+      background:white;
+      padding:40px;
+      border-radius:12px;
+      width:340px;
+      text-align:center;
+      box-shadow:0 4px 20px rgba(0,0,0,0.15);
+    }
+    .login-container h1 {
+      font-size:28px;
+      margin-bottom:25px;
+      color:#007bff;
+    }
+    .login-container input {
+      width:100%;
+      padding:12px;
+      margin:10px 0;
+      border:1px solid #ccc;
+      border-radius:8px;
+      font-size:16px;
+    }
+    .login-container button {
+      width:100%;
+      padding:12px;
+      margin-top:15px;
+      border:none;
+      border-radius:8px;
+      background:#007bff;
+      color:white;
+      font-size:16px;
+      cursor:pointer;
+      transition:0.2s;
+    }
+    .login-container button:hover {
+      background:#0056b3;
+    }
+    #feedbackMessage {
+      margin-top:10px;
+      font-size:14px;
+    }
 
-  /* Main app content */
-  #main {
-    margin-left:0;
-    padding:20px;
-    transition: margin-left 0.3s ease;
-  }
-  body.logged-in #sidebar { display:block; }
-  body.logged-in #main { margin-left:240px; }
-  video#videoElement { width:100%; max-width:600px; border-radius:12px; background:#000; }
-  canvas#overlay { position:absolute; top:0; left:0; pointer-events:none; }
-  #scansList { margin-top:15px; max-height:200px; overflow-y:auto; }
-  .item { padding:5px; border-bottom:1px solid #ccc; }
-  .item strong { display:block; }
+    /* APP CONTAINER */
+    body.logged-in {
+      flex-direction:row;
+      align-items:flex-start;
+      justify-content:flex-start;
+      height:auto;
+      background:#e9ecef;
+    }
+    #sidebar {
+      display:none;
+      background:white;
+      padding:15px;
+      width:200px;
+      min-height:100vh;
+      box-shadow:2px 0 5px rgba(0,0,0,0.1);
+      position:fixed;
+      left:0;
+      top:0;
+    }
+    body.logged-in #sidebar { display:block; }
 
-</style>
+    #sidebar button {
+      width:100%;
+      padding:10px;
+      margin-bottom:10px;
+      border:none;
+      border-radius:6px;
+      background:#007bff;
+      color:white;
+      cursor:pointer;
+      font-size:14px;
+    }
+    #sidebar button:hover { background:#0056b3; }
+
+    #appContent {
+      margin-left:220px;
+      padding:20px;
+      width:calc(100% - 220px);
+    }
+
+    video#videoElement {
+      width:100%;
+      max-width:600px;
+      border-radius:12px;
+      margin-bottom:15px;
+      display:none;
+    }
+    canvas#overlay {
+      position:absolute;
+      display:none;
+    }
+
+    #scansList {
+      margin-top:15px;
+      max-height:400px;
+      overflow:auto;
+      background:white;
+      border-radius:8px;
+      padding:10px;
+      box-shadow:0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .item {
+      border-bottom:1px solid #eee;
+      padding:5px 0;
+    }
+    .item strong { display:block; }
+    .item small { color:#666; font-size:12px; }
+  </style>
 </head>
 <body>
 
-<!-- Login -->
-<div class="login-container" id="loginScreen">
-  <h1>PegazusLog v0.1</h1>
-  <input type="text" id="loginUser" placeholder="Usuário" />
-  <input type="password" id="loginPass" placeholder="Senha" />
-  <button id="loginBtn">Entrar</button>
-  <p id="feedbackMessage"></p>
-</div>
+  <!-- LOGIN -->
+  <div class="login-container">
+    <h1>PegazusLog v0.1</h1>
+    <input type="text" id="loginUser" placeholder="Usuário" />
+    <input type="password" id="loginPass" placeholder="Senha" />
+    <button id="loginBtn">Entrar</button>
+    <p id="feedbackMessage"></p>
+  </div>
 
-<!-- Sidebar -->
-<div id="sidebar">
-  <h2>Menu</h2>
-  <div class="menu-admin" style="display:none;">
-    <button id="btnAddUser">Adicionar Usuário</button>
-    <button id="btnAllCSV">Exportar CSV Geral</button>
-  </div>
-  <div class="menu-gestor" style="display:none;">
-    <button id="btnAddColab">Adicionar Colaborador</button>
-    <button id="btnGestorCSV">Exportar CSV Colaboradores</button>
-  </div>
-  <div class="menu-colab" style="display:none;">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
     <button id="btnStartScanner">Abrir Câmera</button>
+    <button id="btnMap">Mapa de Entregas</button>
+    <button id="btnRoute">Gerar Rota</button>
+    <button id="btnSearchQR">Pesquisar QR Code</button>
+    <button id="btnFilterDate">Filtrar por Data</button>
+    <button id="btnAllCSV">Gerar Relatório CSV</button>
+    <button onclick="logout()">Sair</button>
   </div>
 
-  <button id="btnMap">Mapa de Entregas</button>
-  <button id="btnRoute">Gerar Rota</button>
-  <button id="btnSearchQR">Pesquisar QR Code</button>
-  <button id="btnFilterDate">Filtrar por Data</button>
-  <button class="logout" onclick="logout()">Sair</button>
-</div>
-
-<!-- Main Content -->
-<div id="main">
-  <div id="cameraWrap" style="position:relative;">
+  <!-- APP CONTENT -->
+  <div id="appContent">
     <video id="videoElement" autoplay playsinline></video>
     <canvas id="overlay"></canvas>
+    <div id="scansList">0 entregas registradas.</div>
   </div>
-  <div id="scansList">0 entregas registradas.</div>
-</div>
 
-<script src="jsQR.js"></script>
-<script src="app.js"></script>
+  <script src="jsQR.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
