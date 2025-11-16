@@ -27,6 +27,7 @@ function logout() {
 
 // === MENU LATERAL ===
 const menuBtn = document.getElementById("menuBtn");
+menuBtn.style.display = "none"; // escondido no login = document.getElementById("menuBtn");
 const sidebar = document.getElementById("sidebar");
 menuBtn.onclick = () => {
   if (!logged) return;
@@ -83,6 +84,23 @@ function tick() {
 }
 
 function processQRCode(text) {
+  // === BEEP ===
+  const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
+  audio.play();
+
+  const parsed = parseQRCode(text);
+  if (!parsed) return alert("Formato inválido do QR Code");
+
+  // === BLOQUEAR QR DUPLICADO ===
+  const exists = deliveries.some(d => d.nome === parsed.nome && d.endereco === parsed.endereco && d.cep === parsed.cep && d.telefone === parsed.telefone);
+  if (exists) {
+    alert("⚠️ Este QR Code já foi escaneado!");
+    return;
+  }
+
+  deliveries.push(parsed);
+  atualizarListaEntregas();
+}(text) {
   const parsed = parseQRCode(text);
   if (!parsed) return alert("Formato inválido do QR Code");
 
