@@ -114,17 +114,12 @@
             console.error("Erro ao carregar usuários salvos, usando padrões.", e);
         }
         
+        // Garante que o usuário padrão 'thon' sempre exista
         if (!loadedUsers['thon']) {
             loadedUsers['thon'] = defaultUsers['thon'];
             if (!isDefault) { 
                 saveUsers(); 
             }
-        }
-
-        // Garante que o usuário padrão 'thon' sempre exista
-        if (!loadedUsers['thon']) {
-            loadedUsers['thon'] = defaultUsers['thon'];
-            saveUsers();
         }
         
         // Garante que os campos de metadados existam para todos os usuários
