@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.5 (BETA) | Câmera, Scanner, Usuários, Sons e Entrada Manual Corrigida
+// app.js — PegazusLog v0.5 (FINAL) | Inclui Sons, Gerenciamento de Usuários e Correção na Leitura de QR/Manual
 
 // ======================// LOGIN E UTILS // ======================
 const VALID_USERS = {
@@ -245,7 +245,7 @@ function handleManualEntry() {
     }
 
     const nome = prompt("✏️ 2/4 Digite o Nome do Cliente:");
-    const endereco = prompt("✏️ 3/4 Digite o Endereço completo (Rua, Número, Bairro):");
+    const endereco = prompt("✏️ 3/4 Digite o Endereço completo (Rua, Número, Bairro, Cidade):");
     const telefone = prompt("✏️ 4/4 Digite o Telefone do Cliente:");
     
     // Chamamos registerManualEntry, passando os dados estruturados.
@@ -254,7 +254,7 @@ function handleManualEntry() {
         nome: nome ? nome.trim() : "Nome Não Informado",
         endereco: endereco ? endereco.trim() : "",
         telefone: telefone ? telefone.trim() : "",
-        cep: "" // Não solicitado, mas mantido para a estrutura
+        cep: "" // CEP não capturado
     });
 }
 
@@ -554,7 +554,8 @@ function scanLoop() {
 
 async function geocodeAddress(scanObj) {
     if (!scanObj.endereco) return;
-    const query = encodeURIComponent(`${scanObj.endereco}, ${scanObj.cep}, Brasil`);
+    // Usa CEP se disponível, senão usa apenas Endereço
+    const query = encodeURIComponent(`${scanObj.endereco}${scanObj.cep ? ', ' + scanObj.cep : ''}, Brasil`);
     try {
         // Usa Nominatim (OpenStreetMap) para geocodificação
         const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
@@ -575,30 +576,42 @@ async function registerScan(data) {
         return;
     }
     
-    // Função para extrair campos do código QR (formato Chave: Valor)
+    let nome = "ID/Desconhecido";
+    let enderecoCompleto = "";
+    let telefone = "";
+    let cep = "";
+    
+    // Tentativa 1: Parsing baseado em Ordem (assumindo quebras de linha)
+    const lines = data.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+    if (lines.length >= 2) {
+        // Assume que a primeira linha é o Destinatário
+        nome = lines[0];
+        // Assume que as linhas seguintes formam o endereço completo para geocodificação
+        enderecoCompleto = lines.slice(1).join(', '); 
+    } else {
+        // Fallback: Usa o código bruto como nome
+        nome = `ID: ${data.substring(0, 20).trim()}`;
+    }
+    
+    // Tentativa 2: Fallback ou Complemento via Regex (para Telefone e CEP se estiverem marcados)
     const regex = (key) => {
         const match = data.match(new RegExp(`${key}:([^\n]*)`, 'i'));
         return match ? match[1].trim() : "";
     };
 
-    let nome = regex("NOME");
-    let endereco = regex("ENDEREÇO");
-    let cep = regex("CEP");
-    let telefone = regex("TELEFONE");
-    
-    // Fallback
-    if (!nome && !endereco) { 
-        nome = `ID: ${data.substring(0, 20).trim()}`;
-    }
+    // Tenta complementar o telefone e CEP, se o QR Code usar o formato CHAVE:VALOR para eles
+    telefone = regex("TELEFONE");
+    cep = regex("CEP");
 
-
+    // Estruturação do objeto de registro
     const scanObj = {
         id: generateId(), 
         rawId: data, 
-        nome: nome || "ID/Desconhecido", 
-        endereco: endereco || "",
-        cep: cep || "",
-        telefone: telefone || "",
+        nome: nome, 
+        endereco: enderecoCompleto,
+        cep: cep,
+        telefone: telefone,
         gestor: currentUser ? currentUser.username : "Desconhecido",
         date: new Date().toLocaleString('pt-BR')
     };
