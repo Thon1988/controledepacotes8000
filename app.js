@@ -1,58 +1,47 @@
-// =========================================================
-// Pegazus Scanner v12 - app.js  (VERSÃO CORRIGIDA + LOGIN OK)
-// =========================================================
-
-// -----------------------------
-// LOGIN
-// -----------------------------
-
+// PegazusLog v12 - app.js (corrigido + login funcionando + modo A)
+// ===============================================================
+// LOGIN SIMPLES
 const VALID_USERS = {
     "thon": "882010",
     "manager1": "123"
 };
 
 document.getElementById("loginBtn").addEventListener("click", function () {
-
     const username = document.getElementById("loginUser").value.trim();
     const password = document.getElementById("loginPass").value.trim();
-    const status = document.getElementById("loginStatus");
+    const status = document.getElementById("feedbackMessage");
 
     if (VALID_USERS[username] === password) {
         status.textContent = "✔ Login realizado com sucesso!";
         status.style.color = "green";
 
-        // ativa layout logado
+        // Ativa a tela logada (modo A)
         document.body.classList.add("logged-in");
-
-        // limpa campos
-        document.getElementById("loginUser").value = "";
-        document.getElementById("loginPass").value = "";
-
     } else {
         status.textContent = "❌ Usuário ou senha incorretos";
         status.style.color = "red";
     }
 });
 
-
-// =========================================================
-// SCANNER
-// =========================================================
-
+// ================================
+// QR CODE SCANNER
+// ================================
 let video = document.getElementById("videoElement");
 let overlay = document.getElementById("overlay");
 let overlayCtx = overlay.getContext("2d");
 
 let scanning = false;
+let torchEnabled = false;
 let currentStream = null;
 
-// Ajusta o canvas ao tamanho do vídeo
+// Ajustar canvas ao tamanho do vídeo
 function adjustCanvas() {
     overlay.width = video.videoWidth;
     overlay.height = video.videoHeight;
 }
 
-// Desenha borda verde no QR detectado
+// Desenhar borda
+e
 function drawFrame(result) {
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
 
@@ -60,24 +49,19 @@ function drawFrame(result) {
 
     overlayCtx.strokeStyle = "lime";
     overlayCtx.lineWidth = 4;
-
-    const tl = result.location.topLeftCorner;
-    const br = result.location.bottomRightCorner;
-
-    overlayCtx.strokeRect(
-        tl.x,
-        tl.y,
-        br.x - tl.x,
-        br.y - tl.y
-    );
+    overlayCtx.strokeRect(result.location.topLeftCorner.x, result.location.topLeftCorner.y,
+        result.location.bottomRightCorner.x - result.location.topLeftCorner.x,
+        result.location.bottomRightCorner.y - result.location.topLeftCorner.y);
 }
 
-// Inicia a câmera
+// Iniciar câmera
 async function startScanner() {
     try {
         const constraints = {
             audio: false,
-            video: { facingMode: "environment" }
+            video: {
+                facingMode: "environment"
+            }
         };
 
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -95,18 +79,17 @@ async function startScanner() {
     }
 }
 
-// Para a câmera
+// Parar câmera
 function stopScanner() {
     scanning = false;
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
 
     if (currentStream) {
-        currentStream.getTracks().forEach(t => t.stop());
+        currentStream.getTracks().forEach(track => track.stop());
     }
 }
 
-
-// Loop de detecção
+// Loop de varredura
 function scanLoop() {
     if (!scanning) return;
 
@@ -124,11 +107,9 @@ function scanLoop() {
     requestAnimationFrame(scanLoop);
 }
 
-
-// =========================================================
-// REGISTROS
-// =========================================================
-
+// ================================
+// REGISTRO DE LEITURAS
+// ================================
 let scans = JSON.parse(localStorage.getItem("pegazus_scans") || "[]");
 let scansList = document.getElementById("scansList");
 
@@ -146,21 +127,18 @@ function renderScans() {
 }
 
 function registerScan(data) {
-    const timestamp = new Date().toLocaleString();
+    const date = new Date().toLocaleString();
 
-    scans.unshift({ code: data, date: timestamp });
-
+    scans.unshift({ code: data, date: date });
     saveScans();
     renderScans();
 
     document.getElementById("output").textContent = "Último: " + data;
 }
 
-
-// =========================================================
+// ================================
 // FERRAMENTAS
-// =========================================================
-
+// ================================
 function escapeHtml(text) {
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return text.replace(/[&<>"']/g, m => map[m]);
@@ -171,14 +149,11 @@ function beep() {
     audio.play();
 }
 
-
-// =========================================================
+// ================================
 // BOTÕES
-// =========================================================
-
+// ================================
 document.getElementById("startButton").onclick = startScanner;
 document.getElementById("stopButton").onclick = stopScanner;
-
 document.getElementById("clearBtn").onclick = () => {
     if (confirm("Limpar todos os registros?")) {
         scans = [];
@@ -188,9 +163,7 @@ document.getElementById("clearBtn").onclick = () => {
 };
 
 document.getElementById("exportBtn").onclick = () => {
-    let csv = "codigo,data\n" +
-        scans.map(i => `${i.code},${i.date}`).join("\n");
-
+    let csv = "codigo,data\n" + scans.map(i => `${i.code},${i.date}`).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
 
@@ -199,7 +172,6 @@ document.getElementById("exportBtn").onclick = () => {
     a.download = "registros.csv";
     a.click();
 };
-
 
 // Render inicial
 renderScans();
