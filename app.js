@@ -28,6 +28,7 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 function beep() {
     try {
+        // Gera um som simples para confirmação de leitura
         const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
         audio.play();
     } catch (e) { console.warn("Falha ao emitir beep."); }
@@ -78,7 +79,7 @@ function showView(viewId) {
             document.querySelector(".view-container").style.left = "0"; // View-container ocupa toda a largura
             
             if (voltarBtn) {
-                voltarBtn.style.display = "block"; // Apenas torna visível (a posição é fixa inferior)
+                voltarBtn.style.display = "block"; // Torna o botão Voltar visível
             }
             
             document.getElementById("cameraContainer").style.display = "flex";
@@ -168,6 +169,21 @@ function initMenuEvents() {
         currentFilters.dateEnd = document.getElementById("filterDateEnd").value;
         updateFilteredScans();
     };
+    
+    // Eventos de Exportação
+    const exportBtn = document.getElementById("btnExport");
+    const exportMenu = document.getElementById("exportMenu");
+
+    exportBtn.onclick = () => {
+        if (exportMenu) exportMenu.style.display = exportMenu.style.display === "flex" ? "none" : "flex";
+    };
+
+    document.querySelectorAll(".exportOption").forEach(btn => {
+      btn.onclick = () => {
+        if (exportMenu) exportMenu.style.display = "none";
+        exportCSV(btn.dataset.period);
+      };
+    });
 }
 
 // ======================// MAPA LEAFLET // ======================
@@ -224,11 +240,11 @@ async function startScanner(deviceId) {
              }
         }
         
-        // TENTATIVA 2: Busca pela câmera principal (resolução alta) - Novo
+        // TENTATIVA 2: Busca pela câmera principal (resolução alta) - NOVO
         if (!successful && !deviceId) {
-            // Tenta forçar alta resolução, geralmente associada à lente principal.
+            // Tenta forçar alta resolução (pelo menos 720p), geralmente associada à lente principal.
             constraints = { video: { 
-                width: { min: 1280 }, // Exige resolução mínima de 720p (1280x720)
+                width: { min: 1280 }, 
                 height: { min: 720 }, 
                 facingMode: { exact: "environment" }
             }};
@@ -360,6 +376,7 @@ async function geocodeAddress(scanObj) {
     if (!scanObj.endereco) return;
     const query = encodeURIComponent(`${scanObj.endereco}, ${scanObj.cep}, Brasil`);
     try {
+        // Usa Nominatim (OpenStreetMap) para geocodificação
         const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
         const data = await resp.json();
         if (data.length > 0) {
@@ -436,6 +453,14 @@ function populateGestorFilter() {
     });
 }
 
+// Função auxiliar para parsear a data do formato "DD/MM/YYYY" para Date object
+function parseStoredDate(s) {
+    // Assume que a data está no formato "DD/MM/YYYY, HH:MM:SS"
+    const parts = s.date.split(',')[0].trim().split('/');
+    // Cria a data no formato YYYY, MM-1, DD
+    return new Date(parts[2], parts[1] - 1, parts[0]); 
+}
+
 function updateFilteredScans() {
     filteredScans = [...scans];
     
@@ -444,13 +469,14 @@ function updateFilteredScans() {
     }
     
     if (currentFilters.dateStart || currentFilters.dateEnd) {
-        const start = currentFilters.dateStart ? new Date(currentFilters.dateStart) : null;
-        const end = currentFilters.dateEnd ? new Date(currentFilters.dateEnd) : null;
+        // Criamos as datas de corte no fuso horário local, ignorando o tempo, para comparação apenas da data.
+        const start = currentFilters.dateStart ? new Date(currentFilters.dateStart + 'T00:00:00') : null;
+        const end = currentFilters.dateEnd ? new Date(currentFilters.dateEnd + 'T23:59:59') : null;
 
         filteredScans = filteredScans.filter(s => {
-            const parts = s.date.split(',')[0].trim().split('/');
-            const scanDate = new Date(parts[2], parts[1] - 1, parts[0]);
+            const scanDate = parseStoredDate(s);
             
+            // Compara apenas a data (dia, mês e ano)
             let isAfterStart = start ? scanDate >= start : true;
             let isBeforeEnd = end ? scanDate <= end : true;
             
@@ -488,11 +514,27 @@ function generateOptimizedRoute(){
     const points=filteredScans.filter(s=>s.lat&&s.lng).map(s=>({lat:s.lat,lng:s.lng,nome:s.nome}));
     if(points.length<2) return alert("São necessários pelo menos 2 endereços com geolocalização.");
 
+    // Implementação simplificada do Algoritmo do Vizinho Mais Próximo
     let visited=[], route=[points[0]]; visited.push(0);
     while(route.length<points.length){
         const last=route[route.length-1]; let nearestIdx=-1, nearestDist=Infinity;
-        points.forEach((p,i)=>{if(!visited.includes(i)){const dist=Math.hypot(last.lat-p.lat,last.lng-p.lng); if(dist<nearestDist){nearestDist=dist; nearestIdx=i;}}});
-        route.push(points[nearestIdx]); visited.push(nearestIdx);
+        points.forEach((p,i)=>{
+            if(!visited.includes(i)){
+                // Calcula distância euclidiana (aproximação)
+                const dist=Math.hypot(last.lat-p.lat,last.lng-p.lng); 
+                if(dist<nearestDist){ 
+                    nearestDist=dist; 
+                    nearestIdx=i;
+                }
+            }
+        });
+        if(nearestIdx !== -1) {
+            route.push(points[nearestIdx]); 
+            visited.push(nearestIdx);
+        } else {
+            // Caso de erro, ou se todos foram visitados
+            break; 
+        }
     }
 
     const latlngs=route.map(p=>[p.lat,p.lng]);
@@ -503,31 +545,13 @@ function generateOptimizedRoute(){
 
 
 // ======================// EXPORTAÇÃO CSV POR PERÍODO // ======================
-const exportBtn = document.getElementById("btnExport");
-const exportMenu = document.getElementById("exportMenu");
-
-exportBtn.onclick = () => {
-    if (exportMenu) exportMenu.style.display = exportMenu.style.display === "flex" ? "none" : "flex";
-};
-
-document.querySelectorAll(".exportOption").forEach(btn => {
-  btn.onclick = () => {
-    if (exportMenu) exportMenu.style.display = "none";
-    exportCSV(btn.dataset.period);
-  };
-});
 
 function exportCSV(period){
   if(scans.length===0){ alert("Nenhum registro!"); return; }
 
-  const now = new Date();
+  const now = new new Date();
   let filtered = [...scans];
   let filename = "entregas_geral";
-
-  const parseStoredDate = (s) => {
-      const parts = s.date.split(',')[0].trim().split('/');
-      return new Date(parts[2], parts[1] - 1, parts[0]);
-  };
 
   if(period==="diario"){
     filtered=scans.filter(s=>parseStoredDate(s).toDateString()===now.toDateString());
@@ -553,12 +577,19 @@ function exportCSV(period){
   if(filtered.length===0){ alert(`Nenhum registro encontrado para o período ${period}.`); return; }
   
   // CSV HEADER: rawId (código completo) incluído
-  let csv = "id,rawId,nome,endereco,cep,telefone,gestor,data,latitude,longitude\n" + 
-            filtered.map(s => 
-                `${s.id},"${s.rawId.replace(/"/g, '""')}",${s.nome},${s.endereco},${s.cep},${s.telefone},${s.gestor},${s.date},${s.lat || ''},${s.lng || ''}`
-            ).join("\n");
+  const csvHeader = "id,rawId,nome,endereco,cep,telefone,gestor,data,latitude,longitude\n";
+  
+  // Mapeia os dados, garantindo que o rawId (código completo) e outros campos com vírgulas/aspas sejam tratados corretamente
+  const csvData = filtered.map(s => {
+      // Função para envolver o campo em aspas e duplicar aspas internas (padrão CSV)
+      const escapeCsv = (data) => `"${String(data || '').replace(/"/g, '""')}"`;
+
+      return `${s.id},${escapeCsv(s.rawId)},${escapeCsv(s.nome)},${escapeCsv(s.endereco)},${escapeCsv(s.cep)},${escapeCsv(s.telefone)},${escapeCsv(s.gestor)},${escapeCsv(s.date)},${s.lat || ''},${s.lng || ''}`;
+  }).join("\n");
             
-  const bom = "\uFEFF";
+  // Adiciona BOM (Byte Order Mark) para garantir que caracteres especiais sejam lidos corretamente
+  const bom = "\uFEFF"; 
+  const csv = csvHeader + csvData;
   const blob = new Blob([bom + csv], {type:"text/csv;charset=utf-8;"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
