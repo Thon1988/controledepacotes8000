@@ -1,4 +1,3 @@
-// Usuários e níveis
 const USERS = {
   "thon": { password: "882010", role: "admin" },
   "manager1": { password: "123", role: "gestor" },
@@ -10,9 +9,8 @@ let map, userMarker;
 let cameraAllowed = localStorage.getItem("cameraAllowed");
 let locationAllowed = localStorage.getItem("locationAllowed");
 
-// LOGIN
-const loginBtn = document.getElementById("loginBtn");
-loginBtn.addEventListener("click", async () => {
+// Login
+document.getElementById("loginBtn").addEventListener("click", async () => {
   const user = document.getElementById("loginUser").value.trim();
   const pass = document.getElementById("loginPass").value.trim();
 
@@ -22,7 +20,6 @@ loginBtn.addEventListener("click", async () => {
     document.getElementById("mainContent").style.display = "block";
     renderSidebarByRole();
 
-    // Solicita permissões se nunca permitidas
     if (!cameraAllowed) {
       cameraAllowed = await requestCameraPermission();
       localStorage.setItem("cameraAllowed", cameraAllowed);
@@ -36,7 +33,6 @@ loginBtn.addEventListener("click", async () => {
   } else {
     const feedbackMessage = document.getElementById("feedbackMessage");
     feedbackMessage.textContent = "❌ Usuário ou senha inválidos";
-    feedbackMessage.style.color = "red";
   }
 });
 
@@ -54,19 +50,15 @@ async function requestCameraPermission() {
 // Permissão localização
 async function requestLocationPermission() {
   return new Promise(resolve => {
-    if (!navigator.geolocation) {
-      alert("Geolocalização não suportada!");
-      resolve(false);
-    } else {
-      navigator.geolocation.getCurrentPosition(
-        () => resolve(true),
-        () => { alert("Permissão de localização negada!"); resolve(false); }
-      );
-    }
+    if (!navigator.geolocation) { alert("Geolocalização não suportada!"); resolve(false); }
+    navigator.geolocation.getCurrentPosition(
+      () => resolve(true),
+      () => { alert("Permissão de localização negada!"); resolve(false); }
+    );
   });
 }
 
-// SIDEBAR por função
+// Sidebar por função
 function renderSidebarByRole() {
   const sidebar = document.getElementById("sidebar");
   const allButtons = sidebar.querySelectorAll("button");
@@ -81,29 +73,20 @@ function renderSidebarByRole() {
   }
 }
 
-// LOGOUT
 function logout() { location.reload(); }
+function goBack() { document.getElementById("mainContent").scrollIntoView(); }
 
-// BOTÃO VOLTAR
-function goBack() {
-  document.getElementById("mainContent").scrollIntoView();
-}
-
-// ============================
 // MAPA
-// ============================
 function initMap() {
   map = L.map('map').setView([0,0],13);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OSM' }).addTo(map);
 
-  if (locationAllowed && navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      map.setView([lat, lng], 15);
-      userMarker = L.marker([lat,lng]).addTo(map).bindPopup("Você está aqui").openPopup();
+  if(locationAllowed && navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const lat=pos.coords.latitude;
+      const lng=pos.coords.longitude;
+      map.setView([lat,lng],15);
+      userMarker=L.marker([lat,lng]).addTo(map).bindPopup("Você está aqui").openPopup();
     });
   }
 }
@@ -114,7 +97,6 @@ function initMap() {
 let video = document.getElementById("videoElement");
 let overlay = document.getElementById("overlay");
 let overlayCtx = overlay.getContext("2d");
-
 let scanning = false;
 let currentStream = null;
 let scans = JSON.parse(localStorage.getItem("pegazus_scans") || "[]");
@@ -125,11 +107,11 @@ function adjustCanvas() {
   overlay.height = video.videoHeight;
 }
 
-function drawFrame(result) {
+function drawFrame(result){
   overlayCtx.clearRect(0,0,overlay.width,overlay.height);
   if(!result) return;
-  overlayCtx.strokeStyle = "lime";
-  overlayCtx.lineWidth = 4;
+  overlayCtx.strokeStyle="lime";
+  overlayCtx.lineWidth=4;
   overlayCtx.strokeRect(
     result.location.topLeftCorner.x,
     result.location.topLeftCorner.y,
@@ -139,27 +121,27 @@ function drawFrame(result) {
 }
 
 // Iniciar scanner
-async function startScanner() {
-  if (!cameraAllowed) return alert("Câmera não autorizada!");
-  try {
-    const constraints = { video: { facingMode: { exact: "environment" } }, audio:false };
+async function startScanner(){
+  if(!cameraAllowed) return alert("Câmera não autorizada!");
+  try{
+    const constraints = { video: { facingMode: "environment" }, audio:false };
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = currentStream;
-    video.style.display = "block";
-    overlay.style.display = "block";
-    video.onloadedmetadata = () => { adjustCanvas(); video.play(); scanning=true; scanLoop(); };
-  } catch(e) {
+    video.srcObject=currentStream;
+    video.style.display="block";
+    overlay.style.display="block";
+    video.onloadedmetadata = ()=>{ adjustCanvas(); video.play(); scanning=true; scanLoop(); };
+  } catch(e){
     alert("Erro ao acessar câmera: "+e);
   }
 }
 
 // Loop scanner
-function scanLoop() {
+function scanLoop(){
   if(!scanning) return;
   overlayCtx.drawImage(video,0,0,overlay.width,overlay.height);
   const imageData = overlayCtx.getImageData(0,0,overlay.width,overlay.height);
   const code = jsQR(imageData.data,imageData.width,imageData.height);
-  if(code) { drawFrame(code); registerScan(code.data); beep(); }
+  if(code){ drawFrame(code); registerScan(code.data); beep(); }
   requestAnimationFrame(scanLoop);
 }
 
@@ -186,6 +168,7 @@ function registerScan(data){
   renderScans();
 }
 
+// Renderizar scans
 function renderScans(){
   if(scans.length===0){ scansList.innerHTML="0 entregas registradas."; return; }
   scansList.innerHTML=scans.map(item=>`
@@ -199,16 +182,16 @@ function renderScans(){
 }
 
 // BEEP
-function beep(){ const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="); audio.play(); }
+function beep(){ const audio=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="); audio.play(); }
 
 // BOTÕES
 document.getElementById("btnStartScanner").addEventListener("click", startScanner);
 document.getElementById("btnAllCSV").addEventListener("click",()=>{
   if(scans.length===0) return alert("Sem registros para exportar.");
   let csv="nome,endereco,cep,telefone,gestor,data\n"+scans.map(s=>`${s.nome},${s.endereco},${s.cep},${s.telefone},${s.gestor},${s.date}`).join("\n");
-  const blob = new Blob([csv],{type:"text/csv"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
   a.href=url;
   a.download="registros.csv";
   a.click();
