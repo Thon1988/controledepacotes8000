@@ -1,4 +1,4 @@
-// app.js — PegazusLog v0.1: Authentication, QR Scanning, and Data Management
+// app.js — PegazusLog v0.1: Authentication Bypass, QR Scanning, and Data Management
 
 (() => {
     // --- Referências de Elementos ---
@@ -20,7 +20,7 @@
     let scanning = false;
     let lastScanTime = 0;
     let scannedData = loadScannedData();
-    let users = loadUsers(); 
+    let users = loadUsers(); // Carrega lista de usuários e suas roles
     
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -28,7 +28,7 @@
     let torchOn = false;
     
     // A data selecionada é sempre o dia atual por padrão
-    let selectedDate = new Date().toISOString().substring(0, 10); 
+    let selectedDate = new Date().toISOString().substring(0, 0); 
 
     // --- UTILS (Log, Popup) ---
     function beep(duration = 90, freq = 1400, vol = 0.12) {
@@ -52,7 +52,7 @@
         }
     }
     
-    function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+    function escapeHtml(s) { return (s+'').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'''})[c]); }
     function formatDate(date) { return date.toISOString().substring(0, 10); }
 
     // --- DADOS E LOCAL STORAGE ---
@@ -72,11 +72,12 @@
     function saveUsers() { try { localStorage.setItem(USER_KEY, JSON.stringify(users)); } catch (e) { console.warn(e); } }
     
     function loadUsers() {
-        // Usuários Padrão para Teste
+        // Usuários Padrão (Usados para definir roles e permissões)
         const defaultUsers = {
             'thon': { password: '882010', role: 'administrator', createdBy: 'system' }, 
             'manager1': { password: '123', role: 'manager', createdBy: 'system' },     
-            'user1': { password: 'user1', role: 'user', createdBy: 'manager1' }        
+            'user1': { password: 'user1', role: 'user', createdBy: 'manager1' },
+            'convidado': { password: 'nao-se-aplica', role: 'guest', createdBy: 'system' }
         };
         
         let loadedUsers = {};
@@ -85,9 +86,8 @@
             if (raw) { loadedUsers = JSON.parse(raw); }
         } catch (e) { console.error("Erro ao carregar usuários salvos, usando padrões.", e); }
         
-        // Garante que o usuário padrão sempre exista
-        if (!loadedUsers['thon']) { loadedUsers['thon'] = defaultUsers['thon']; saveUsers(); }
-        return Object.assign(defaultUsers, loadedUsers); // Combina padrões com carregados
+        // Combina padrões com carregados
+        return Object.assign(defaultUsers, loadedUsers); 
     }
     
     function getLoggedInUser() {
@@ -100,26 +100,35 @@
 
     function isAuthenticated() { return !!getLoggedInUser(); }
     function isAdmin() { const user = getLoggedInUser(); return user && user.role === 'administrator'; }
-    function isManager() { const user = getLoggedInUser(); return user && user.role === 'manager'; }
+    function isManager() { const user = getLoggedInUser(); return user && (user.role === 'manager' || user.role === 'administrator'); }
 
+    // **********************************************
+    // Função de Login MODIFICADA para IGNORAR a senha
+    // **********************************************
     function loginUser(username, password) {
         users = loadUsers(); 
+
+        // --- BYPASS DE AUTENTICAÇÃO TEMPORÁRIO PARA CONVENIÊNCIA ---
+        let userRole = 'guest';
+        let userToLog = username.trim() || 'Convidado';
         
-        if (users[username] && users[username].password === password) {
-            const user = { username, role: users[username].role, createdBy: users[username].createdBy, timestamp: Date.now() }; 
-            sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
-            
-            if (loginUserField) loginUserField.value = '';
-            if (loginPassField) loginPassField.value = '';
-            
-            logLoginStatus('Login realizado com sucesso!', false);
-            
-            updateUIForAuth();
-            renderScans(); 
-            return true;
+        // Se o usuário digitado for um dos usuários padrão (thon, manager1), usa o papel definido
+        if (users[userToLog]) {
+             userRole = users[userToLog].role;
         }
-        logLoginStatus('Login falhou: Usuário ou senha inválidos.', true);
-        return false;
+
+        const user = { username: userToLog, role: userRole, timestamp: Date.now() }; 
+        sessionStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify(user));
+        // --- FIM DO BYPASS ---
+
+        if (loginUserField) loginUserField.value = '';
+        if (loginPassField) loginPassField.value = '';
+        
+        logLoginStatus(`Login realizado como ${userToLog}.`, false);
+        
+        updateUIForAuth();
+        renderScans(); 
+        return true;
     }
 
     function logoutUser() {
@@ -136,11 +145,12 @@
     function getFilterableUsernames(currentUser) {
         if (isAdmin()) { return Object.keys(users); }
         if (isManager()) {
+            // Gerentes podem ver seus próprios scans e os scans dos usuários que criaram (se a lógica de criação fosse real)
             const managerCreatedUsernames = Object.keys(users).filter(u => users[u].createdBy === currentUser.username && users[u].role === 'user');
             managerCreatedUsernames.push(currentUser.username);
             return managerCreatedUsernames;
         }
-        return [currentUser.username];
+        return [currentUser.username]; // Usuário comum ou convidado só vê os próprios
     }
     
     function getFilteredScans() {
@@ -156,4 +166,4 @@
     function getCompradorInfo(mainId) {
         // Simulação de dados do comprador (baseado no ID do QR para consistência)
         const hash = (mainId || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const names = ["João Silva", "Maria Santos", "Pedro Almeida", "Ana Oliveira", "Carlos Souza", "Juliana Lima"];
+        const names = ["João Silva", "Maria Santos", "Pedro Almeida", "Ana Oliveira", "Carlos Souza", "Juliana
