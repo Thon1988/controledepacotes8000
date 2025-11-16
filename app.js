@@ -1,21 +1,33 @@
-// app.js atualizado com controle de permissões (Item 2)
+// app.js atualizado com persistência via LocalStorage (MODELO B)
 
 // === ESTADO GLOBAL ===
 let logged = false;
 let cameraStream = null;
 let scanning = false;
-let deliveries = []; // armazenará objetos: { id, nome, endereco, cep, telefone, data, user }
-
-// === BASE DE USUÁRIOS ===
-// admin pode tudo;
-// gestor pode adicionar colaboradores e ver CSV deles;
-// colaborador só escaneia e gera seu próprio CSV.
-
-let users = [
-  { username: "thon", password: "882010", role: "admin", owner: null },
-];
-
+let deliveries = JSON.parse(localStorage.getItem("deliveries") || "[]");
 let currentUser = null;
+
+// === BASE DE USUÁRIOS (LocalStorage) ===
+// Estrutura do usuário:
+// { username, password, role, owner }
+
+function loadUsers() {
+  let saved = localStorage.getItem("users");
+  if (saved) return JSON.parse(saved);
+
+  // Se não existir, cria base inicial
+  const base = [
+    { username: "thon", password: "882010", role: "admin", owner: null }
+  ];
+  localStorage.setItem("users", JSON.stringify(base));
+  return base;
+}
+
+function saveUsers(list) {
+  localStorage.setItem("users", JSON.stringify(list));
+}
+
+let users = loadUsers();
 
 // === LOGIN ===
 const loginBtn = document.getElementById("loginBtn");
@@ -35,6 +47,7 @@ loginBtn.onclick = () => {
   document.body.classList.add("logged-in");
 
   atualizarMenuPorPermissao();
+  atualizarListaEntregas();
 };
 
 function logout() {
@@ -74,6 +87,7 @@ function adicionarUsuario(role) {
   if (!username || !pass) return;
 
   users.push({ username, password: pass, role, owner: currentUser.username });
+  saveUsers(users);
 
   alert("Usuário criado com sucesso!");
 }
@@ -148,6 +162,7 @@ function processQRCode(text) {
 
   parsed.user = currentUser.username;
   deliveries.push(parsed);
+  localStorage.setItem("deliveries", JSON.stringify(deliveries));
   atualizarListaEntregas();
 
   const bip = new Audio("beep.mp3");
