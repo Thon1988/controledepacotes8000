@@ -1,67 +1,99 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PegazusLog v0.1</title>
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App de Entregas</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .login-container {
+      background: white;
+      padding: 35px;
+      border-radius: 12px;
+      width: 320px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .login-container h1 {
+      margin-bottom: 25px;
+      font-size: 26px;
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    #sidebar {
+      display: none;
+    }
+
+    body.logged-in #sidebar {
+      display: block;
+    }
+
+    body.logged-in .login-container {
+      display: none;
+    }
+  </style>
 </head>
 <body>
 
-<!-- ============================ -->
-<!--        TELA DE LOGIN         -->
-<!-- ============================ -->
-<div id="loginContainer" class="login-container">
-    <h1 class="logo">PegazusLog v0.1</h1>
+  <!-- Login -->
+  <div class="login-container">
+    <h1>App de Entregas</h1>
+    <input type="text" id="loginUser" placeholder="Usuário" />
+    <input type="password" id="loginPass" placeholder="Senha" />
+    <button id="loginBtn">Entrar</button>
+    <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
+  </div>
 
-    <div class="login-box">
-        <input id="loginUser" placeholder="Usuário" type="text" />
-        <input id="loginPass" placeholder="Senha" type="password" />
-        <button id="loginBtn">Entrar</button>
-        <div id="feedbackMessage" class="feedback"></div>
-    </div>
-</div>
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <button id="menuBtn">☰ Menu</button>
 
-<!-- ============================ -->
-<!--        MENU LATERAL          -->
-<!-- ============================ -->
-<button id="menuBtn" class="menu-button" style="display:none;">☰</button>
-<div id="sidebar" class="sidebar" style="display:none;">
-    <h2 class="menu-title">Menu</h2>
+    <div class="menu-admin">Admin - Gerenciar</div>
+    <div class="menu-gestor">Gestor - Colaboradores</div>
+    <div class="menu-colab">Colaborador - Scanner</div>
 
-    <!-- ADMIN -->
-    <button class="menu-item menu-admin" onclick="adicionarUsuario('gestor')">Adicionar Gestor</button>
-    <button class="menu-item menu-admin" onclick="adicionarUsuario('colab')">Adicionar Colaborador</button>
+    <button onclick="logout()">Sair</button>
+  </div>
 
-    <!-- GESTOR -->
-    <button class="menu-item menu-gestor" onclick="adicionarUsuario('colab')">Adicionar Colaborador</button>
+  <!-- Scanner -->
+  <video id="videoElement" autoplay playsinline></video>
+  <canvas id="overlay"></canvas>
 
-    <!-- COLAB / TODOS -->
-    <button class="menu-item menu-colab" id="openCameraBtn">📷 Abrir Câmera</button>
-    <button class="menu-item menu-colab" id="exportBtn">📄 Exportar CSV</button>
+  <p id="scansList">0 entregas registradas.</p>
+  <button id="exportBtn">Exportar CSV</button>
 
-    <button class="menu-item" onclick="logout()">🚪 Sair</button>
-</div>
-
-<!-- ============================ -->
-<!--     ÁREA PRINCIPAL APP      -->
-<!-- ============================ -->
-<div id="appContent" class="app-content" style="display:none;">
-
-    <!-- Câmera -->
-    <div class="camera-box">
-        <video id="videoElement" autoplay></video>
-        <canvas id="overlay"></canvas>
-    </div>
-
-    <!-- Lista de entregas -->
-    <div class="entregas-box">
-        <h3>Entregas Registradas</h3>
-        <div id="scansList">Nenhuma entrega ainda.</div>
-    </div>
-</div>
-
-<script src="jsQR.js"></script>
-<script src="app.js"></script>
+  <script src="jsQR.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
