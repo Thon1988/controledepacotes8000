@@ -15,66 +15,30 @@
             --accent-blue-gray: #e9ecef;
             --border-color: #dee2e6;
         }
-        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-color); color: #343a40; }
 
-        .login-container { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; width: 100%; }
-        .login-box { background: var(--list-bg-color); padding: 35px; border-radius: 12px; width: 320px; box-shadow: 0 8px 16px rgba(0,0,0,0.15); text-align: center; }
-        .login-box h1 { margin-bottom: 25px; color: var(--primary-color); }
-        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid var(--border-color); border-radius: 6px; font-size: 16px; transition: border-color 0.3s; }
-        .login-box input:focus { border-color: var(--primary-color); outline: none; }
-        .login-box button { width: 100%; padding: 12px; font-size: 16px; border: none; border-radius: 6px; background: var(--primary-color); color: white; cursor: pointer; margin-top: 10px; transition: background 0.3s; }
-        .login-box button:hover { background: #0056b3; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-color); }
 
-        #app { display: none; height: 100vh; width: 100%; position: relative; }
+        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .login-box { background: white; padding: 30px; border-radius: 10px; width: 320px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
+
+        .login-box input, .login-box button { width: 100%; padding: 10px; margin: 8px 0; font-size: 16px; }
 
         #sidebar {
-            width: 240px; background: var(--list-bg-color);
-            position: absolute; top: 0; left: 0; bottom: 0;
-            box-shadow: 3px 0 10px rgba(0,0,0,0.05);
-            display: flex; flex-direction: column; padding: 15px; gap: 12px; z-index: 999;
-        }
-        #sidebar button { padding: 12px; border: none; border-radius: 8px; cursor: pointer; background: var(--primary-color); color: white; font-weight: 600; transition: background 0.3s, transform 0.1s; }
-        #sidebar button:hover { background: #0056b3; transform: translateY(-1px); }
-        #sidebar .backBtn { background: #dc3545; }
-        #sidebar .backBtn:hover { background: #c82333; }
-        #btnManageUsers { background: #ffc107 !important; color: #333 !important; }
-        #btnManageUsers:hover { background: #e0a800 !important; }
-
-        .view-container { position: absolute; top: 0; left: 240px; right: 0; bottom: 0; overflow: hidden; }
-
-        #map { height: 100%; width: 100%; display: none; }
-        #deliveriesList { width: 100%; height: 100%; padding: 15px; background: var(--accent-blue-gray); overflow-y: auto; display: none; box-sizing: border-box; }
-
-        .delivery-item {
-            background: var(--list-bg-color); padding: 15px; margin-bottom: 12px; border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-            transition: transform 0.2s;
-            border-left: 5px solid var(--primary-color);
-        }
-        .delivery-item:hover { transform: translateY(-2px); }
-        .delivery-item strong { display: block; font-size: 1.1em; color: #343a40; margin-bottom: 4px; }
-
-        #userManagementView { width: 100%; height: 100%; padding: 20px; background: var(--bg-color); overflow-y: auto; display: none; }
-
-        .user-form-container {
-            background: var(--list-bg-color); padding: 20px; border-radius: 8px; max-width: 400px;
-            margin: 20px auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 230px; position: absolute; left: 0; top: 0; bottom: 0; background: white;
+            padding: 10px; box-shadow: 3px 0 10px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column;
         }
 
-        .user-form-container input, .user-form-container select {
-            width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px;
-        }
+        #sidebar button { margin: 6px 0; padding: 12px; font-size: 16px; cursor: pointer; }
 
-        .user-form-container button {
-            width: 100%; padding: 10px; margin-top: 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
-        }
+        #map, #deliveriesList, #userManagementView { display: none; padding: 15px; height: 100%; overflow-y: auto; }
 
-        .user-form-container table th, .user-form-container table td {
-            padding: 10px; border: 1px solid var(--border-color); font-size: 0.9em;
+        .delivery-item { background: white; padding: 15px; margin-bottom: 10px; border-left: 4px solid #007bff; border-radius: 8px; }
+
+        #userManagementView table { width: 100%; border-collapse: collapse; background: white; }
+        #userManagementView th, #userManagementView td {
+            padding: 10px; border: 1px solid #ccc; text-align: left;
         }
-        .user-form-container .edit-btn { background: #007bff; color: white; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
-        .user-form-container .delete-btn { background: #dc3545; color: white; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
-        .user-form-container .change-pass-btn { background: #28a745; color: white; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 
@@ -82,64 +46,73 @@
 
 <div class="login-container">
     <div class="login-box">
-        <h1>PegazusLog beta v1.0</h1>
+        <h2 style="text-align:center;">PegazusLog</h2>
+
         <input type="text" id="loginUser" placeholder="Usuário" />
         <input type="password" id="loginPass" placeholder="Senha" />
         <button id="loginBtn">Entrar</button>
+
+        <button id="resetMockBtn" style="background:#6c757d; color:white;">
+            Resetar Banco Local (Mock)
+        </button>
+
         <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
     </div>
 </div>
 
-<div id="app">
+<div id="app" style="display:none; height:100vh;">
+
     <div id="sidebar">
         <button id="btnCamera">📷 Câmera</button>
         <button id="btnDeliveries">📦 Entregas (0)</button>
         <button id="btnMap">🗺️ Mapa</button>
         <button id="btnRoute">🚗 Rota</button>
         <button id="btnManageUsers">👥 Usuários</button>
-
-        <button id="btnSair" class="backBtn">🔙 Sair</button>
+        <button id="btnSair" class="backBtn" style="background:#dc3545; color:white;">Sair</button>
     </div>
 
-    <div class="view-container">
-        <div id="map"></div>
+    <div class="view-container" style="margin-left:230px; height:100%;">
+
+        <div id="map" style="height:100%;"></div>
+
         <div id="deliveriesList"></div>
 
         <div id="userManagementView">
-            <div class="user-form-container">
-                <h2>Criar Novo Usuário</h2>
-                <input type="text" id="newUsername" placeholder="Nome de Usuário" />
-                <input type="password" id="newPassword" placeholder="Senha" />
-                <select id="newUserRole">
-                    <option value="gestor">gestor</option>
-                    <option value="colaborador">colaborador</option>
-                    <option value="admin">admin</option>
-                </select>
-                <button id="createUserBtn">Criar Usuário</button>
-                <p id="userFeedbackMessage"></p>
-            </div>
+            <h2>Criar Usuário</h2>
+
+            <input type="text" id="newUsername" placeholder="Nome" />
+            <input type="password" id="newPassword" placeholder="Senha" />
+
+            <select id="newUserRole">
+                <option value="gestor">gestor</option>
+                <option value="colaborador">colaborador</option>
+                <option value="admin">admin</option>
+            </select>
+
+            <button id="createUserBtn" style="background:#28a745; color:white;">Criar Usuário</button>
+
+            <p id="userFeedbackMessage"></p>
 
             <hr>
 
-            <div class="user-form-container" style="max-width: 900px;">
-                <h2>Usuários</h2>
-                <table style="width:100%; border-collapse:collapse;">
-                    <thead>
-                        <tr>
-                            <th>Usuário</th>
-                            <th>Função</th>
-                            <th>Criado Por</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody id="userTableBody"></tbody>
-                </table>
-            </div>
+            <h2>Usuários</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Função</th>
+                        <th>Criado Por</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
         </div>
 
         <div id="cameraContainer" style="display:none;">
-            <h1 style="color:white; margin:auto;">Função de câmera mock</h1>
+            <h1>Função câmera mock</h1>
         </div>
+
     </div>
 </div>
 
