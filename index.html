@@ -1,247 +1,223 @@
-<!-- PegazusLog v1.0 – Versão Premium (C) com interface moderna azul/cinza -->
-<!-- HTML + CSS integrados -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>PegazusLog v1.0</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PegazusLog v0.1</title>
+<link rel="stylesheet" href="style.css">
 
-    <!-- Manifesto PWA -->
-    <link rel="manifest" href="manifest.json" />
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f0f2f5;
+    }
 
-    <style>
-        :root {
-            --primary: #007bff;
-            --primary-dark: #0056b3;
-            --bg: #f1f4f9;
-            --white: #ffffff;
-            --gray: #e3e7ee;
-            --dark-text: #2a2d34;
-            --light-text: #6c757d;
-            --border: #d0d4dd;
-        }
+    /* LOGIN */
+    .login-container {
+        width: 320px;
+        margin: 60px auto;
+        padding: 30px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        text-align: center;
+    }
 
-        body {
-            margin: 0;
-            font-family: "Segoe UI", sans-serif;
-            background: var(--bg);
-            color: var(--dark-text);
-        }
+    .login-title {
+        color: #007bff;
+        font-size: 26px;
+        margin-bottom: 20px;
+        font-weight: bold;
+    }
 
-        /* TELA DE LOGIN */
-        .login-screen {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-        }
+    .login-container input {
+        width: 100%;
+        padding: 12px;
+        margin-top: 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 16px;
+    }
 
-        .login-box {
-            width: 330px;
-            padding: 35px;
-            border-radius: 14px;
-            background: var(--white);
-            text-align: center;
-            box-shadow: 0 8px 18px rgba(0,0,0,0.15);
-        }
+    .login-container button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 15px;
+        font-size: 18px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+    }
 
-        .login-box h1 {
-            margin-bottom: 15px;
-            color: var(--primary);
-        }
+    #feedbackMessage {
+        margin-top: 10px;
+        font-size: 14px;
+        color: red;
+    }
 
-        .login-box input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            font-size: 16px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
+    /* APLICAÇÃO */
+    #app {
+        display: none;
+        padding: 15px;
+    }
 
-        .login-box button {
-            width: 100%;
-            padding: 12px;
-            background: var(--primary);
-            color: var(--white);
-            border: none;
-            border-radius: 6px;
-            margin-top: 10px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: 0.2s;
-        }
+    .menu {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
 
-        .login-box button:hover {
-            background: var(--primary-dark);
-        }
+    .menu button {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        background: #007bff;
+        color: white;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+        min-width: 120px;
+    }
 
-        #app {
-            display: none;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-        }
+    .view-container > div {
+        display: none;
+    }
 
-        /* SIDEBAR */
-        .sidebar {
-            width: 250px;
-            background: var(--white);
-            height: 100%;
-            position: fixed;
-            left: 0;
-            top: 0;
-            padding: 15px;
-            box-shadow: 3px 0 15px rgba(0,0,0,0.08);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+    /* LISTA */
+    #deliveriesList .delivery-item {
+        background: white;
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
 
-        .sidebar button {
-            background: var(--primary);
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-        }
+    #map {
+        width: 100%;
+        height: 480px;
+        background: #ddd;
+    }
 
-        .sidebar button:hover {
-            background: var(--primary-dark);
-        }
+    /* CAMERA */
+    #cameraContainer {
+        text-align: center;
+    }
 
-        /* VISÕES */
-        .view {
-            margin-left: 250px;
-            height: 100%;
-            width: calc(100vw - 250px);
-            display: none;
-            background: var(--bg);
-        }
+    #videoElement {
+        width: 100%;
+        max-height: 60vh;
+        background: black;
+    }
 
-        /* CAMERA – Estilo Premium */
-        #cameraView {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            background: black;
-        }
+    #overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
 
-        #videoElement {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+    #secretKeyScreen {
+        width: 320px;
+        margin: 80px auto;
+        padding: 25px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        text-align: center;
+        display: none;
+    }
 
-        .scanner-frame {
-            position: absolute;
-            width: 65%;
-            aspect-ratio: 1/1;
-            border: 4px solid var(--primary);
-            border-radius: 14px;
-            overflow: hidden;
-            box-shadow: 0 0 25px rgba(0, 123, 255, 0.5);
-        }
+</style>
 
-        .scan-line {
-            position: absolute;
-            width: 100%;
-            height: 3px;
-            background: #00c3ff;
-            animation: scan 2s infinite alternate;
-            box-shadow: 0 0 12px #00c3ff;
-        }
-
-        @keyframes scan {
-            0% { top: 0%; }
-            100% { top: 100%; }
-        }
-
-        /* MAPA */
-        #mapView {
-            display: none;
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-    </style>
 </head>
 <body>
 
-<div class="login-screen" id="loginScreen">
-    <div class="login-box">
-        <h1>PegazusLog v1.0</h1>
-        <input type="text" id="loginUser" placeholder="Usuário" />
-        <input type="password" id="loginPass" placeholder="Senha" />
-        <button id="loginBtn">Entrar</button>
-        <p id="feedbackMessage" style="color:red;"></p>
-    </div>
+<!-- TELA PARA DEFINIR CHAVE SECRETA -->
+<div id="secretKeyScreen">
+    <h2>Primeira inicialização</h2>
+    <p>Crie uma chave secreta para criptografar seus dados.</p>
+    <input type="password" id="secretKeyInput" placeholder="Chave secreta">
+    <button id="saveSecretKeyBtn">Salvar chave</button>
 </div>
 
+
+<!-- LOGIN -->
+<div class="login-container" id="loginScreen">
+    <div class="login-title">Pegazus v0.1</div>
+
+    <input type="text" id="loginUser" placeholder="Usuário">
+    <input type="password" id="loginPass" placeholder="Senha">
+    <button id="loginBtn">Entrar</button>
+
+    <div id="feedbackMessage"></div>
+</div>
+
+
+<!-- APLICATIVO -->
 <div id="app">
-    <div class="sidebar">
+
+    <div class="menu">
         <button id="btnCamera">📷 Câmera</button>
-        <button id="btnDeliveries">📦 Entregas</button>
+        <button id="btnDeliveries">📦 Entregas (0)</button>
         <button id="btnMap">🗺️ Mapa</button>
-        <button id="btnUsers">👥 Usuários</button>
-        <button id="btnLogout" style="background:#dc3545">Sair</button>
+        <button id="btnRoute">🚚 Rota</button>
+        <button id="btnManageUsers">👤 Usuários</button>
+        <button id="btnSair">⛔ Sair</button>
     </div>
 
-    <div class="view" id="cameraView">
-        <video id="videoElement" autoplay playsinline></video>
-        <div class="scanner-frame">
-            <div class="scan-line"></div>
+    <div class="view-container">
+
+        <!-- CÂMERA -->
+        <div id="cameraContainer">
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+            <br>
+            <button id="manualEntryBtn">Inserir Código Manualmente</button>
+            <select id="cameraSelect" style="margin-top:10px;display:none;"></select>
         </div>
-    </div>
 
-    <div class="view" id="mapView">
+        <!-- LISTA DE ENTREGAS -->
+        <div id="deliveriesList"></div>
+
+        <!-- MAPA -->
         <div id="map"></div>
+
+        <!-- GERENCIAMENTO DE USUÁRIOS -->
+        <div id="userManagementView">
+            <h3>Gerenciar Usuários</h3>
+
+            <input id="newUsername" placeholder="Usuário">
+            <input id="newPassword" placeholder="Senha">
+            <select id="newUserRole">
+                <option value="colaborador">Colaborador</option>
+                <option value="gestor">Gestor</option>
+                <option value="admin">Administrador</option>
+            </select>
+            <button id="createUserBtn">Criar Usuário</button>
+
+            <p id="userFeedbackMessage"></p>
+
+            <table border="1" width="100%" style="margin-top:15px;">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Papel</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
+        </div>
+
     </div>
 
-    <div class="view" id="deliveriesView"></div>
-
-    <div class="view" id="usersView"></div>
 </div>
 
-<script>
-// LOGIN SIMPLES
-const loginBtn = document.getElementById("loginBtn");
-loginBtn.onclick = () => {
-    const user = loginUser.value;
-    const pass = loginPass.value;
-
-    if (user === "thon" && pass === "882010") {
-        document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("app").style.display = "block";
-    } else {
-        feedbackMessage.textContent = "Credenciais inválidas";
-    }
-};
-
-// TROCA DE TELAS
-function show(viewId) {
-    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    document.getElementById(viewId).style.display = 'block';
-}
-
-btnCamera.onclick = () => show('cameraView');
-btnDeliveries.onclick = () => show('deliveriesView');
-btnMap.onclick = () => show('mapView');
-btnUsers.onclick = () => show('usersView');
-
-// LOGOUT
-btnLogout.onclick = () => location.reload();
-</script>
+<script src="jsQR.js"></script>
+<script src="app.js"></script>
 
 </body>
 </html>
-
