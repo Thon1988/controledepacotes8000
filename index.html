@@ -14,13 +14,6 @@ body { margin:0; font-family: Arial,sans-serif; background:#f2f2f2; display:flex
 .nav-btn { background: rgba(255,255,255,0.15); padding:12px; border-radius:6px; margin-bottom:8px; cursor:pointer; text-align:center; font-size:15px; transition:0.2s; }
 .nav-btn:hover { background: rgba(255,255,255,0.28); }
 
-/* Login */
-.login-container { width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.login-box { width:300px; background:white; padding:25px; border-radius:10px; box-shadow:0 0 15px rgba(0,0,0,0.18); display:flex; flex-direction:column; align-items:center; z-index:1; }
-.login-box h1 { margin-bottom:20px; }
-.login-box input { width:100%; margin-top:10px; padding:10px; border-radius:6px; border:1px solid #ccc; }
-.login-btn { width:100%; margin-top:15px; padding:12px; background:#003a73; color:white; border:none; border-radius:6px; cursor:pointer; }
-
 /* Main app */
 #app { flex:1; padding:15px; display:flex; flex-direction:column; overflow-y:auto; position:relative; }
 .hidden { display:none; }
@@ -94,19 +87,8 @@ th, td { padding:10px; border-bottom:1px solid #eee; }
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="login-container">
-    <div class="login-box">
-        <h1>PegazusLog</h1>
-        <input id="loginUser" placeholder="Usuário">
-        <input id="loginPass" type="password" placeholder="Senha">
-        <button id="loginBtn" class="login-btn">Entrar</button>
-        <div id="feedbackMessage" style="margin-top:10px;color:#c00;font-size:14px;"></div>
-    </div>
-</div>
-
 <!-- Sidebar -->
-<div class="sidebar" id="sidebar" style="display:none;">
+<div class="sidebar" id="sidebar">
     <h2>PEGZUS LOG</h2>
     <div id="btnDeliveries" class="nav-btn">📦 Entregas</div>
     <div id="btnCamera" class="nav-btn">📷 Câmera</div>
