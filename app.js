@@ -13,6 +13,7 @@ const cameraContainer = document.getElementById('cameraContainer');
 const qrFeedback = document.getElementById('qrFeedback');
 
 let scannedQRCodes = new Set();
+let html5QrCode = null;
 let beepSuccess = new Audio('https://www.soundjay.com/button/beep-07.wav');
 let beepError = new Audio('https://www.soundjay.com/button/beep-10.wav');
 
@@ -85,56 +86,38 @@ document.getElementById('createUserBtn').addEventListener('click', ()=>{
 
 function deleteUser(index){ users.splice(index,1); renderUserList(); }
 
-// ======= CAMERA SHOPEE STYLE =======
-let scannerActive=false;
-let videoStream=null;
-
+// ======= CAMERA READER =======
 function startScanner(){
-    if(scannerActive) return;
-    scannerActive=true;
-    const video = document.getElementById('qrVideo');
-    if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
-        navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
-        .then(stream=>{
-            videoStream = stream;
-            video.srcObject=stream;
-            video.setAttribute('playsinline', true);
-            video.play();
-            scanLoop();
-        })
-        .catch(err=>console.error(err));
-    }
-}
+    if(html5QrCode) return;
+    html5QrCode = new Html5Qrcode("qr-reader");
+    const config = { fps: 10, qrbox: 250 };
 
-// Parar scanner
-function stopScanner(){
-    scannerActive=false;
-    const video = document.getElementById('qrVideo');
-    if(videoStream){
-        videoStream.getTracks().forEach(track=>track.stop());
-        videoStream=null;
-    }
-}
-
-// Simulação de leitura de QR (substituir com biblioteca real como jsQR)
-function scanLoop(){
-    if(!scannerActive) return;
-    // Simula detecção QR a cada 3s
-    setTimeout(()=>{
-        let qrValue = 'QR_'+Math.floor(Math.random()*10); // Simulado
-        if(scannedQRCodes.has(qrValue)){
-            qrFeedback.textContent='QR Code já escaneado';
-            qrFeedback.style.display='block';
-            beepError.play();
-        } else {
-            scannedQRCodes.add(qrValue);
-            qrFeedback.textContent='QR Code detectado: '+qrValue;
-            qrFeedback.style.display='block';
-            beepSuccess.play();
+    html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeMessage => {
+            if(scannedQRCodes.has(qrCodeMessage)){
+                qrFeedback.textContent='QR Code já escaneado';
+                qrFeedback.style.display='block';
+                beepError.play();
+            } else {
+                scannedQRCodes.add(qrCodeMessage);
+                qrFeedback.textContent='QR Code detectado: '+qrCodeMessage;
+                qrFeedback.style.display='block';
+                beepSuccess.play();
+            }
+            setTimeout(()=>{ qrFeedback.style.display='none'; },2000);
+        },
+        errorMessage => {
+            // opcional: feedback de erro
         }
-        setTimeout(()=>{ qrFeedback.style.display='none'; },2000);
-        scanLoop();
-    },3000);
+    ).catch(err=>console.error(err));
+}
+
+function stopScanner(){
+    if(html5QrCode){
+        html5QrCode.stop().then(()=>{ html5QrCode.clear(); html5QrCode=null; }).catch(err=>console.error(err));
+    }
 }
 
 // ======= MAP =======
@@ -173,3 +156,10 @@ window.addEventListener('load', ()=>{
     const session = localStorage.getItem('pegazus_session_v1');
     if(session){ document.querySelector('.login-container').style.display='none'; sidebar.style.display='flex'; }
 });
+
+// ======= MENU BUTTONS =======
+document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
+document.getElementById('btnDeliveries').addEventListener('click', ()=>showView('deliveriesList'));
+document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
+document.getElementById('btnMap').addEventListener('click', ()=>showView('map'));
+document.getElementById('btnGenerateCSV').addEventListener('click', ()=>generateCSV());
