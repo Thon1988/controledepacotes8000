@@ -63,29 +63,6 @@ btnBack.addEventListener('click', ()=>{
     stopScanner();
 });
 
-// ======= USERS =======
-function renderUserList(){
-    const tbody = document.getElementById('userTableBody');
-    tbody.innerHTML='';
-    users.forEach((u,i)=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML=`<td>${u.username}</td><td>${u.role}</td><td>admin</td>
-        <td><button class="btn-small btn-delete" onclick="deleteUser(${i})">Excluir</button></td>`;
-        tbody.appendChild(tr);
-    });
-}
-document.getElementById('createUserBtn').addEventListener('click', ()=>{
-    const username = document.getElementById('newUsername').value.trim();
-    const password = document.getElementById('newPassword').value.trim();
-    const role = document.getElementById('newUserRole').value;
-    if(!username||!password){ alert('Preencha todos os campos'); return; }
-    users.push({username,password,role});
-    renderUserList();
-    document.getElementById('newUsername').value='';
-    document.getElementById('newPassword').value='';
-});
-function deleteUser(index){ users.splice(index,1); renderUserList(); }
-
 // ======= CAMERA SCANNER =======
 function startScanner(){
     if(html5QrCode) return;
@@ -123,11 +100,7 @@ function stopScanner(){
 document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
 document.getElementById('btnDeliveries').addEventListener('click', ()=>showView('deliveriesList'));
 document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
-
-// ======= CSV =======
-document.getElementById('btnGenerateCSV').addEventListener('click', ()=>{
-    alert('Função CSV gerada (exemplo)');
-});
+document.getElementById('btnGenerateCSV').addEventListener('click', ()=>alert('Função CSV gerada (exemplo)'));
 
 // ======= MAP =======
 let map;
