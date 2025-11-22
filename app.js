@@ -5,17 +5,23 @@ let users = [
     { username:'thon', password:'882010', role:'gestor' }
 ];
 
+// ======= ELEMENTOS =======
 const loginBtn = document.getElementById('loginBtn');
 const feedback = document.getElementById('feedbackMessage');
 const sidebar = document.getElementById('sidebar');
 const btnBack = document.getElementById('btnBack');
 const cameraContainer = document.getElementById('cameraContainer');
 const qrFeedback = document.getElementById('qrFeedback');
+const userView = document.getElementById('userManagementView');
+const deliveriesList = document.getElementById('deliveriesList');
+const mapDiv = document.getElementById('map');
 
+// ======= VARIÁVEIS =======
 let html5QrcodeScanner;
 let scannedQRCodes = new Set();
 let beepSuccess = new Audio('https://www.soundjay.com/button/beep-07.wav');
 let beepError = new Audio('https://www.soundjay.com/button/beep-10.wav');
+let map;
 
 // ======= LOGIN =======
 loginBtn.addEventListener('click', ()=>{
@@ -26,6 +32,7 @@ loginBtn.addEventListener('click', ()=>{
         localStorage.setItem('pegazus_session_v1', JSON.stringify(user));
         document.querySelector('.login-container').style.display='none';
         sidebar.style.display='flex';
+        showDeliveries(); // inicial view
     } else { feedback.textContent='Usuário ou senha incorretos'; }
 });
 
@@ -40,10 +47,10 @@ document.getElementById('btnSair').addEventListener('click', ()=>{
 
 // ======= VIEWS =======
 function hideAllViews(){
-    document.getElementById('userManagementView').classList.add('hidden');
-    document.getElementById('deliveriesList').classList.add('hidden');
-    document.getElementById('cameraContainer').classList.add('hidden');
-    document.getElementById('map').classList.add('hidden');
+    userView.classList.add('hidden');
+    deliveriesList.classList.add('hidden');
+    cameraContainer.classList.add('hidden');
+    mapDiv.classList.add('hidden');
     btnBack.style.display='none';
 }
 
@@ -53,10 +60,7 @@ function showView(viewId){
     view.classList.remove('hidden');
     btnBack.style.display='block';
     sidebar.style.display='none';
-
-    if(viewId==='cameraContainer'){
-        startScanner();
-    }
+    if(viewId==='cameraContainer') startScanner();
 }
 
 // BACK BUTTON
@@ -66,12 +70,11 @@ btnBack.addEventListener('click', ()=>{
     stopScanner();
 });
 
-// ======= CAMERA SCANNER =======
+// ======= CAMERA =======
 function startScanner(){
     if(html5QrcodeScanner) return;
 
     html5QrcodeScanner = new Html5Qrcode("qr-reader");
-
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
@@ -102,3 +105,91 @@ function stopScanner(){
 
 // ======= MENU BUTTONS =======
 document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
+document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
+document.getElementById('btnDeliveries').addEventListener('click', ()=>showDeliveries());
+document.getElementById('btnMap').addEventListener('click', ()=>showMap());
+document.getElementById('btnGenerateCSV').addEventListener('click', ()=>alert('CSV gerado (exemplo)'));
+
+// ======= DELIVERIES =======
+function showDeliveries(){
+    hideAllViews();
+    deliveriesList.classList.remove('hidden');
+    btnBack.style.display='block';
+    sidebar.style.display='none';
+    deliveriesList.innerHTML='';
+    for(let i=1;i<=5;i++){
+        const div = document.createElement('div');
+        div.className='delivery-item';
+        div.innerHTML=`Entrega #${i}<div class="meta">Detalhes...</div>`;
+        deliveriesList.appendChild(div);
+    }
+}
+
+// ======= MAP =======
+function showMap(){
+    hideAllViews();
+    mapDiv.classList.remove('hidden');
+    btnBack.style.display='block';
+    sidebar.style.display='none';
+    if(!map){
+        map = L.map('map').setView([-23.5505,-46.6333],12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+            attribution:'&copy; OpenStreetMap contributors'
+        }).addTo(map);
+    }
+}
+
+// ======= USERS =======
+function showUsers(){
+    hideAllViews();
+    userView.classList.remove('hidden');
+    btnBack.style.display='block';
+    sidebar.style.display='none';
+    renderUsers();
+}
+
+function renderUsers(){
+    userView.innerHTML=`
+    <h2>Gerenciar Usuários</h2>
+    <div class="card">
+        <h3>Criar usuário</h3>
+        <input id="newUsername" placeholder="Novo usuário">
+        <input id="newPassword" placeholder="Senha">
+        <select id="newUserRole">
+            <option value="gestor">Gestor</option>
+            <option value="colaborador">Colaborador</option>
+        </select>
+        <button id="createUserBtn" class="login-btn">Criar</button>
+    </div>
+    <h3 style="margin-top:25px;">Usuários cadastrados</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Função</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="userTableBody"></tbody>
+    </table>
+    `;
+    const tbody = document.getElementById('userTableBody');
+    tbody.innerHTML='';
+    users.forEach(u=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${u.username}</td><td>${u.role}</td>
+        <td>
+        <button class="btn-delete btn-small">Excluir</button>
+        </td>`;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('createUserBtn').addEventListener('click', ()=>{
+        const name=document.getElementById('newUsername').value.trim();
+        const pass=document.getElementById('newPassword').value.trim();
+        const role=document.getElementById('newUserRole').value;
+        if(name && pass){ users.push({username:name,password:pass,role}); renderUsers(); }
+    });
+}
+
+document.getElementById('btnManageUsers').addEventListener('click', ()=>showUsers());
