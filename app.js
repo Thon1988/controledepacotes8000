@@ -1,6 +1,6 @@
 // ============================================================
-// app.js - PegazusLog (2025 MOCK LOCAL)
-// Scanner REAL // Hierarquia // CSV // Mapa // Sidebar Mobile
+// app.js - PegazusLog (MOCK) + html5-qrcode scanner
+// Hierarquia + filtros por data + relatório por colaborador
 // ============================================================
 
 // STORAGE KEYS
@@ -8,616 +8,427 @@ const USERS_KEY = "pegazus_users_v1";
 const SCANS_KEY = "pegazus_scans_v1";
 const SESSION_KEY = "pegazus_session_v1";
 
-// ---------------------- HELPERS ----------------------
 function nowISO(){ return new Date().toISOString(); }
-function uuid(){ return "id-"+Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function uuid(){ return "id-"+Math.random().toString(36).slice(2,9)+"-"+Date.now().toString(36).slice(-6); }
 function saveJSON(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-function loadJSON(k,def){ try{ let r=localStorage.getItem(k); return r?JSON.parse(r):def; }catch{ return def; } }
+function loadJSON(k,def){ try{ const r = localStorage.getItem(k); return r?JSON.parse(r):def; }catch{ return def; } }
 
 async function hashPassword(p){
-  const enc = new TextEncoder().encode(p);
-  const digest = await crypto.subtle.digest("SHA-256", enc);
-  return Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,"0")).join("");
+  const data = new TextEncoder().encode(p);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-// ---------------------- SEED ADMIN ----------------------
+/* ---------------- SEED ---------------- */
 async function seedIfNeeded(){
   let users = loadJSON(USERS_KEY, []);
-  if(users.length > 0) return users;
-
-  const ph = await hashPassword("882010");
-  const admin = {
-    id: "user-thon",
-    username: "thon",
-    role: "admin",
-    passwordHash: ph,
-    createdBy: null,
-    createdAt: nowISO(),
-    updatedAt: nowISO()
-  };
-
+  if(users && users.length) return users;
+  const ph = await hashPassword('882010');
+  const admin = { id:'user-thon', username:'thon', role:'admin', passwordHash:ph, createdBy:null, createdAt:nowISO(), updatedAt:nowISO() };
   users = [admin];
   saveJSON(USERS_KEY, users);
   return users;
 }
 
-async function getAllUsers(){
-  await seedIfNeeded();
-  return loadJSON(USERS_KEY, []);
-}
-async function findUserByUsername(u){
-  return (await getAllUsers()).find(x=>x.username===u) || null;
-}
-async function findUserById(id){
-  return (await getAllUsers()).find(x=>x.id===id) || null;
-}
+async function getAllUsers(){ await seedIfNeeded(); return loadJSON(USERS_KEY, []); }
+async function findUserByUsername(username){ const u = (await getAllUsers()).find(x=>x.username===username); return u||null; }
+async function findUserById(id){ const u = (await getAllUsers()).find(x=>x.id===id); return u||null; }
 
 function saveSession(sess){ saveJSON(SESSION_KEY, sess); }
 function loadSession(){ return loadJSON(SESSION_KEY, null); }
 function clearSession(){ localStorage.removeItem(SESSION_KEY); }
-async function currentUser(){
-  const s = loadSession();
-  if(!s) return null;
-  return await findUserById(s.userId);
-}
+async function currentUser(){ const s = loadSession(); return s ? await findUserById(s.userId) : null; }
 
-// ---------------------- ROLES -------------------------
-function isAdmin(u){ return u && u.role==="admin"; }
-function isGestor(u){ return u && u.role==="gestor"; }
-function isColab(u){ return u && u.role==="colaborador"; }
-
-// ---------------------- SCANS -------------------------
+/* ---------------- SCANS ---------------- */
 function loadScans(){ return loadJSON(SCANS_KEY, []); }
-function saveScans(a){ saveJSON(SCANS_KEY, a); }
-function addScan(scan){
-  const arr = loadScans();
-  arr.unshift(scan);
-  saveScans(arr);
-}
+function saveScans(arr){ saveJSON(SCANS_KEY, arr); }
+function addScan(scan){ const arr = loadScans(); arr.unshift(scan); saveScans(arr); }
 
-// ---------------------- AUTH --------------------------
+/* ---------------- AUTH ---------------- */
 async function login(username, password){
   const u = await findUserByUsername(username);
-  if(!u) throw new Error("Usuário não encontrado");
-
+  if(!u) throw new Error('Usuário não encontrado');
   const ph = await hashPassword(password);
-  if(ph !== u.passwordHash) throw new Error("Senha incorreta");
-
-  const sess = {
-    token: uuid(),
-    userId: u.id,
-    username: u.username,
-    role: u.role,
-    at: nowISO()
-  };
+  if(ph !== u.passwordHash) throw new Error('Senha incorreta');
+  const sess = { token: uuid(), userId: u.id, username: u.username, role: u.role, at: nowISO() };
   saveSession(sess);
   return sess;
 }
 function logout(){ clearSession(); location.reload(); }
 
-// ---------------------- USERS CRUD ---------------------
-async function createUser(actor,{username,password,role="gestor"}){
-  if(!actor) throw new Error("Não logado");
-  if(!isAdmin(actor) && !isGestor(actor)) throw new Error("Sem permissão");
+function isAdmin(u){ return u && u.role === 'admin'; }
+function isGestor(u){ return u && u.role === 'gestor'; }
+function isColaborador(u){ return u && u.role === 'colaborador'; }
 
-  if(isGestor(actor) && role!=="colaborador")
-    throw new Error("Gestor só cria colaboradores");
-
-  if(role==="admin" && !isAdmin(actor))
-    throw new Error("Apenas admin cria admin");
-
-  if(!username || !password)
-    throw new Error("Dados obrigatórios");
-
+/* ---------------- USERS CRUD ---------------- */
+async function createUser(actor, {username, password, role='gestor'}){
+  if(!actor) throw new Error('Faça login primeiro');
+  if(!isAdmin(actor) && !isGestor(actor)) throw new Error('Apenas admin/gestor podem criar usuários');
+  if(isGestor(actor) && role !== 'colaborador') throw new Error('Gestor só pode criar colaboradores');
+  if(role === 'admin' && !isAdmin(actor)) throw new Error('Apenas admin pode criar admin');
+  if(!username || !password) throw new Error('Dados obrigatórios');
   const users = await getAllUsers();
-  if(users.find(u=>u.username===username))
-    throw new Error("Usuário já existe");
-
+  if(users.find(u=>u.username===username)) throw new Error('Usuário já existe');
   const ph = await hashPassword(password);
-  const newU = {
-    id: uuid(),
-    username,
-    role,
-    passwordHash: ph,
-    createdBy: actor.id,
-    createdAt: nowISO(),
-    updatedAt: nowISO()
-  };
-
-  users.push(newU);
-  saveJSON(USERS_KEY, users);
-  return sanitize(newU);
+  const u = { id: uuid(), username, role, passwordHash: ph, createdBy: actor.id, createdAt: nowISO(), updatedAt: nowISO() };
+  users.push(u); saveJSON(USERS_KEY, users); return sanitize(u);
 }
 
-async function editUser(actor,id,updates){
+async function editUser(actor, id, updates){
   const users = await getAllUsers();
-  const idx = users.findIndex(x=>x.id===id);
-  if(idx===-1) throw new Error("Usuário não encontrado");
-
-  const tgt = users[idx];
-
-  if(actor.id !== tgt.id){
-    if(isAdmin(actor)){}
-    else if(isGestor(actor)){
-      if(tgt.createdBy !== actor.id)
-        throw new Error("Gestor só edita quem ele criou");
-    } else throw new Error("Sem permissão");
+  const idx = users.findIndex(u=>u.id===id); if(idx === -1) throw new Error('Usuário não encontrado');
+  const target = users[idx];
+  if(actor.id !== target.id){
+    if(isAdmin(actor)){} else if(isGestor(actor)){
+      if(target.createdBy !== actor.id) throw new Error('Gestor só pode editar usuários que criou');
+    } else throw new Error('Sem permissão para editar este usuário');
   }
-
   if(updates.username){
-    if(users.find(u=>u.username===updates.username && u.id!==id))
-      throw new Error("Username em uso");
-    tgt.username = updates.username;
+    if(users.find(u=>u.username===updates.username && u.id !== id)) throw new Error('Username já em uso');
+    target.username = updates.username;
   }
-
   if(updates.role){
-    if(updates.role==="admin" && !isAdmin(actor))
-      throw new Error("Apenas admin cria admin");
-    if(isGestor(actor) && updates.role!=="colaborador")
-      throw new Error("Gestor não pode alterar para esse tipo");
-    tgt.role = updates.role;
+    if(updates.role === 'admin' && !isAdmin(actor)) throw new Error('Apenas admin pode atribuir admin');
+    if(isGestor(actor) && updates.role !== 'colaborador') throw new Error('Gestor não pode alterar role para este valor');
+    target.role = updates.role;
   }
-
-  tgt.updatedAt = nowISO();
-  users[idx] = tgt;
-  saveJSON(USERS_KEY, users);
-  return sanitize(tgt);
+  target.updatedAt = nowISO(); users[idx] = target; saveJSON(USERS_KEY, users); return sanitize(target);
 }
 
-async function changePassword(actor,id,newPass){
+async function changePassword(actor, id, newPass){
   const users = await getAllUsers();
-  const idx = users.findIndex(x=>x.id===id);
-  if(idx===-1) throw new Error("Usuário não encontrado");
-
-  const tgt = users[idx];
-
-  if(actor.id===tgt.id || isAdmin(actor) || (isGestor(actor)&&tgt.createdBy===actor.id)){
-    tgt.passwordHash = await hashPassword(newPass);
-    tgt.updatedAt = nowISO();
-    users[idx]=tgt;
-    saveJSON(USERS_KEY, users);
-    return {success:true};
-  }
-  throw new Error("Sem permissão");
+  const idx = users.findIndex(u=>u.id===id); if(idx === -1) throw new Error('Usuário não encontrado');
+  const target = users[idx];
+  if(actor.id === target.id || isAdmin(actor) || (isGestor(actor) && target.createdBy === actor.id)){
+    target.passwordHash = await hashPassword(newPass);
+    target.updatedAt = nowISO(); users[idx] = target; saveJSON(USERS_KEY, users); return {success:true};
+  } else throw new Error('Permissão negada para alterar senha');
 }
 
-async function deleteUser(actor,id){
+async function deleteUser(actor, id){
   const users = await getAllUsers();
-  const idx = users.findIndex(x=>x.id===id);
-  if(idx===-1) throw new Error("Usuário não encontrado");
-
-  const tgt = users[idx];
-
-  if(actor.id===tgt.id)
-    throw new Error("Não pode excluir a si mesmo");
-
-  if(isAdmin(actor)){}
-  else if(isGestor(actor)){
-    if(tgt.createdBy!==actor.id)
-      throw new Error("Gestor só exclui quem ele criou");
-  } else throw new Error("Sem permissão");
-
-  users.splice(idx,1);
-  saveJSON(USERS_KEY, users);
-  return {success:true};
+  const idx = users.findIndex(u=>u.id===id); if(idx === -1) throw new Error('Usuário não encontrado');
+  const target = users[idx];
+  if(actor.id === target.id) throw new Error('Não é permitido excluir o próprio usuário');
+  if(isAdmin(actor)){} else if(isGestor(actor)){
+    if(target.createdBy !== actor.id) throw new Error('Gestor só pode excluir usuários que criou');
+  } else throw new Error('Permissão negada');
+  users.splice(idx,1); saveJSON(USERS_KEY, users); return {success:true};
 }
 
-function sanitize(u){
-  const {passwordHash, ...rest}=u;
-  return rest;
-}
+function sanitize(u){ if(!u) return null; const {passwordHash, ...rest} = u; return rest; }
 
-// ---------------------- UI ELEMENTS ----------------------
-const loginBtn = document.getElementById("loginBtn");
-const loginUser = document.getElementById("loginUser");
-const loginPass = document.getElementById("loginPass");
-const feedbackMessage = document.getElementById("feedbackMessage");
+/* ---------------- UI binding ---------------- */
+const loginBtn = document.getElementById('loginBtn');
+const loginUser = document.getElementById('loginUser');
+const loginPass = document.getElementById('loginPass');
+const feedbackMessage = document.getElementById('feedbackMessage');
+const loginBox = document.getElementById('loginBox');
 
-const sidebar = document.getElementById("sidebar");
-const btnBack = document.getElementById("btnBack");
-const appRoot = document.getElementById("app");
-const loginBox = document.getElementById("loginBox");
+const sidebar = document.getElementById('sidebar');
+const btnBack = document.getElementById('btnBack');
+const appRoot = document.getElementById('app');
 
-const btnManageUsers = document.getElementById("btnManageUsers");
-const btnDeliveries = document.getElementById("btnDeliveries");
-const btnCamera = document.getElementById("btnCamera");
-const btnMap = document.getElementById("btnMap");
-const btnRoute = document.getElementById("btnRoute");
-const btnSair = document.getElementById("btnSair");
+const btnManageUsers = document.getElementById('btnManageUsers');
+const btnDeliveries = document.getElementById('btnDeliveries');
+const btnCamera = document.getElementById('btnCamera');
+const btnMap = document.getElementById('btnMap');
+const btnRoute = document.getElementById('btnRoute');
+const btnSair = document.getElementById('btnSair');
 
-const userManagementView = document.getElementById("userManagementView");
-const deliveriesList = document.getElementById("deliveriesList");
-const cameraContainer = document.getElementById("cameraContainer");
-const mapEl = document.getElementById("map");
+const userManagementView = document.getElementById('userManagementView');
+const deliveriesList = document.getElementById('deliveriesList');
+const cameraContainer = document.getElementById('cameraContainer');
+const mapEl = document.getElementById('map');
+const qrReaderEl = document.getElementById('qr-reader');
 
-const userTableBody = document.getElementById("userTableBody");
-const newUsername = document.getElementById("newUsername");
-const newPassword = document.getElementById("newPassword");
-const newUserRole = document.getElementById("newUserRole");
-const createUserBtn = document.getElementById("createUserBtn");
+const userTableBody = document.getElementById('userTableBody');
+const newUsername = document.getElementById('newUsername');
+const newPassword = document.getElementById('newPassword');
+const newUserRole = document.getElementById('newUserRole');
+const createUserBtn = document.getElementById('createUserBtn');
 
-const exportDaily = document.getElementById("exportDaily");
-const exportQuinzenal = document.getElementById("exportQuinzenal");
-const exportMensal = document.getElementById("exportMensal");
-const deliveriesCount = document.getElementById("deliveriesCount");
+const btnExportCSV = document.getElementById('btnExportCSV');
+const exportDaily = document.getElementById('exportDaily');
+const exportQuinzenal = document.getElementById('exportQuinzenal');
+const exportMensal = document.getElementById('exportMensal');
+const deliveriesCount = document.getElementById('deliveriesCount');
 
-// ---------------------- SIDEBAR MOBILE ----------------------
-function openScreenHideMenu(){
-  sidebar.style.display = "none";
-  btnBack.style.display = "inline-block";
-}
-function backToMenu(){
-  sidebar.style.display = "";
-  btnBack.style.display = "none";
-  hideAllViews();
-  showView("list");
-}
-btnBack.addEventListener("click", backToMenu);
+const filterButtons = document.querySelectorAll('.filter-btn');
+const btnFilterCustom = document.getElementById('btnFilterCustom');
+const btnClearFilter = document.getElementById('btnClearFilter');
 
-// ---------------------- LOGIN ----------------------
-loginBtn.addEventListener("click", async ()=>{
-  feedbackMessage.textContent = "Verificando...";
+const reportSection = document.getElementById('reportColaboradorSection');
+const reportUserSelect = document.getElementById('reportUserSelect');
+const btnReportUser = document.getElementById('btnReportUser');
+
+let currentUserObj = null;
+let map = null;
+let markersLayer = null;
+
+/* ---------------- sidebar mobile handling ---------------- */
+function openScreenHideMenu(){ sidebar.style.display = 'none'; btnBack.style.display = 'inline-block'; }
+function backToMenu(){ sidebar.style.display = ''; btnBack.style.display = 'none'; hideAllViews(); showView('list'); }
+btnBack.addEventListener('click', ()=>{ backToMenu(); });
+
+/* ---------------- login flow ---------------- */
+loginBtn.addEventListener('click', async ()=>{
+  feedbackMessage.textContent = 'Verificando...';
   try{
-    const sess = await login(loginUser.value.trim(),loginPass.value.trim());
+    const sess = await login(loginUser.value.trim(), loginPass.value.trim());
     currentUserObj = await findUserById(sess.userId);
-
-    loginBox.style.display="none";
-    appRoot.style.display="block";
-    sidebar.style.display="";
-
+    loginBox.style.display = 'none';
+    appRoot.style.display = 'block';
+    sidebar.style.display = '';
     await loadAndRender();
   }catch(e){
     feedbackMessage.textContent = e.message;
   }
 });
-btnSair.onclick = logout;
+btnSair.addEventListener('click', ()=>{ logout(); });
 
-// ---------------------- NAVIGATION ----------------------
-btnManageUsers.onclick = ()=>{ openScreenHideMenu(); showView("users"); };
-btnDeliveries.onclick = ()=>{ openScreenHideMenu(); showView("list"); };
-btnCamera.onclick = ()=>{ openScreenHideMenu(); showView("camera"); startScanner(); };
-btnMap.onclick = ()=>{ openScreenHideMenu(); showView("map"); setTimeout(()=>map&&map.invalidateSize(),200); };
-btnRoute.onclick = ()=>{ openScreenHideMenu(); generateRoute(); };
+/* ---------------- navigation ---------------- */
+btnManageUsers.addEventListener('click', ()=>{ openScreenHideMenu(); showView('users'); });
+btnDeliveries.addEventListener('click', ()=>{ openScreenHideMenu(); showView('list'); });
+btnCamera.addEventListener('click', ()=>{ openScreenHideMenu(); showView('camera'); startScanner(); });
+btnMap.addEventListener('click', ()=>{ openScreenHideMenu(); showView('map'); setTimeout(()=> map && map.invalidateSize(),200); });
+btnRoute.addEventListener('click', ()=>{ openScreenHideMenu(); generateRoute(); });
 
-// ---------------------- VIEWS ----------------------
+/* ---------------- view helpers ---------------- */
 function hideAllViews(){
-  userManagementView.style.display="none";
-  deliveriesList.style.display="none";
-  cameraContainer.style.display="none";
-  mapEl.style.display="none";
+  userManagementView.style.display = 'none';
+  deliveriesList.style.display = 'none';
+  cameraContainer.style.display = 'none';
+  mapEl.style.display = 'none';
 }
-function showView(v){
+function showView(name){
   hideAllViews();
-  if(v==="users") userManagementView.style.display="block";
-  if(v==="list") deliveriesList.style.display="block";
-  if(v==="camera") cameraContainer.style.display="flex";
-  if(v==="map") mapEl.style.display="block";
+  if(name==='users') userManagementView.style.display = 'block';
+  if(name==='list') deliveriesList.style.display = 'block';
+  if(name==='camera') cameraContainer.style.display = 'flex';
+  if(name==='map') mapEl.style.display = 'block';
 }
 
-// ---------------------- HIERARQUIA FILTERS ----------------------
-async function getTeamUsernames(gestor){
-  const users = await getAllUsers();
-  const colabs = users.filter(u=>u.createdBy===gestor.id).map(u=>u.username);
-  return [gestor.username, ...colabs];
-}
-
-// ---------------------- USERS UI ----------------------
-createUserBtn.onclick = async ()=>{
+/* ---------------- users UI ---------------- */
+createUserBtn.addEventListener('click', async ()=>{
   try{
-    await createUser(currentUserObj,{
-      username:newUsername.value.trim(),
-      password:newPassword.value.trim(),
-      role:newUserRole.value
-    });
-    newUsername.value="";
-    newPassword.value="";
-    renderUserTable();
-    alert("Usuário criado.");
+    await createUser(currentUserObj, { username: newUsername.value.trim(), password: newPassword.value.trim(), role: newUserRole.value });
+    newUsername.value=''; newPassword.value=''; renderUserTable();
+    alert('Usuário criado');
   }catch(e){
     alert(e.message);
   }
-};
+});
 
 async function renderUserTable(){
   const users = await getAllUsers();
-  userTableBody.innerHTML = "";
-
+  userTableBody.innerHTML = '';
   users.forEach(u=>{
-    const tr = document.createElement("tr");
+    const tr = document.createElement('tr');
+    const creator = u.createdBy ? (users.find(x=>x.id===u.createdBy)?.username || '-') : '-';
+    tr.innerHTML = `<td>${u.username}</td><td>${u.role}</td><td>${creator}</td><td>
+      <button class="btn-small btn-edit">Editar</button>
+      <button class="btn-small btn-delete">Excluir</button>
+      <button class="btn-small btn-pass">Senha</button>
+    </td>`;
+    const edit = tr.querySelector('.btn-edit');
+    const del = tr.querySelector('.btn-delete');
+    const pass = tr.querySelector('.btn-pass');
 
-    const creator = u.createdBy ? (users.find(x=>x.id===u.createdBy)?.username || "-") : "-";
-
-    tr.innerHTML = `
-      <td>${u.username}</td>
-      <td>${u.role}</td>
-      <td>${creator}</td>
-      <td>
-        <button class="btn-edit-small">Editar</button>
-        <button class="btn-del-small">Excluir</button>
-        <button class="btn-pass-small">Senha</button>
-      </td>
-    `;
-
-    const btnE = tr.querySelector(".btn-edit-small");
-    const btnD = tr.querySelector(".btn-del-small");
-    const btnP = tr.querySelector(".btn-pass-small");
-
-    btnE.onclick = async ()=>{
+    edit.onclick = async ()=>{
       try{
-        const newU = prompt("Novo username (deixe em branco p/ manter):", u.username);
+        const newU = prompt('Novo username:', u.username);
         let newRole = u.role;
-
         if(isAdmin(currentUserObj)){
-          const r = prompt("Nova função (admin/gestor/colaborador):", u.role);
-          if(["admin","gestor","colaborador"].includes(r)) newRole = r;
-        } else if(isGestor(currentUserObj)){
-          if(u.createdBy===currentUserObj.id){
-            const r = prompt("Nova função (colaborador):", u.role);
-            if(r==="colaborador") newRole = r;
-          }
+          const r = prompt('Nova função (admin/gestor/colaborador):', u.role);
+          if(r && ['admin','gestor','colaborador'].includes(r)) newRole = r;
+        } else if(isGestor(currentUserObj) && u.createdBy === currentUserObj.id){
+          const r = prompt('Nova função (gestor/colaborador):', u.role);
+          if(r && ['gestor','colaborador'].includes(r)) newRole = r;
         }
-
-        await editUser(currentUserObj, u.id, {
-          username: newU || undefined,
-          role: newRole
-        });
+        await editUser(currentUserObj, u.id, { username: newU? newU.trim(): undefined, role: newRole });
+        alert('Atualizado');
         renderUserTable();
-        alert("Atualizado.");
       }catch(e){ alert(e.message); }
     };
 
-    btnD.onclick = async ()=>{
-      if(!confirm("Excluir usuário?")) return;
-      try{
-        await deleteUser(currentUserObj, u.id);
-        renderUserTable();
-        alert("Excluído.");
-      }catch(e){ alert(e.message); }
-    };
+    del.onclick = async ()=>{ if(!confirm('Excluir usuário?')) return; try{ await deleteUser(currentUserObj, u.id); alert('Excluído'); renderUserTable(); }catch(e){ alert(e.message); } };
+    pass.onclick = async ()=>{ const np = prompt('Nova senha:'); if(!np) return; try{ await changePassword(currentUserObj, u.id, np); alert('Senha alterada'); }catch(e){ alert(e.message); } };
 
-    btnP.onclick = async ()=>{
-      const np = prompt("Nova senha:");
-      if(!np) return;
-      try{
-        await changePassword(currentUserObj, u.id, np);
-        alert("Senha alterada.");
-      }catch(e){ alert(e.message); }
-    };
-
-    if(u.id===currentUserObj.id) btnD.disabled = true;
-
-    if(isGestor(currentUserObj) && u.createdBy!==currentUserObj.id){
-      btnE.disabled = true;
-      btnD.disabled = true;
-    }
+    if(u.id === currentUserObj.id) del.disabled = true;
+    if(isGestor(currentUserObj) && u.createdBy !== currentUserObj.id){ edit.disabled = true; del.disabled = true; }
 
     userTableBody.appendChild(tr);
   });
 }
 
-// ---------------------- DELIVERIES UI ----------------------
+/* ---------------- deliveries UI (with filters and hierarchy) ---------------- */
+async function getTeamUsernames(gestorUser){
+  const users = await getAllUsers();
+  const team = users.filter(u => u.createdBy === gestorUser.id).map(u => u.username);
+  team.unshift(gestorUser.username);
+  return team;
+}
+
+function applyActiveFilter(list){
+  const f = window.activeFilter;
+  if(!f) return list;
+  if(typeof f === 'string'){
+    const now = new Date();
+    if(f === 'today') return list.filter(s=> new Date(s.timestamp).toDateString() === now.toDateString());
+    if(f === 'yesterday'){ const y = new Date(Date.now()-86400000); return list.filter(s=> new Date(s.timestamp).toDateString() === y.toDateString()); }
+    if(f === '7d') return list.filter(s=> new Date(s.timestamp).getTime() >= Date.now()-7*86400000);
+    if(f === '30d') return list.filter(s=> new Date(s.timestamp).getTime() >= Date.now()-30*86400000);
+    return list;
+  } else if(typeof f === 'object' && f.start && f.end){
+    const st = new Date(f.start); const en = new Date(f.end); en.setHours(23,59,59,999);
+    return list.filter(s=>{ const t = new Date(s.timestamp); return t >= st && t <= en; });
+  }
+  return list;
+}
+
 async function renderDeliveriesList(){
   const scans = loadScans();
-
-  if(!currentUserObj){
-    deliveriesList.innerHTML="<p style='padding:10px;color:#666'>Faça login.</p>";
-    return;
-  }
+  deliveriesList.innerHTML = '';
+  if(!currentUserObj){ deliveriesList.innerHTML = '<p style="padding:12px;color:var(--muted)">Faça login para ver entregas.</p>'; return; }
 
   let visible = [];
+  if(isAdmin(currentUserObj)){ visible = scans; }
+  else if(isGestor(currentUserObj)){ const team = await getTeamUsernames(currentUserObj); visible = scans.filter(s=> team.includes(s.gestor)); }
+  else { visible = scans.filter(s=> s.gestor === currentUserObj.username); }
 
-  if(isAdmin(currentUserObj)){
-    visible = scans;
-  }
-  else if(isGestor(currentUserObj)){
-    const team = await getTeamUsernames(currentUserObj);
-    visible = scans.filter(s=>team.includes(s.gestor));
-  }
-  else{
-    visible = scans.filter(s=>s.gestor===currentUserObj.username);
-  }
+  visible = applyActiveFilter(visible);
 
-  if(visible.length===0){
-    deliveriesList.innerHTML="<p style='padding:10px;color:#666'>Nenhuma entrega.</p>";
-    deliveriesCount.textContent="Entregas: 0";
-    return;
-  }
+  if(visible.length === 0){ deliveriesList.innerHTML = '<p style="padding:12px;color:var(--muted)">Nenhuma entrega registrada.</p>'; deliveriesCount.textContent = 'Entregas: 0'; return; }
 
-  deliveriesList.innerHTML="";
   visible.forEach(s=>{
-    const div = document.createElement("div");
-    div.className="delivery-item";
-    div.innerHTML=`
-      <strong>${s.code}</strong>
-      <div>Gestor: ${s.gestor} • ${new Date(s.timestamp).toLocaleString()}</div>
-      <div style="margin-top:6px">${s.address||""}</div>
-    `;
+    const div = document.createElement('div'); div.className = 'delivery-item';
+    div.innerHTML = `<strong>${s.code}</strong><div class="meta">Gestor: ${s.gestor} • ${new Date(s.timestamp).toLocaleString()}</div><div style="margin-top:8px">${s.address||''}</div>`;
     deliveriesList.appendChild(div);
   });
-
-  deliveriesCount.textContent="Entregas: "+visible.length;
+  deliveriesCount.textContent = 'Entregas: '+visible.length;
 }
 
-// ---------------------- MAP ----------------------
-let map=null, markersLayer=null;
-function initMap(){
-  if(map) return;
-  map = L.map("map").setView([-23.55,-46.63],12);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-  markersLayer = L.layerGroup().addTo(map);
-}
+/* ---------------- map & route ---------------- */
+let map = null; let markersLayer = null;
+function initMap(){ if(map) return; map = L.map('map').setView([-23.55,-46.63],12); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); markersLayer = L.layerGroup().addTo(map); }
+function plotScansOnMap(){ if(!map) initMap(); markersLayer.clearLayers(); const scans = loadScans(); scans.forEach(s=>{ if(s.lat && s.lng) L.marker([s.lat,s.lng]).addTo(markersLayer).bindPopup(`<b>${s.code}</b><br>${s.address||''}`); }); }
+function generateRoute(){ const scans = loadScans().filter(s=>s.lat && s.lng); if(scans.length < 2){ alert('Nenhuma rota possível (>=2 entregas geolocalizadas)'); return; } showView('map'); initMap(); const coords = scans.map(s=>[s.lat,s.lng]); const layer = L.layerGroup().addTo(map); coords.forEach((c,i)=>L.marker(c).addTo(layer).bindPopup(`#${i+1}`)); L.polyline(coords,{color:'blue'}).addTo(layer); map.fitBounds(coords); }
 
-function plotScansOnMap(){
-  if(!map) initMap();
-  markersLayer.clearLayers();
-
-  const scans = loadScans();
-  scans.forEach(s=>{
-    if(s.lat && s.lng){
-      L.marker([s.lat,s.lng]).addTo(markersLayer)
-        .bindPopup(`<b>${s.code}</b><br>${s.address||""}`);
-    }
-  });
-}
-
-function generateRoute(){
-  const scans = loadScans().filter(s=>s.lat && s.lng);
-  if(scans.length<2){
-    alert("É preciso ao menos 2 entregas geolocalizadas.");
-    return;
-  }
-
-  showView("map");
-  initMap();
-
-  const coords = scans.map(s=>[s.lat,s.lng]);
-  L.polyline(coords,{color:"blue"}).addTo(map);
-  coords.forEach((c,i)=>L.marker(c).addTo(map).bindPopup(`#${i+1}`));
-
-  map.fitBounds(coords);
-}
-
-// ---------------------- SCANNER REAL ----------------------
-let html5Scanner=null;
-let scanning=false;
-
+/* ---------------- scanner (html5-qrcode) ---------------- */
+let html5Scanner = null; let scanning = false;
 async function startScanner(){
   if(scanning) return;
-  if(!currentUserObj){ alert("Faça login"); return; }
-
-  scanning=true;
-
-  if(html5Scanner){
-    try{
-      await html5Scanner.stop();
-      html5Scanner.clear();
-    }catch{}
-  }
-
-  html5Scanner = new Html5Qrcode("qr-reader");
-
-  let cameras=[];
-  try{ cameras = await Html5Qrcode.getCameras(); }catch(e){}
-
-  let camId = cameras[0]?.id || null;
-  for(const c of cameras){
-    if(/back|rear|environment/i.test(c.label))
-      camId = c.id;
-  }
-
-  html5Scanner.start(
-    camId,
-    { fps:10, qrbox:280 },
-    qr=>{
-      const scans = loadScans();
-      const last = scans[0];
-      if(last && last.code===qr && Date.now()-new Date(last.timestamp)<1500)
-        return;
-
-      const s = {
-        id:uuid(),
-        code:qr,
-        timestamp:nowISO(),
-        lat:null,
-        lng:null,
-        address:"",
-        gestor:currentUserObj.username
-      };
-
-      addScan(s);
-      renderDeliveriesList();
-      plotScansOnMap();
-      beep();
-    },
-    ()=>{}
-  ).catch(err=>{
-    scanning=false;
-    alert("Não foi possível abrir a câmera.\nUse HTTPS ou localhost.");
-    console.error(err);
+  if(!currentUserObj){ alert('Faça login antes de usar o scanner'); return; }
+  scanning = true;
+  if(html5Scanner) try{ await html5Scanner.stop(); html5Scanner.clear(); }catch(e){}
+  html5Scanner = new Html5Qrcode('qr-reader');
+  const cams = await Html5Qrcode.getCameras().catch(()=>[]);
+  let camId = cams[0]?.id || null;
+  for(const c of (cams||[])){ if(/back|rear|environment/i.test(c.label)) { camId = c.id; break; } }
+  html5Scanner.start(camId, { fps:10, qrbox:280 }, qrCodeMessage=>{
+    const last = loadScans()[0];
+    if(last && last.code === qrCodeMessage && (Date.now() - new Date(last.timestamp)) < 1500) return;
+    const scan = { id: uuid(), code: qrCodeMessage, timestamp: nowISO(), lat:null, lng:null, address:'', gestor: currentUserObj.username };
+    addScan(scan); renderDeliveriesList(); plotScansOnMap(); try{ beep(); }catch(e){}; 
+  }, err=>{}).catch(err=>{
+    scanning = false; console.error('scanner error', err); alert('Não foi possível abrir a câmera. Verifique permissões e https/localhost.');
   });
 }
+async function stopScanner(){ if(!html5Scanner) return; try{ await html5Scanner.stop(); html5Scanner.clear(); }catch(e){} html5Scanner=null; scanning=false; }
 
-async function stopScanner(){
-  try{
-    if(html5Scanner){
-      await html5Scanner.stop();
-      html5Scanner.clear();
-      html5Scanner=null;
-    }
-  }catch{}
-  scanning=false;
+/* ---------------- manual register helper ---------------- */
+async function registerScanManual(code){ const user = currentUserObj || await currentUser(); if(!user) return alert('Faça login'); const s = { id: uuid(), code, timestamp: nowISO(), lat:null, lng:null, address:'', gestor: user.username }; addScan(s); renderDeliveriesList(); plotScansOnMap(); beep(); alert('Entrega registrada: '+code); }
+
+/* ---------------- CSV export functions ---------------- */
+function exportCSVList(list, filename){
+  if(!list || !list.length){ alert('Nenhuma entrega para exportar'); return; }
+  let csv = 'codigo,gestor,data,lat,lng,endereco\\n';
+  list.forEach(s=>{ csv += `"${s.code}","${s.gestor}","${s.timestamp}",${s.lat||''},${s.lng||''},"${(s.address||'').replace(/"/g,'""')}"\\n`; });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }
 
-// ---------------------- CSV EXPORT ----------------------
-function filterByPeriod(days){
-  const all = loadScans();
-  if(!currentUserObj) return [];
-
-  let visible=[];
-  if(isAdmin(currentUserObj)){
-    visible = all;
-  }
-  else if(isGestor(currentUserObj)){
-    let teamList=[];
-    return getTeamUsernames(currentUserObj).then(team=>{
-      teamList=team;
-      let result = all.filter(s=>teamList.includes(s.gestor));
-      if(!days) return result;
-      const cutoff=Date.now()-(days*86400000);
-      return result.filter(s=>new Date(s.timestamp).getTime()>=cutoff);
-    });
-  }
-  else{
-    visible = all.filter(s=>s.gestor===currentUserObj.username);
-  }
-
-  if(!days) return visible;
-  const cutoff=Date.now()-(days*86400000);
-  return visible.filter(s=>new Date(s.timestamp).getTime()>=cutoff);
-}
+document.getElementById('exportDaily').addEventListener('click', ()=>{ exportCSVFor(1); });
+document.getElementById('exportQuinzenal').addEventListener('click', ()=>{ exportCSVFor(15); });
+document.getElementById('exportMensal').addEventListener('click', ()=>{ exportCSVFor(30); });
 
 function exportCSVFor(days){
-  Promise.resolve(filterByPeriod(days)).then(list=>{
-    if(list.length===0){
-      alert("Nenhuma entrega no período.");
-      return;
-    }
-    let csv="codigo,gestor,data,lat,lng,endereco\n";
-    list.forEach(s=>{
-      csv+=`"${s.code}","${s.gestor}","${s.timestamp}",${s.lat||""},${s.lng||""},"${(s.address||"").replace(/"/g,'""')}"\n`;
+  const all = loadScans();
+  let list = all;
+  if(days) list = all.filter(s=> new Date(s.timestamp).getTime() >= Date.now() - days*86400000);
+  // apply hierarchy filter
+  if(!currentUserObj) return alert('Faça login');
+  if(isAdmin(currentUserObj)){}
+  else if(isGestor(currentUserObj)){
+    // only team
+    getTeamUsernames(currentUserObj).then(team=>{
+      const filtered = list.filter(s=> team.includes(s.gestor));
+      exportCSVList(filtered, `entregas_${days}d.csv`);
     });
+    return;
+  } else {
+    list = list.filter(s=> s.gestor === currentUserObj.username);
+  }
+  exportCSVList(list, `entregas_${days}d.csv`);
+}
 
-    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;
-    a.download=`entregas_${days||"all"}d.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+/* ---------------- filters UI binding ---------------- */
+const filterButtonsNodeList = document.querySelectorAll('.filter-btn');
+filterButtonsNodeList.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    window.activeFilter = btn.dataset.filter;
+    renderDeliveriesList();
   });
+});
+btnFilterCustom.addEventListener('click', ()=>{
+  const s = document.getElementById('filterStart').value;
+  const e = document.getElementById('filterEnd').value;
+  if(!s || !e){ alert('Selecione o intervalo'); return; }
+  window.activeFilter = { start: s, end: e };
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  renderDeliveriesList();
+});
+btnClearFilter.addEventListener('click', ()=>{
+  window.activeFilter = null;
+  document.getElementById('filterStart').value=''; document.getElementById('filterEnd').value='';
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  renderDeliveriesList();
+});
+
+/* ---------------- report by collaborator ---------------- */
+async function loadReportUsers(){
+  const users = await getAllUsers();
+  reportUserSelect.innerHTML = '';
+  if(isAdmin(currentUserObj)){
+    users.forEach(u=>{
+      if(u.role !== 'admin'){
+        const opt = document.createElement('option'); opt.value = u.username; opt.textContent = `${u.username} (${u.role})`; reportUserSelect.appendChild(opt);
+      }
+    });
+  } else if(isGestor(currentUserObj)){
+    users.forEach(u=>{
+      if(u.createdBy === currentUserObj.id){
+        const opt = document.createElement('option'); opt.value = u.username; opt.textContent = u.username; reportUserSelect.appendChild(opt);
+      }
+    });
+  }
+  if(reportUserSelect.children.length > 0) reportSection.style.display = 'block'; else reportSection.style.display = 'none';
 }
 
-exportDaily.onclick=()=>exportCSVFor(1);
-exportQuinzenal.onclick=()=>exportCSVFor(15);
-exportMensal.onclick=()=>exportCSVFor(30);
+btnReportUser.addEventListener('click', ()=>{
+  const user = reportUserSelect.value;
+  if(!user) return alert('Selecione um colaborador');
+  const all = loadScans();
+  const filtered = all.filter(x => x.gestor === user);
+  if(!filtered.length) return alert('Nenhuma entrega encontrada para esse colaborador.');
+  exportCSVList(filtered, `relatorio_${user}.csv`);
+});
 
-// ---------------------- BEEP ----------------------
-function beep(){
-  try{
-    const ctx=new AudioContext();
-    const osc=ctx.createOscillator();
-    const gain=ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value=900;
-    gain.gain.value=0.04;
-    osc.start();
-    setTimeout(()=>{osc.stop();ctx.close();},120);
-  }catch{}
-}
-
-// ---------------------- LOAD & INITIAL VIEW ----------------------
-let currentUserObj=null;
-
+/* ---------------- load & render ---------------- */
 async function loadAndRender(){
   await seedIfNeeded();
   currentUserObj = await currentUser();
@@ -625,29 +436,32 @@ async function loadAndRender(){
   await renderDeliveriesList();
   initMap();
   plotScansOnMap();
-  deliveriesCount.textContent="";
-  showView("list");
+  // show report users if permitted
+  if(isAdmin(currentUserObj) || isGestor(currentUserObj)) { await loadReportUsers(); }
+  showView('list');
 }
 
-window.addEventListener("DOMContentLoaded", async ()=>{
+/* ---------------- beep ---------------- */
+function beep(){ try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.type='sine'; o.frequency.value=900; g.gain.value=0.02; o.start(); setTimeout(()=>{ o.stop(); ctx.close(); },120); }catch(e){} }
+
+/* ---------------- initial session restore ---------------- */
+window.addEventListener('DOMContentLoaded', async ()=>{
   await seedIfNeeded();
   const sess = loadSession();
-
   if(sess){
     currentUserObj = await findUserById(sess.userId);
     if(currentUserObj){
-      loginBox.style.display="none";
-      appRoot.style.display="block";
-      sidebar.style.display="";
+      loginBox.style.display = 'none';
+      appRoot.style.display = 'block';
+      sidebar.style.display = '';
       await loadAndRender();
     } else clearSession();
+  } else {
+    loginBox.style.display = '';
+    appRoot.style.display = 'none';
+    sidebar.style.display = 'none';
   }
 });
 
-// ---------------------- REGISTER FOR DEV ----------------------
-window.MiniMock={
-  seedIfNeeded,getAllUsers,findUserById,findUserByUsername,
-  login,logout,currentUser,
-  createUser,editUser,changePassword,deleteUser,
-  loadScans,addScan
-};
+/* ---------------- expose for console ---------------- */
+window.MiniMock = { seedIfNeeded, getAllUsers, findUserByUsername, findUserById, login, logout, currentUser, createUser, editUser, changePassword, deleteUser, loadScans, addScan, registerScanManual: registerScanManual };
