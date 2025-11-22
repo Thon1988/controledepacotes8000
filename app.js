@@ -5,9 +5,15 @@ let users = [
     { username:'thon', password:'882010', role:'gestor' }
 ];
 
+// ======= ENTREGAS (simulação Mercado Livre / Shopee) =======
+const deliveries = [
+    { id:101, qr:'QR101', nome:'João Silva', endereco:'Rua A, 123, São Paulo, SP' },
+    { id:102, qr:'QR102', nome:'Maria Oliveira', endereco:'Av. B, 456, Rio de Janeiro, RJ' },
+    { id:103, qr:'QR103', nome:'Carlos Souza', endereco:'Rua C, 789, Belo Horizonte, MG' },
+    { id:104, qr:'QR104', nome:'Ana Lima', endereco:'Av. D, 321, Curitiba, PR' }
+];
+
 // ======= ELEMENTOS =======
-const loginBtn = document.getElementById('loginBtn');
-const feedback = document.getElementById('feedbackMessage');
 const sidebar = document.getElementById('sidebar');
 const btnBack = document.getElementById('btnBack');
 const cameraContainer = document.getElementById('cameraContainer');
@@ -19,39 +25,19 @@ const mapDiv = document.getElementById('map');
 // ======= VARIÁVEIS =======
 let html5QrcodeScanner;
 let scannedQRCodes = new Set();
+let scanRecords = JSON.parse(localStorage.getItem('pegazus_scans_v2') || '[]');
 let beepSuccess = new Audio('https://www.soundjay.com/button/beep-07.wav');
 let beepError = new Audio('https://www.soundjay.com/button/beep-10.wav');
 let map;
 
-// ======= LOGIN =======
-loginBtn.addEventListener('click', ()=>{
-    const username = document.getElementById('loginUser').value.trim();
-    const password = document.getElementById('loginPass').value.trim();
-    const user = users.find(u=>u.username===username && u.password===password);
-    if(user){
-        localStorage.setItem('pegazus_session_v1', JSON.stringify(user));
-        document.querySelector('.login-container').style.display='none';
-        sidebar.style.display='flex';
-        showDeliveries(); // inicial view
-    } else { feedback.textContent='Usuário ou senha incorretos'; }
-});
-
-// ======= LOGOUT =======
-document.getElementById('btnSair').addEventListener('click', ()=>{
-    localStorage.removeItem('pegazus_session_v1');
-    document.querySelector('.login-container').style.display='flex';
-    sidebar.style.display='none';
-    hideAllViews();
-    stopScanner();
-});
-
-// ======= VIEWS =======
+// ======= FUNÇÕES GERAIS =======
 function hideAllViews(){
     userView.classList.add('hidden');
     deliveriesList.classList.add('hidden');
     cameraContainer.classList.add('hidden');
     mapDiv.classList.add('hidden');
     btnBack.style.display='none';
+    stopScanner();
 }
 
 function showView(viewId){
@@ -63,11 +49,10 @@ function showView(viewId){
     if(viewId==='cameraContainer') startScanner();
 }
 
-// BACK BUTTON
+// ======= BOTÃO VOLTAR =======
 btnBack.addEventListener('click', ()=>{
     hideAllViews();
     sidebar.style.display='flex';
-    stopScanner();
 });
 
 // ======= CAMERA =======
@@ -77,17 +62,27 @@ function startScanner(){
     html5QrcodeScanner = new Html5Qrcode("qr-reader");
     html5QrcodeScanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
+        { fps:10, qrbox:250 },
         qrCodeMessage=>{
+            const delivery = deliveries.find(d=>d.qr===qrCodeMessage);
+            if(!delivery){
+                qrFeedback.textContent='QR Code inválido';
+                qrFeedback.style.display='block';
+                beepError.play();
+                setTimeout(()=>{ qrFeedback.style.display='none'; },2000);
+                return;
+            }
+
             if(scannedQRCodes.has(qrCodeMessage)){
                 qrFeedback.textContent='QR Code já escaneado';
                 qrFeedback.style.display='block';
                 beepError.play();
             } else {
                 scannedQRCodes.add(qrCodeMessage);
-                qrFeedback.textContent='QR Code detectado: '+qrCodeMessage;
+                qrFeedback.textContent=`Entrega: ${delivery.nome} - ${delivery.endereco}`;
                 qrFeedback.style.display='block';
                 beepSuccess.play();
+                recordScan(delivery, qrCodeMessage);
             }
             setTimeout(()=>{ qrFeedback.style.display='none'; },2000);
         }
@@ -103,12 +98,55 @@ function stopScanner(){
     }
 }
 
+// ======= REGISTRAR LEITURA =======
+function recordScan(delivery, qrCode){
+    const session = users[0]; // ou pegar user logado se houver login
+    scanRecords.push({
+        idEntrega: delivery.id,
+        nomeCliente: delivery.nome,
+        endereco: delivery.endereco,
+        qr: qrCode,
+        user: session.username,
+        datetime: new Date().toISOString()
+    });
+    localStorage.setItem('pegazus_scans_v2', JSON.stringify(scanRecords));
+}
+
+// ======= GERAR CSV =======
+document.getElementById('btnGenerateCSV').addEventListener('click', ()=>{
+    const period = prompt('Digite o período: diário / quinzenal / mensal').toLowerCase();
+    let filtered = [];
+    const now = new Date();
+    if(period==='diário'){
+        filtered = scanRecords.filter(r=>new Date(r.datetime).toDateString()===now.toDateString());
+    } else if(period==='quinzenal'){
+        filtered = scanRecords.filter(r=>(now - new Date(r.datetime))/(1000*60*60*24)<=15);
+    } else if(period==='mensal'){
+        filtered = scanRecords.filter(r=>(now - new Date(r.datetime))/(1000*60*60*24)<=30);
+    } else { alert('Período inválido'); return; }
+
+    if(filtered.length===0){ alert('Nenhum registro para este período'); return; }
+
+    let csv = 'ID Entrega,Nome Cliente,Endereço,QR Code,Usuário,Data e Hora\n';
+    filtered.forEach(r=>{
+        csv += `${r.idEntrega},"${r.nomeCliente}","${r.endereco}",${r.qr},${r.user},${r.datetime}\n`;
+    });
+
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url;
+    a.download=`relatorio_${period}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+});
+
 // ======= MENU BUTTONS =======
 document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
-document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
 document.getElementById('btnDeliveries').addEventListener('click', ()=>showDeliveries());
 document.getElementById('btnMap').addEventListener('click', ()=>showMap());
-document.getElementById('btnGenerateCSV').addEventListener('click', ()=>alert('CSV gerado (exemplo)'));
+document.getElementById('btnManageUsers').addEventListener('click', ()=>showUsers());
 
 // ======= DELIVERIES =======
 function showDeliveries(){
@@ -117,12 +155,12 @@ function showDeliveries(){
     btnBack.style.display='block';
     sidebar.style.display='none';
     deliveriesList.innerHTML='';
-    for(let i=1;i<=5;i++){
+    deliveries.forEach(d=>{
         const div = document.createElement('div');
         div.className='delivery-item';
-        div.innerHTML=`Entrega #${i}<div class="meta">Detalhes...</div>`;
+        div.innerHTML=`Entrega #${d.id}: ${d.nome}<div class="meta">${d.endereco}</div>`;
         deliveriesList.appendChild(div);
-    }
+    });
 }
 
 // ======= MAP =======
@@ -178,9 +216,7 @@ function renderUsers(){
     users.forEach(u=>{
         const tr=document.createElement('tr');
         tr.innerHTML=`<td>${u.username}</td><td>${u.role}</td>
-        <td>
-        <button class="btn-delete btn-small">Excluir</button>
-        </td>`;
+        <td><button class="btn-delete btn-small">Excluir</button></td>`;
         tbody.appendChild(tr);
     });
 
@@ -191,5 +227,3 @@ function renderUsers(){
         if(name && pass){ users.push({username:name,password:pass,role}); renderUsers(); }
     });
 }
-
-document.getElementById('btnManageUsers').addEventListener('click', ()=>showUsers());
