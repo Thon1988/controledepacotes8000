@@ -1,58 +1,402 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PegazusLog App</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- HTML5 QR Code library -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PegazusLog - Controle de Pacotes</title>
+
+    <!-- LEAFLET MAP -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 230px;
+            background: #003a73;
+            color: white;
+            padding: 15px 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar h2 {
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 18px;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.15);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 15px;
+            transition: 0.2s;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.28);
+        }
+
+        /* LOGIN */
+        .login-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-box {
+            width: 300px;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.18);
+        }
+
+        .login-box input {
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+        }
+
+        .login-btn {
+            width: 100%;
+            margin-top: 15px;
+            padding: 12px;
+            background: #003a73;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        /* MAIN CONTENT */
+        #app {
+            flex: 1;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .hidden { display: none; }
+
+        /* CARD */
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        /* TABLE */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .btn-small {
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+
+        .btn-edit { background: #0088ff; color: white; }
+        .btn-delete { background: #cc0000; color: white; }
+        .btn-pass { background: #ffaa00; color: white; }
+
+        /* DELIVERIES */
+        #deliveriesList {
+            margin-top: 10px;
+        }
+
+        .delivery-item {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 5px solid #003a73;
+        }
+
+        .meta {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* CAMERA */
+        #cameraContainer{
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            height: 70vh;
+            background:#ddd;
+        }
+
+        #qrVideo {
+            width: 300px;
+            height: 300px;
+            background: black;
+        }
+
+        /* MAP */
+        #map {
+            width: 100%;
+            height: 80vh;
+        }
+    </style>
 </head>
 <body>
-    <div class="sidebar">
-        <h2>PegazusLog</h2>
-        <button onclick="showDashboard()">Dashboard</button>
-        <button onclick="showUsers()">Usuários</button>
-        <button onclick="showScanner()">Scanner</button>
-        <div class="footer-btn">
-            <button onclick="goBack()">Voltar</button>
-        </div>
-    </div>
 
-    <div class="main-content">
-        <!-- Login -->
-        <div id="login-section" class="login-card">
+    <!-- LOGIN -->
+    <div class="login-container">
+        <div class="login-box">
             <h2>Login</h2>
-            <input type="text" id="username" placeholder="Usuário">
-            <input type="password" id="password" placeholder="Senha">
-            <button onclick="login()">Entrar</button>
-            <p class="app-name">PegazusLog</p>
-            <p id="login-error" class="error"></p>
-        </div>
-
-        <!-- Dashboard -->
-        <div id="dashboard-section" class="card hidden">
-            <h2>Dashboard</h2>
-            <p>Bem-vindo ao painel!</p>
-        </div>
-
-        <!-- Usuários -->
-        <div id="users-section" class="card hidden">
-            <h2>Gerenciar Usuários</h2>
-            <input type="text" id="new-username" placeholder="Novo usuário">
-            <input type="password" id="new-password" placeholder="Senha">
-            <button onclick="addUser()">Adicionar Usuário</button>
-            <ul id="user-list"></ul>
-        </div>
-
-        <!-- Scanner -->
-        <div id="scanner-section" class="card hidden">
-            <h2>Scanner de QR Code</h2>
-            <div id="qr-reader"></div>
-            <p id="scan-result"></p>
+            <input id="loginUser" placeholder="Usuário">
+            <input id="loginPass" type="password" placeholder="Senha">
+            <button id="loginBtn" class="login-btn">Entrar</button>
+            <div id="feedbackMessage" style="margin-top:10px;color:#c00;font-size:14px;"></div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- APP -->
+    <div class="sidebar" id="sidebar" style="display:none;">
+        <h2>PEGZUS LOG</h2>
+        <div id="btnDeliveries" class="nav-btn">📦 Entregas</div>
+        <div id="btnCamera" class="nav-btn">📷 Câmera</div>
+        <div id="btnMap" class="nav-btn">🗺️ Mapa</div>
+        <div id="btnRoute" class="nav-btn">🚗 Rota</div>
+        <div id="btnManageUsers" class="nav-btn">👥 Usuários</div>
+        <div id="btnGenerateCSV" class="nav-btn">📄 Gerar CSV</div>
+        <div id="btnSair" class="nav-btn">🔙 Sair</div>
+    </div>
+
+    <div id="app">
+
+        <!-- USER MANAGEMENT -->
+        <div id="userManagementView" class="hidden">
+            <h2>Gerenciar Usuários</h2>
+            <div class="card">
+                <h3>Criar usuário</h3>
+                <input id="newUsername" placeholder="Novo usuário">
+                <input id="newPassword" placeholder="Senha">
+                <select id="newUserRole">
+                    <option value="gestor">Gestor</option>
+                    <option value="colaborador">Colaborador</option>
+                </select>
+                <button id="createUserBtn" class="login-btn">Criar</button>
+            </div>
+            <h3 style="margin-top:25px;">Usuários cadastrados</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Função</th>
+                        <th>Criado por</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- DELIVERIES -->
+        <div id="deliveriesList" class="hidden"></div>
+
+        <!-- CAMERA -->
+        <div id="cameraContainer" class="hidden">
+            <video id="qrVideo" autoplay></video>
+        </div>
+
+        <!-- MAP -->
+        <div id="map" class="hidden"></div>
+
+    </div>
+
+    <!-- LIBS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- JS -->
+    <script>
+        // ======= Usuários iniciais =======
+        let users = [
+            { username: 'admin', password: 'admin123', role: 'admin' },
+            { username: 'gestor', password: 'gestor123', role: 'gestor' },
+            { username: 'thon', password: '882010', role: 'gestor' }
+        ];
+
+        // ======= Sessão e Login =======
+        const loginBtn = document.getElementById('loginBtn');
+        const feedback = document.getElementById('feedbackMessage');
+        loginBtn.addEventListener('click', ()=>{
+            const username = document.getElementById('loginUser').value.trim();
+            const password = document.getElementById('loginPass').value.trim();
+
+            const user = users.find(u=>u.username===username && u.password===password);
+            if(user){
+                localStorage.setItem('pegazus_session_v1', JSON.stringify(user));
+                document.querySelector('.login-container').style.display='none';
+                document.getElementById('sidebar').style.display='flex';
+                hideAllViews();
+            } else {
+                feedback.textContent='Usuário ou senha incorretos';
+            }
+        });
+
+        document.getElementById('btnSair').addEventListener('click', ()=>{
+            localStorage.removeItem('pegazus_session_v1');
+            document.querySelector('.login-container').style.display='flex';
+            document.getElementById('sidebar').style.display='none';
+            hideAllViews();
+        });
+
+        // ======= Navegação =======
+        function hideAllViews(){
+            document.getElementById('userManagementView').classList.add('hidden');
+            document.getElementById('deliveriesList').classList.add('hidden');
+            document.getElementById('cameraContainer').classList.add('hidden');
+            document.getElementById('map').classList.add('hidden');
+        }
+
+        document.getElementById('btnManageUsers').addEventListener('click', ()=>{
+            hideAllViews();
+            document.getElementById('userManagementView').classList.remove('hidden');
+            renderUserList();
+        });
+
+        document.getElementById('btnDeliveries').addEventListener('click', ()=>{
+            hideAllViews();
+            document.getElementById('deliveriesList').classList.remove('hidden');
+        });
+
+        document.getElementById('btnCamera').addEventListener('click', ()=>{
+            hideAllViews();
+            document.getElementById('cameraContainer').classList.remove('hidden');
+            startScanner();
+        });
+
+        document.getElementById('btnMap').addEventListener('click', ()=>{
+            hideAllViews();
+            document.getElementById('map').classList.remove('hidden');
+            initMap();
+        });
+
+        document.getElementById('btnGenerateCSV').addEventListener('click', ()=>{
+            generateCSV();
+        });
+
+        // ======= Usuários =======
+        function renderUserList(){
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML='';
+            users.forEach((u, i)=>{
+                const tr=document.createElement('tr');
+                tr.innerHTML=`<td>${u.username}</td><td>${u.role}</td><td>admin</td>
+                <td>
+                    <button class="btn-small btn-delete" onclick="deleteUser(${i})">Excluir</button>
+                </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('createUserBtn').addEventListener('click', ()=>{
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value.trim();
+            const role = document.getElementById('newUserRole').value;
+
+            if(!username || !password){ alert('Preencha todos os campos'); return; }
+
+            users.push({username,password,role});
+            renderUserList();
+            document.getElementById('newUsername').value='';
+            document.getElementById('newPassword').value='';
+        });
+
+        function deleteUser(index){
+            users.splice(index,1);
+            renderUserList();
+        }
+
+        // ======= Scanner =======
+        let scannerActive=false;
+        function startScanner(){
+            if(scannerActive) return;
+            scannerActive=true;
+            const video=document.getElementById('qrVideo');
+            if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+                navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+                .then(stream=>{ video.srcObject=stream; video.setAttribute('playsinline', true); video.play(); })
+                .catch(err=>console.error(err));
+            }
+        }
+
+        // ======= MAP =======
+        let map;
+        function initMap(){
+            if(map) return;
+            map = L.map('map').setView([-23.5505,-46.6333], 12); // exemplo SP
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+                attribution:'&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // ======= CSV =======
+        function generateCSV(){
+            const now = new Date();
+            const daily = [['Data','Entregas']];
+            const fortnight = [['Semana','Entregas']];
+            const monthly = [['Mês','Entregas']];
+
+            for(let i=0;i<5;i++){
+                daily.push([`2025-11-${i+1}`, Math.floor(Math.random()*20)]);
+                fortnight.push([`Semana ${i+1}`, Math.floor(Math.random()*50)]);
+                monthly.push([`Novembro`, Math.floor(Math.random()*200)]);
+            }
+
+            downloadCSV(daily,'relatorio_diario.csv');
+            downloadCSV(fortnight,'relatorio_quinzenal.csv');
+            downloadCSV(monthly,'relatorio_mensal.csv');
+        }
+
+        function downloadCSV(data, filename){
+            let csvContent = data.map(e=>e.join(",")).join("\n");
+            let blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+            let link=document.createElement('a');
+            link.href=URL.createObjectURL(blob);
+            link.download=filename;
+            link.click();
+        }
+
+        // ======= Inicialização =======
+        window.addEventListener('load', ()=>{
+            const session = localStorage.getItem('pegazus_session_v1');
+            if(session){
+                document.querySelector('.login-container').style.display='none';
+                document.getElementById('sidebar').style.display='flex';
+            }
+        });
+    </script>
+
 </body>
 </html>
