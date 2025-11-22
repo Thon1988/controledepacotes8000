@@ -1,121 +1,132 @@
-// ======= USUÁRIOS =======
-let users = [
-    { username:'admin', password:'admin123', role:'admin' },
-    { username:'gestor', password:'gestor123', role:'gestor' },
-    { username:'thon', password:'882010', role:'gestor' }
-];
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PegazusLog - Controle de Pacotes</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+body { margin:0; font-family: Arial,sans-serif; background:#f2f2f2; display:flex; height:100vh; }
 
-const loginBtn = document.getElementById('loginBtn');
-const feedback = document.getElementById('feedbackMessage');
-const sidebar = document.getElementById('sidebar');
-const btnBack = document.getElementById('btnBack');
-const cameraContainer = document.getElementById('cameraContainer');
-const qrFeedback = document.getElementById('qrFeedback');
+.sidebar { width:230px; background:#003a73; color:white; padding:15px 10px; display:flex; flex-direction:column; }
+.sidebar h2 { text-align:center; margin-bottom:25px; font-size:18px; }
+.nav-btn { background: rgba(255,255,255,0.15); padding:12px; border-radius:6px; margin-bottom:8px; cursor:pointer; text-align:center; font-size:15px; transition:0.2s; }
+.nav-btn:hover { background: rgba(255,255,255,0.28); }
 
-let scannedQRCodes = new Set();
-let html5QrCode = null;
-let beepSuccess = new Audio('https://www.soundjay.com/button/beep-07.wav');
-let beepError = new Audio('https://www.soundjay.com/button/beep-10.wav');
+.login-container { width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.login-box { width:300px; background:white; padding:25px; border-radius:10px; box-shadow:0 0 15px rgba(0,0,0,0.18); display:flex; flex-direction:column; align-items:center; z-index:1; }
+.login-box h1 { margin-bottom:20px; }
+.login-box input { width:100%; margin-top:10px; padding:10px; border-radius:6px; border:1px solid #ccc; }
+.login-btn { width:100%; margin-top:15px; padding:12px; background:#003a73; color:white; border:none; border-radius:6px; cursor:pointer; }
 
-// ======= LOGIN =======
-loginBtn.addEventListener('click', ()=>{
-    const username = document.getElementById('loginUser').value.trim();
-    const password = document.getElementById('loginPass').value.trim();
-    const user = users.find(u=>u.username===username && u.password===password);
-    if(user){
-        localStorage.setItem('pegazus_session_v1', JSON.stringify(user));
-        document.querySelector('.login-container').style.display='none';
-        sidebar.style.display='flex';
-    } else { feedback.textContent='Usuário ou senha incorretos'; }
-});
+#app { flex:1; padding:15px; display:flex; flex-direction:column; overflow-y:auto; position:relative; }
+.hidden { display:none; }
+.card { background:white; padding:15px; border-radius:8px; margin-bottom:15px; }
+table { width:100%; border-collapse:collapse; background:white; }
+th, td { padding:10px; border-bottom:1px solid #eee; }
+.btn-small { padding:5px 10px; border-radius:5px; border:none; margin-right:5px; cursor:pointer; }
+.btn-delete { background:#cc0000; color:white; }
+#deliveriesList { margin-top:10px; }
+.delivery-item { background:white; padding:12px; border-radius:6px; margin-bottom:8px; border-left:5px solid #003a73; }
+.meta { font-size:12px; color:#666; margin-top:5px; }
 
-// ======= LOGOUT =======
-document.getElementById('btnSair').addEventListener('click', ()=>{
-    localStorage.removeItem('pegazus_session_v1');
-    document.querySelector('.login-container').style.display='flex';
-    sidebar.style.display='none';
-    hideAllViews();
-    stopScanner();
-});
-
-// ======= VIEWS =======
-function hideAllViews(){
-    document.getElementById('userManagementView').classList.add('hidden');
-    document.getElementById('deliveriesList').classList.add('hidden');
-    document.getElementById('cameraContainer').classList.add('hidden');
-    document.getElementById('map').classList.add('hidden');
-    btnBack.style.display='none';
+/* CAMERA */
+#cameraContainer {
+    display:none;
+    justify-content:center;
+    align-items:center;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:#000;
+    z-index:1000;
+    flex-direction:column;
 }
-
-function showView(viewId){
-    hideAllViews();
-    const view = document.getElementById(viewId);
-    view.classList.remove('hidden');
-    btnBack.style.display='block';
-    sidebar.style.display='none';
-    if(viewId==='cameraContainer') startScanner();
+#qr-reader { width:100%; height:100%; max-width:600px; max-height:80vh; position:relative; }
+#scanner-line {
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:4px;
+    background:red;
+    animation: scanmove 2s infinite linear;
 }
-
-// BACK BUTTON
-btnBack.addEventListener('click', ()=>{
-    hideAllViews();
-    sidebar.style.display='flex';
-    stopScanner();
-});
-
-// ======= CAMERA SCANNER =======
-function startScanner(){
-    if(html5QrCode) return;
-    cameraContainer.style.display='flex';
-    html5QrCode = new Html5Qrcode("qr-reader");
-    const config = { fps:10, qrbox:250 };
-    html5QrCode.start({facingMode:"environment"}, config,
-        qrCodeMessage=>{
-            if(scannedQRCodes.has(qrCodeMessage)){
-                qrFeedback.textContent='QR Code já escaneado';
-                qrFeedback.style.display='block';
-                beepError.play();
-            } else {
-                scannedQRCodes.add(qrCodeMessage);
-                qrFeedback.textContent='QR Code detectado: '+qrCodeMessage;
-                qrFeedback.style.display='block';
-                beepSuccess.play();
-            }
-            setTimeout(()=>{ qrFeedback.style.display='none'; },2000);
-        },
-        errorMessage=>{}
-    ).catch(err=>console.error(err));
+@keyframes scanmove { 0% { top:0; } 50% { top:calc(100% - 4px); } 100% { top:0; } }
+#qrFeedback {
+    position:absolute;
+    bottom:120px;
+    color:white;
+    font-size:20px;
+    background:rgba(0,0,0,0.5);
+    padding:10px 20px;
+    border-radius:8px;
+    display:none;
+    text-align:center;
 }
-
-function stopScanner(){
-    if(html5QrCode){
-        html5QrCode.stop().then(()=>{
-            html5QrCode.clear();
-            html5QrCode=null;
-        }).catch(err=>console.error(err));
-    }
+#btnBack {
+    position:fixed;
+    bottom:40px;
+    left:50%;
+    transform:translateX(-50%);
+    width:90%;
+    max-width:400px;
+    padding:12px;
+    background:#003a73;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:16px;
+    display:none;
+    z-index:1001;
 }
+#map { width:100%; height:80vh; }
+</style>
+</head>
+<body>
 
-// ======= MENU BUTTONS =======
-document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
-document.getElementById('btnDeliveries').addEventListener('click', ()=>showView('deliveriesList'));
-document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
-document.getElementById('btnGenerateCSV').addEventListener('click', ()=>alert('Função CSV gerada (exemplo)'));
+<!-- LOGIN -->
+<div class="login-container">
+    <div class="login-box">
+        <h1>PegazusLog</h1>
+        <input id="loginUser" placeholder="Usuário">
+        <input id="loginPass" type="password" placeholder="Senha">
+        <button id="loginBtn" class="login-btn">Entrar</button>
+        <div id="feedbackMessage" style="margin-top:10px;color:#c00;font-size:14px;"></div>
+    </div>
+</div>
 
-// ======= MAP =======
-let map;
-document.getElementById('btnMap').addEventListener('click', ()=>{
-    showView('map');
-    if(!map){
-        map = L.map('map').setView([-23.5505,-46.6333],12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-            attribution:'&copy; OpenStreetMap contributors'
-        }).addTo(map);
-    }
-});
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar" style="display:none;">
+    <h2>PEGZUS LOG</h2>
+    <div id="btnDeliveries" class="nav-btn">📦 Entregas</div>
+    <div id="btnCamera" class="nav-btn">📷 Câmera</div>
+    <div id="btnMap" class="nav-btn">🗺️ Mapa</div>
+    <div id="btnRoute" class="nav-btn">🚗 Rota</div>
+    <div id="btnManageUsers" class="nav-btn">👥 Usuários</div>
+    <div id="btnGenerateCSV" class="nav-btn">📄 Gerar CSV</div>
+    <div id="btnSair" class="nav-btn">🔙 Sair</div>
+</div>
 
-// ======= LOAD SESSION =======
-window.addEventListener('load', ()=>{
-    const session = localStorage.getItem('pegazus_session_v1');
-    if(session){ document.querySelector('.login-container').style.display='none'; sidebar.style.display='flex'; }
-});
+<!-- APP CONTENT -->
+<div id="app">
+    <div id="userManagementView" class="hidden"></div>
+    <div id="deliveriesList" class="hidden"></div>
+    <div id="cameraContainer">
+        <div id="qr-reader">
+            <div id="scanner-line"></div>
+        </div>
+        <div id="qrFeedback"></div>
+    </div>
+    <div id="map" class="hidden"></div>
+</div>
+
+<button id="btnBack">🔙 Voltar</button>
+
+<!-- LIBS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
