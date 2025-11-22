@@ -3,213 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>App de Gestão</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            display: flex;
-        }
-
-        .sidebar {
-            width: 220px;
-            background-color: #2c3e50;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100vh;
-            padding: 20px;
-        }
-
-        .sidebar h2 {
-            text-align: center;
-        }
-
-        .sidebar button {
-            margin: 10px 0;
-            padding: 10px;
-            border: none;
-            background-color: #34495e;
-            color: white;
-            cursor: pointer;
-            width: 100%;
-            border-radius: 5px;
-        }
-
-        .sidebar button:hover {
-            background-color: #1abc9c;
-        }
-
-        .footer-btn {
-            margin-top: auto;
-        }
-
-        .main-content {
-            flex: 1;
-            padding: 40px;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        input {
-            display: block;
-            margin: 10px 0;
-            padding: 8px;
-            width: 200px;
-        }
-
-        button {
-            cursor: pointer;
-        }
-
-        .error {
-            color: red;
-        }
-
-        #user-list li {
-            margin: 5px 0;
-        }
-
-        #user-list button {
-            margin-left: 10px;
-            padding: 2px 5px;
-            font-size: 0.9em;
-        }
-    </style>
+    <title>PegazusLog App</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- HTML5 QR Code library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body>
     <div class="sidebar">
-        <h2>Menu</h2>
+        <h2>PegazusLog</h2>
         <button onclick="showDashboard()">Dashboard</button>
         <button onclick="showUsers()">Usuários</button>
+        <button onclick="showScanner()">Scanner</button>
         <div class="footer-btn">
             <button onclick="goBack()">Voltar</button>
         </div>
     </div>
 
     <div class="main-content">
-        <div id="login-section">
+        <!-- Login -->
+        <div id="login-section" class="login-card">
             <h2>Login</h2>
             <input type="text" id="username" placeholder="Usuário">
             <input type="password" id="password" placeholder="Senha">
             <button onclick="login()">Entrar</button>
+            <p class="app-name">PegazusLog</p>
             <p id="login-error" class="error"></p>
         </div>
 
-        <div id="dashboard-section" class="hidden">
+        <!-- Dashboard -->
+        <div id="dashboard-section" class="card hidden">
             <h2>Dashboard</h2>
             <p>Bem-vindo ao painel!</p>
         </div>
 
-        <div id="users-section" class="hidden">
+        <!-- Usuários -->
+        <div id="users-section" class="card hidden">
             <h2>Gerenciar Usuários</h2>
             <input type="text" id="new-username" placeholder="Novo usuário">
             <input type="password" id="new-password" placeholder="Senha">
             <button onclick="addUser()">Adicionar Usuário</button>
             <ul id="user-list"></ul>
         </div>
+
+        <!-- Scanner -->
+        <div id="scanner-section" class="card hidden">
+            <h2>Scanner de QR Code</h2>
+            <div id="qr-reader"></div>
+            <p id="scan-result"></p>
+        </div>
     </div>
 
-    <script>
-        // Usuários iniciais
-        let users = [
-            { username: 'admin', password: 'admin123', role: 'admin' },
-            { username: 'gestor', password: 'gestor123', role: 'gestor' }
-        ];
-
-        // Carregar usuários do localStorage
-        if (localStorage.getItem('users')) {
-            users = JSON.parse(localStorage.getItem('users'));
-        } else {
-            localStorage.setItem('users', JSON.stringify(users));
-        }
-
-        // Funções de navegação
-        function showDashboard() {
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('users-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.remove('hidden');
-        }
-
-        function showUsers() {
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.add('hidden');
-            document.getElementById('users-section').classList.remove('hidden');
-            renderUserList();
-        }
-
-        function goBack() {
-            showDashboard();
-        }
-
-        // Login
-        function login() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const user = users.find(u => u.username === username && u.password === password);
-
-            if (user) {
-                document.getElementById('login-error').textContent = '';
-                sessionStorage.setItem('currentUser', JSON.stringify(user));
-                showDashboard();
-            } else {
-                document.getElementById('login-error').textContent = 'Usuário ou senha incorretos';
-            }
-        }
-
-        // CRUD de usuários
-        function addUser() {
-            const username = document.getElementById('new-username').value.trim();
-            const password = document.getElementById('new-password').value.trim();
-
-            if (!username || !password) {
-                alert('Preencha todos os campos');
-                return;
-            }
-
-            if (users.find(u => u.username === username)) {
-                alert('Usuário já existe');
-                return;
-            }
-
-            users.push({ username, password, role: 'gestor' });
-            localStorage.setItem('users', JSON.stringify(users));
-            renderUserList();
-            document.getElementById('new-username').value = '';
-            document.getElementById('new-password').value = '';
-        }
-
-        function renderUserList() {
-            const userList = document.getElementById('user-list');
-            userList.innerHTML = '';
-
-            const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-
-            users.forEach((user, index) => {
-                const li = document.createElement('li');
-                li.textContent = `${user.username} (${user.role})`;
-
-                // Permissões de exclusão
-                if ((currentUser.role === 'gestor' && user.role === 'gestor') ||
-                    (currentUser.role === 'admin' && user.username !== 'admin')) {
-                    const delBtn = document.createElement('button');
-                    delBtn.textContent = 'Excluir';
-                    delBtn.onclick = () => deleteUser(index);
-                    li.appendChild(delBtn);
-                }
-
-                userList.appendChild(li);
-            });
-        }
-
-        function deleteUser(index) {
-            users.splice(index, 1);
-            localStorage.setItem('users', JSON.stringify(users));
-            renderUserList();
-        }
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
