@@ -1,10 +1,6 @@
-// app.js - PegazusLog (FULL MOCK, LocalStorage)
+// app.js - PegazusLog (FULL MOCK LocalStorage)
 // Admin inicial: thon / 882010
-// Regras:
-// - admin: pode criar/editar/excluir outros, mas NÃO pode excluir a si mesmo
-// - gestor: pode criar usuários (exceto admin) e excluir apenas os usuários que ele criou
-// - todos podem trocar a própria senha
-// - entregas (scans) em LocalStorage
+// Regras implementadas in-script comments
 
 const USERS_KEY = "pegazus_users_v1";
 const SCANS_KEY = "pegazus_scans_v1";
@@ -13,7 +9,7 @@ const SESSION_KEY = "pegazus_session_v1";
 function nowISO(){ return new Date().toISOString(); }
 function uuid(){ return 'id-'+Math.random().toString(36).slice(2,9)+'-'+Date.now().toString(36).slice(-6); }
 function saveJSON(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-function loadJSON(k,def){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):def; }catch{ return def; } }
+function loadJSON(k,def){ try{ const r = localStorage.getItem(k); return r?JSON.parse(r):def; } catch { return def; } }
 
 async function hashPassword(p){
   const data = new TextEncoder().encode(p);
@@ -21,11 +17,10 @@ async function hashPassword(p){
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-/* ---------------- seed ---------------- */
+/* ---------- seed (create default admin if none) ---------- */
 async function seedIfNeeded(){
   let users = loadJSON(USERS_KEY, []);
   if(users && users.length) return users;
-  // create default admin thon / 882010
   const passHash = await hashPassword('882010');
   const admin = { id: 'user-thon', username: 'thon', role: 'admin', passwordHash: passHash, createdBy: null, createdAt: nowISO(), updatedAt: nowISO() };
   users = [admin];
@@ -33,22 +28,22 @@ async function seedIfNeeded(){
   return users;
 }
 
+/* ---------- user helpers ---------- */
 async function getAllUsers(){ await seedIfNeeded(); return loadJSON(USERS_KEY, []); }
 async function findUserByUsername(username){ const users = await getAllUsers(); return users.find(u=>u.username===username) || null; }
 async function findUserById(id){ const users = await getAllUsers(); return users.find(u=>u.id===id) || null; }
 
-/* ---------------- session ---------------- */
 function saveSession(sess){ saveJSON(SESSION_KEY, sess); }
 function loadSession(){ return loadJSON(SESSION_KEY, null); }
 function clearSession(){ localStorage.removeItem(SESSION_KEY); }
 async function currentUser(){ const s = loadSession(); if(!s) return null; return await findUserById(s.userId); }
 
-/* ---------------- scans ---------------- */
+/* ---------- scans ---------- */
 function loadScans(){ return loadJSON(SCANS_KEY, []); }
 function saveScans(arr){ saveJSON(SCANS_KEY, arr); }
-function addScan(scan){ const list = loadScans(); list.unshift(scan); saveScans(list); }
+function addScan(scan){ const arr = loadScans(); arr.unshift(scan); saveScans(arr); }
 
-/* ---------------- auth ---------------- */
+/* ---------- auth ---------- */
 async function login(username, password){
   const u = await findUserByUsername(username);
   if(!u) throw new Error('Usuário não encontrado');
@@ -60,12 +55,12 @@ async function login(username, password){
 }
 function logout(){ clearSession(); location.reload(); }
 
-/* ---------------- authorization helpers ---------------- */
+/* ---------- authorization utils ---------- */
 function isAdmin(u){ return u && u.role === 'admin'; }
 function isGestor(u){ return u && u.role === 'gestor'; }
 
-/* ---------------- user CRUD ---------------- */
-async function createUser(actor, { username, password, role='gestor' }){
+/* ---------- user CRUD ---------- */
+async function createUser(actor, { username, password, role = 'gestor' }){
   if(!actor) throw new Error('Faça login primeiro');
   if(!isAdmin(actor) && !isGestor(actor)) throw new Error('Apenas admin ou gestor podem criar usuários');
   if(role === 'admin' && !isAdmin(actor)) throw new Error('Apenas admin pode criar admin');
@@ -84,19 +79,19 @@ async function editUser(actor, targetId, updates = {}){
   if(!actor) throw new Error('Faça login primeiro');
   const users = await getAllUsers();
   const idx = users.findIndex(x=>x.id===targetId);
-  if(idx===-1) throw new Error('Usuário não encontrado');
+  if(idx === -1) throw new Error('Usuário não encontrado');
   const target = users[idx];
 
-  if(actor.id === target.id){
-    // allowed to change own username via updates (role change only allowed for admin)
-  } else if(isAdmin(actor)){
+  if(actor.id === target.id) {
+    // allowed (own username)
+  } else if(isAdmin(actor)) {
     // allowed
-  } else if(isGestor(actor) && target.createdBy === actor.id){
+  } else if(isGestor(actor) && target.createdBy === actor.id) {
     // allowed
   } else throw new Error('Permissão negada para editar este usuário');
 
   if(updates.username){
-    const other = users.find(u=>u.username===updates.username && u.id!==target.id);
+    const other = users.find(u=>u.username===updates.username && u.id !== target.id);
     if(other) throw new Error('Username já em uso');
     target.username = updates.username;
   }
@@ -105,7 +100,7 @@ async function editUser(actor, targetId, updates = {}){
     target.role = updates.role;
   }
   target.updatedAt = nowISO();
-  users[idx]=target;
+  users[idx] = target;
   saveJSON(USERS_KEY, users);
   return sanitize(target);
 }
@@ -115,14 +110,14 @@ async function changePassword(actor, targetId, newPassword){
   if(!newPassword) throw new Error('Nova senha requerida');
   const users = await getAllUsers();
   const idx = users.findIndex(u=>u.id===targetId);
-  if(idx===-1) throw new Error('Usuário não encontrado');
+  if(idx === -1) throw new Error('Usuário não encontrado');
   const target = users[idx];
 
   if(actor.id === target.id || isAdmin(actor) || (isGestor(actor) && target.createdBy === actor.id)){
     const ph = await hashPassword(newPassword);
     target.passwordHash = ph;
     target.updatedAt = nowISO();
-    users[idx]=target;
+    users[idx] = target;
     saveJSON(USERS_KEY, users);
     return { success:true };
   } else throw new Error('Permissão negada para alterar senha');
@@ -132,16 +127,14 @@ async function deleteUser(actor, targetId){
   if(!actor) throw new Error('Faça login primeiro');
   const users = await getAllUsers();
   const idx = users.findIndex(u=>u.id===targetId);
-  if(idx===-1) throw new Error('Usuário alvo não encontrado');
+  if(idx === -1) throw new Error('Usuário alvo não encontrado');
   const target = users[idx];
-
   if(actor.id === target.id) throw new Error('Não é permitido excluir o próprio usuário');
   if(isAdmin(actor)){
-    // ok
+    // allowed
   } else if(isGestor(actor)){
     if(target.createdBy !== actor.id) throw new Error('Gestor só pode excluir usuários que ele criou');
   } else throw new Error('Permissão negada');
-
   users.splice(idx,1);
   saveJSON(USERS_KEY, users);
   return { success:true };
@@ -150,7 +143,7 @@ async function deleteUser(actor, targetId){
 function sanitize(u){ if(!u) return null; const { passwordHash, ...rest } = u; return rest; }
 async function listUsers(actor){ if(!actor) throw new Error('Faça login primeiro'); const users = await getAllUsers(); return users.map(sanitize); }
 
-/* ---------------- UI binding ---------------- */
+/* ---------- UI binding ---------- */
 const loginBtn = document.getElementById('loginBtn');
 const loginUser = document.getElementById('loginUser');
 const loginPass = document.getElementById('loginPass');
@@ -177,11 +170,10 @@ let currentUserObj = null;
 let map = null;
 let markersLayer = null;
 
-/* ---------------- initialize ---------------- */
+/* ---------- initialization ---------- */
 window.addEventListener('DOMContentLoaded', async ()=>{
   await seedIfNeeded();
   bindUI();
-  // restore session
   const sess = loadSession();
   if(sess){
     const u = await findUserById(sess.userId);
@@ -236,7 +228,6 @@ function showApp(){
   applyUserLimitations();
 }
 
-/* ---------------- views ---------------- */
 function showView(name){
   mapEl.style.display = 'none';
   deliveriesList.style.display = 'none';
@@ -248,16 +239,13 @@ function showView(name){
   else if(name==='camera'){ document.getElementById('cameraContainer').style.display='flex'; }
 }
 
-/* ---------------- permissions UI ---------------- */
 function applyUserLimitations(){
   if(!currentUserObj) return;
-  if(isAdmin(currentUserObj) || isGestor(currentUserObj)){
-    btnManageUsers.style.display = 'block';
-  } else btnManageUsers.style.display = 'none';
+  if(isAdmin(currentUserObj) || isGestor(currentUserObj)) btnManageUsers.style.display = 'block'; else btnManageUsers.style.display = 'none';
   updateDeliveriesCount();
 }
 
-/* ---------------- users UI ---------------- */
+/* ---------- users UI ---------- */
 async function renderUserTable(){
   const users = await getAllUsers();
   userTableBody.innerHTML = '';
@@ -286,7 +274,7 @@ async function renderUserTable(){
           const r = prompt('Nova role (admin/gestor/colaborador) — deixe em branco para manter:', u.role);
           if(r && ['admin','gestor','colaborador'].includes(r)) newRole = r;
         } else if(currentUserObj.id === u.id){
-          // can change own username only
+          // self only username change
         } else if(isGestor(currentUserObj) && u.createdBy === currentUserObj.id){
           const r = prompt('Nova role (gestor/colaborador) — deixe em branco para manter:', u.role);
           if(r && ['gestor','colaborador'].includes(r)) newRole = r;
@@ -317,25 +305,19 @@ async function renderUserTable(){
       }catch(e){ alert(e.message); }
     };
 
-    // disable delete for self
     if(u.id === currentUserObj.id) delBtn.disabled = true;
-    // gestor can't delete users not created by him
     if(isGestor(currentUserObj) && u.createdBy !== currentUserObj.id) delBtn.disabled = true;
-    // don't allow non-admin to delete admin
-    if(!isAdmin(currentUserObj) && u.role === 'admin') { delBtn.disabled = true; editBtn.disabled = (u.id !== currentUserObj.id); }
+    if(!isAdmin(currentUserObj) && u.role === 'admin'){ delBtn.disabled = true; editBtn.disabled = (u.id !== currentUserObj.id); }
 
     userTableBody.appendChild(tr);
   });
 }
 
-/* ---------------- deliveries UI ---------------- */
+/* ---------- deliveries UI ---------- */
 function renderDeliveriesList(){
   const scans = loadScans();
   deliveriesList.innerHTML = '';
-  if(!scans.length) {
-    deliveriesList.innerHTML = '<p style="padding:20px;color:var(--muted)">Nenhuma entrega registrada.</p>';
-    updateDeliveriesCount(); return;
-  }
+  if(!scans.length) { deliveriesList.innerHTML = '<p style="padding:20px;color:var(--muted)">Nenhuma entrega registrada.</p>'; updateDeliveriesCount(); return; }
   scans.forEach(s=>{
     const div = document.createElement('div');
     div.className = 'delivery-item';
@@ -347,7 +329,7 @@ function renderDeliveriesList(){
 }
 function updateDeliveriesCount(){ btnDeliveries.textContent = `📦 Entregas (${ loadScans().length })`; }
 
-/* ---------------- map & route ---------------- */
+/* ---------- map & route ---------- */
 function initMap(){
   if(map) return;
   map = L.map('map').setView([-23.55052, -46.633309], 12);
@@ -366,7 +348,7 @@ function plotScansOnMap(){
   if(scans.length && scans[0].lat && scans[0].lng) map.setView([scans[0].lat, scans[0].lng],13);
 }
 
-/* ---------------- register scan (mock) ---------------- */
+/* ---------- register scan (mock) ---------- */
 async function registerScan(code, coords=null, type='entrega', address=''){
   if(!currentUserObj) return alert('Usuário não logado');
   const scans = loadScans();
@@ -375,11 +357,11 @@ async function registerScan(code, coords=null, type='entrega', address=''){
   addScan(newScan);
   renderDeliveriesList();
   plotScansOnMap();
-  beep();
+  try { beep(); } catch(e){}
   alert(`Entrega ${code} registrada por ${currentUserObj.username}`);
 }
 
-/* ---------------- small utilities ---------------- */
+/* ---------- utilities ---------- */
 function beep(){
   try{
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -393,17 +375,15 @@ function generateRoute(){
   if(!scans.length){ alert('Nenhuma entrega para gerar rota'); return; }
   showView('map');
   initMap();
-  // simple route: draw polyline in order
   const coords = scans.filter(s=>s.lat && s.lng).map(s=>[s.lat,s.lng]);
   if(coords.length===0) return alert('Nenhuma entrega geolocalizada');
-  L.layerGroup().clearLayers?.(); // ignore when not present
   const layer = L.layerGroup().addTo(map);
   coords.forEach((c,i)=> L.marker(c).addTo(layer).bindPopup(`#${i+1}`));
   if(coords.length>1) L.polyline(coords,{color:'blue'}).addTo(layer);
   map.fitBounds(L.latLngBounds(coords));
 }
 
-/* ---------------- load & render initial ---------------- */
+/* ---------- load & render ---------- */
 async function loadAndRender(){
   await seedIfNeeded();
   renderUserTable();
@@ -413,9 +393,9 @@ async function loadAndRender(){
   showView('list');
 }
 
-/* ---------------- expose for console testing ---------------- */
+/* ---------- expose for console ---------- */
 window.MiniMock = {
   seedIfNeeded, getAllUsers, findUserByUsername, findUserById, login, logout, currentUser,
   createUser, editUser, changePassword, deleteUser, listUsers,
-  loadScans, addScan, registerScan, exportScans: ()=>{ const s=loadScans(); console.log(s); }
+  loadScans, addScan, registerScan, exportScans: ()=>{ console.log(loadScans()); }
 };
