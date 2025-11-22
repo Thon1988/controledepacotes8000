@@ -167,7 +167,6 @@ let map = null;
 let markersLayer = null;
 
 /* ---------------- sidebar mobile handling ---------------- */
-// CORREÇÃO: Usando display: flex para mostrar a sidebar
 function openScreenHideMenu(){ sidebar.style.display = 'none'; btnBack.style.display = 'inline-block'; }
 function backToMenu(){ sidebar.style.display = 'flex'; btnBack.style.display = 'none'; hideAllViews(); showView('list'); }
 btnBack.addEventListener('click', ()=>{ backToMenu(); });
@@ -312,7 +311,6 @@ async function renderDeliveriesList(){
 }
 
 /* ---------------- map & route ---------------- */
-// Removida re-declaração de map e markersLayer
 function initMap(){ if(map) return; map = L.map('map').setView([-23.55,-46.63],12); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); markersLayer = L.layerGroup().addTo(map); }
 function plotScansOnMap(){ if(!map) initMap(); markersLayer.clearLayers(); const scans = loadScans(); scans.forEach(s=>{ if(s.lat && s.lng) L.marker([s.lat,s.lng]).addTo(markersLayer).bindPopup(`<b>${s.code}</b><br>${s.address||''}`); }); }
 function generateRoute(){ const scans = loadScans().filter(s=>s.lat && s.lng); if(scans.length < 2){ alert('Nenhuma rota possível (>=2 entregas geolocalizadas)'); return; } showView('map'); initMap(); const coords = scans.map(s=>[s.lat,s.lng]); const layer = L.layerGroup().addTo(map); coords.forEach((c,i)=>L.marker(c).addTo(layer).bindPopup(`#${i+1}`)); L.polyline(coords,{color:'blue'}).addTo(layer); map.fitBounds(coords); }
@@ -450,6 +448,7 @@ function beep(){ try{ const ctx = new (window.AudioContext||window.webkitAudioCo
 window.addEventListener('DOMContentLoaded', async ()=>{
   await seedIfNeeded();
   const sess = loadSession();
+  
   if(sess){
     currentUserObj = await findUserById(sess.userId);
     if(currentUserObj){
@@ -459,13 +458,15 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       sidebar.style.display = 'flex'; 
       await loadAndRender();
     } else {
+      // Se a sessão existir, mas o usuário não for encontrado (ex: excluído), limpa e mostra login
       clearSession();
-      loginBox.style.display = '';
+      loginBox.style.display = 'block';
       appRoot.style.display = 'none';
       sidebar.style.display = 'none';
     }
   } else {
-    loginBox.style.display = '';
+    // CORREÇÃO: Mostra o loginBox e esconde o resto
+    loginBox.style.display = 'block';
     appRoot.style.display = 'none';
     sidebar.style.display = 'none';
   }
