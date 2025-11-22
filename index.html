@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PegazusLog - Mock Local (Scanner Real)</title>
+  <title>PegazusLog</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -24,13 +24,13 @@
       flex-direction:row;
     }
 
-    /* SIDEBAR */
+    /* SIDEBAR - CORREÇÃO: Restaurado display:flex no CSS da classe .sidebar para o layout */
     .sidebar{
       width:230px;
       background:var(--primary);
       color:white;
       padding:18px;
-      /* Removido: display:flex para que o JS controle a visibilidade */
+      display:flex; /* <-- Restaurado */
       flex-direction:column;
       gap:8px;
       transition:all .18s;
