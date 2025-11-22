@@ -1,163 +1,139 @@
-// ============================
-// Usuários iniciais
-// ============================
+// ======= Usuários iniciais =======
 let users = [
     { username: 'admin', password: 'admin123', role: 'admin' },
     { username: 'gestor', password: 'gestor123', role: 'gestor' },
     { username: 'thon', password: '882010', role: 'gestor' }
 ];
 
-// Carregar do localStorage
-if (localStorage.getItem('users')) {
-    users = JSON.parse(localStorage.getItem('users'));
-} else {
-    localStorage.setItem('users', JSON.stringify(users));
-}
+// ======= Sessão e Login =======
+const loginBtn = document.getElementById('loginBtn');
+const feedback = document.getElementById('feedbackMessage');
+loginBtn.addEventListener('click', ()=>{
+    const username = document.getElementById('loginUser').value.trim();
+    const password = document.getElementById('loginPass').value.trim();
 
-// ============================
-// Navegação
-// ============================
-function hideAllSections() {
-    document.getElementById('login-section').classList.add('hidden');
-    document.getElementById('dashboard-section').classList.add('hidden');
-    document.getElementById('users-section').classList.add('hidden');
-    document.getElementById('scanner-section').classList.add('hidden');
-}
-
-function showDashboard() {
-    hideAllSections();
-    document.getElementById('dashboard-section').classList.remove('hidden');
-}
-
-function showUsers() {
-    hideAllSections();
-    document.getElementById('users-section').classList.remove('hidden');
-    renderUserList();
-}
-
-function showScanner() {
-    hideAllSections();
-    document.getElementById('scanner-section').classList.remove('hidden');
-    startScanner();
-}
-
-function goBack() {
-    showDashboard();
-}
-
-// ============================
-// Login
-// ============================
-function login() {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const user = users.find(u => u.username === username && u.password === password);
-
-    if (user) {
-        document.getElementById('login-error').textContent = '';
-        sessionStorage.setItem('currentUser', JSON.stringify(user));
-        showDashboard();
+    const user = users.find(u=>u.username===username && u.password===password);
+    if(user){
+        localStorage.setItem('pegazus_session_v1', JSON.stringify(user));
+        document.querySelector('.login-container').style.display='none';
+        document.getElementById('sidebar').style.display='flex';
+        hideAllViews();
     } else {
-        document.getElementById('login-error').textContent = 'Usuário ou senha incorretos';
-    }
-}
-
-// ============================
-// CRUD Usuários
-// ============================
-function addUser() {
-    const username = document.getElementById('new-username').value.trim();
-    const password = document.getElementById('new-password').value.trim();
-
-    if (!username || !password) {
-        alert('Preencha todos os campos');
-        return;
-    }
-
-    if (users.find(u => u.username === username)) {
-        alert('Usuário já existe');
-        return;
-    }
-
-    users.push({ username, password, role: 'gestor' });
-    localStorage.setItem('users', JSON.stringify(users));
-    renderUserList();
-
-    document.getElementById('new-username').value = '';
-    document.getElementById('new-password').value = '';
-}
-
-function renderUserList() {
-    const userList = document.getElementById('user-list');
-    userList.innerHTML = '';
-
-    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-
-    users.forEach((user, index) => {
-        const li = document.createElement('li');
-        li.textContent = `${user.username} (${user.role})`;
-
-        if ((currentUser.role === 'gestor' && user.role === 'gestor') ||
-            (currentUser.role === 'admin' && user.username !== 'admin')) {
-            const delBtn = document.createElement('button');
-            delBtn.textContent = 'Excluir';
-            delBtn.onclick = () => deleteUser(index);
-            li.appendChild(delBtn);
-        }
-
-        userList.appendChild(li);
-    });
-}
-
-function deleteUser(index) {
-    users.splice(index, 1);
-    localStorage.setItem('users', JSON.stringify(users));
-    renderUserList();
-}
-
-// ============================
-// Scanner QR Code
-// ============================
-let html5QrCode;
-
-function startScanner() {
-    const resultContainer = document.getElementById("scan-result");
-    resultContainer.textContent = "";
-
-    if (html5QrCode) {
-        html5QrCode.stop().then(() => html5QrCode.clear());
-    }
-
-    html5QrCode = new Html5Qrcode("qr-reader");
-    Html5Qrcode.getCameras().then(cameras => {
-        if (cameras && cameras.length) {
-            const cameraId = cameras[0].id;
-            html5QrCode.start(
-                cameraId,
-                { fps: 10, qrbox: 250 },
-                qrCodeMessage => {
-                    resultContainer.textContent = `QR Code lido: ${qrCodeMessage}`;
-                },
-                errorMessage => {
-                    console.warn(errorMessage);
-                }
-            );
-        }
-    }).catch(err => {
-        console.error("Erro ao acessar a câmera: ", err);
-        resultContainer.textContent = "Não foi possível acessar a câmera";
-    });
-}
-
-// ============================
-// Inicialização
-// ============================
-window.addEventListener('load', () => {
-    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-    if (currentUser) {
-        showDashboard();
-    } else {
-        hideAllSections();
-        document.getElementById('login-section').classList.remove('hidden');
+        feedback.textContent='Usuário ou senha incorretos';
     }
 });
+
+document.getElementById('btnSair').addEventListener('click', ()=>{
+    localStorage.removeItem('pegazus_session_v1');
+    document.querySelector('.login-container').style.display='flex';
+    document.getElementById('sidebar').style.display='none';
+    hideAllViews();
+});
+
+// ======= Navegação =======
+function hideAllViews(){
+    document.getElementById('userManagementView').classList.add('hidden');
+    document.getElementById('deliveriesList').classList.add('hidden');
+    document.getElementById('cameraContainer').classList.add('hidden');
+    document.getElementById('map').classList.add('hidden');
+}
+
+document.getElementById('btnManageUsers').addEventListener('click', ()=>{
+    hideAllViews();
+    document.getElementById('userManagementView').classList.remove('hidden');
+    renderUserList();
+});
+
+document.getElementById('btnDeliveries').addEventListener('click', ()=>{
+    hideAllViews();
+    document.getElementById('deliveriesList').classList.remove('hidden');
+});
+
+document.getElementById('btnCamera').addEventListener('click', ()=>{
+    hideAllViews();
+    document.getElementById('cameraContainer').classList.remove('hidden');
+    startScanner();
+});
+
+document.getElementById('btnMap').addEventListener('click', ()=>{
+    hideAllViews();
+    document.getElementById('map').classList.remove('hidden');
+    initMap();
+});
+
+document.getElementById('btnGenerateCSV').addEventListener('click', ()=>{
+    generateCSV();
+});
+
+// ======= Usuários =======
+function renderUserList(){
+    const tbody = document.getElementById('userTableBody');
+    tbody.innerHTML='';
+    users.forEach((u, i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${u.username}</td><td>${u.role}</td><td>admin</td>
+        <td>
+            <button class="btn-small btn-delete" onclick="deleteUser(${i})">Excluir</button>
+        </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById('createUserBtn').addEventListener('click', ()=>{
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value.trim();
+    const role = document.getElementById('newUserRole').value;
+
+    if(!username || !password){ alert('Preencha todos os campos'); return; }
+
+    users.push({username,password,role});
+    renderUserList();
+    document.getElementById('newUsername').value='';
+    document.getElementById('newPassword').value='';
+});
+
+function deleteUser(index){
+    users.splice(index,1);
+    renderUserList();
+}
+
+// ======= Scanner =======
+let scannerActive=false;
+function startScanner(){
+    if(scannerActive) return;
+    scannerActive=true;
+    const video=document.getElementById('qrVideo');
+    if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+        navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+        .then(stream=>{ video.srcObject=stream; video.setAttribute('playsinline', true); video.play(); })
+        .catch(err=>console.error(err));
+    }
+}
+
+// ======= MAP =======
+let map;
+function initMap(){
+    if(map) return;
+    map = L.map('map').setView([-23.5505,-46.6333], 12); // exemplo SP
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'&copy; OpenStreetMap contributors'
+    }).addTo(map);
+}
+
+// ======= CSV =======
+function generateCSV(){
+    const now = new Date();
+    const daily = [['Data','Entregas']];
+    const fortnight = [['Semana','Entregas']];
+    const monthly = [['Mês','Entregas']];
+
+    // Exemplo de dados
+    for(let i=0;i<5;i++){
+        daily.push([`2025-11-${i+1}`, Math.floor(Math.random()*20)]);
+        fortnight.push([`Semana ${i+1}`, Math.floor(Math.random()*50)]);
+        monthly.push([`Novembro`, Math.floor(Math.random()*200)]);
+    }
+
+    downloadCSV(daily,'relatorio_diario.csv');
+    downloadCSV(fortnight,'relatorio_quinzenal.csv');
+    downloadCSV(monthly,'rela
