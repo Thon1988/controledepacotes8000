@@ -1,123 +1,147 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PegazusLog beta v1.0 - Mock Local</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PegazusLog - Mock Local</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <style>
-        :root {
-            --primary-color: #007bff;
-            --secondary-color: #6c757d;
-            --bg-color: #f0f2f5;
-            --list-bg-color: #ffffff;
-            --accent-blue-gray: #e9ecef;
-            --border-color: #dee2e6;
-        }
+  <style>
+    :root{
+      --primary-color: #0b5ed7; /* azul sidebar */
+      --accent: #ffc107;
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --muted: #6c757d;
+      --border: #e6e9ee;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;background:var(--bg);color:#222;height:100vh}
+    /* LOGIN */
+    .login-container{display:flex;align-items:center;justify-content:center;height:100vh}
+    .login-box{width:340px;background:var(--card);padding:32px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.08);text-align:center}
+    .login-box h1{margin:0 0 18px;color:var(--primary-color)}
+    .login-box input{width:100%;padding:12px;margin:8px 0;border:1px solid var(--border);border-radius:8px;font-size:15px}
+    .login-box button{width:100%;padding:12px;margin-top:10px;background:var(--primary-color);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer}
+    .login-box p{margin:10px 0 0;color:#d9534f}
 
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg-color); }
+    /* APP LAYOUT */
+    #app{display:none;height:100vh;position:relative}
+    #sidebar{
+      width:220px;
+      position:absolute;
+      left:0;top:0;bottom:0;
+      background:var(--primary-color);
+      color:white;
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      box-shadow:3px 0 12px rgba(0,0,0,0.08);
+      z-index:999;
+    }
+    #sidebar button{
+      display:flex;align-items:center;gap:8px;
+      background:transparent;color:white;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:700;
+      transition:background .12s, transform .06s;
+    }
+    #sidebar button:hover{background: rgba(255,255,255,0.08);transform:translateY(-2px)}
+    #sidebar .backBtn{margin-top:auto;background:#d6332a;color:white;padding:10px;border-radius:8px;font-weight:700}
+    .view-container{position:absolute;left:220px;right:0;top:0;bottom:0;overflow:hidden}
+    /* views */
+    #map{display:none;height:100%}
+    #deliveriesList{display:none;height:100%;padding:18px;overflow:auto;background:var(--bg)}
+    #userManagementView{display:none;height:100%;padding:18px;overflow:auto;background:var(--bg)}
+    #cameraContainer{display:none;height:100%;background:black;align-items:center;justify-content:center;display:flex}
 
-        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .login-box { background: white; padding: 30px; border-radius: 10px; width: 320px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
+    /* delivery item */
+    .delivery-item{background:var(--card);padding:14px;border-radius:10px;margin-bottom:12px;box-shadow:0 6px 18px rgba(0,0,0,0.04);border-left:4px solid var(--primary-color)}
+    .delivery-item strong{display:block;font-size:1.05rem}
+    .delivery-item .meta{font-size:0.85rem;color:var(--muted);margin-top:8px}
 
-        .login-box input, .login-box button { width: 100%; padding: 10px; margin: 8px 0; font-size: 16px; }
+    /* user management */
+    .user-form{background:var(--card);padding:16px;border-radius:10px;max-width:420px;margin-bottom:18px;box-shadow:0 6px 18px rgba(0,0,0,0.04)}
+    .user-form input, .user-form select{width:100%;padding:10px;margin-top:8px;border:1px solid var(--border);border-radius:8px}
+    .user-form button{margin-top:12px;padding:10px;width:100%;background:#198754;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700}
 
-        #sidebar {
-            width: 230px; position: absolute; left: 0; top: 0; bottom: 0; background: white;
-            padding: 10px; box-shadow: 3px 0 10px rgba(0,0,0,0.1);
-            display: flex; flex-direction: column;
-        }
+    table.users{width:100%;border-collapse:collapse;background:transparent}
+    table.users th, table.users td{padding:10px;border:1px solid var(--border);background:var(--card);font-size:0.95rem}
+    .btn-small{padding:6px 8px;border-radius:6px;border:none;cursor:pointer}
+    .btn-edit{background:#0d6efd;color:white}
+    .btn-delete{background:#dc3545;color:white}
+    .btn-pass{background:#20c997;color:white}
 
-        #sidebar button { margin: 6px 0; padding: 12px; font-size: 16px; cursor: pointer; }
-
-        #map, #deliveriesList, #userManagementView { display: none; padding: 15px; height: 100%; overflow-y: auto; }
-
-        .delivery-item { background: white; padding: 15px; margin-bottom: 10px; border-left: 4px solid #007bff; border-radius: 8px; }
-
-        #userManagementView table { width: 100%; border-collapse: collapse; background: white; }
-        #userManagementView th, #userManagementView td {
-            padding: 10px; border: 1px solid #ccc; text-align: left;
-        }
-    </style>
+    @media(max-width:800px){
+      #sidebar{position:relative;width:100%;flex-direction:row;flex-wrap:wrap;padding:10px}
+      .view-container{left:0;top:auto;height:calc(100vh - 120px)}
+    }
+  </style>
 </head>
-
 <body>
 
-<div class="login-container">
+  <!-- LOGIN -->
+  <div class="login-container">
     <div class="login-box">
-        <h2 style="text-align:center;">PegazusLog</h2>
-
-        <input type="text" id="loginUser" placeholder="Usuário" />
-        <input type="password" id="loginPass" placeholder="Senha" />
-        <button id="loginBtn">Entrar</button>
-
-        <button id="resetMockBtn" style="background:#6c757d; color:white;">
-            Resetar Banco Local (Mock)
-        </button>
-
-        <p id="feedbackMessage" style="color:red; margin-top:10px;"></p>
+      <h1>PegazusLog</h1>
+      <input id="loginUser" placeholder="Usuário" />
+      <input id="loginPass" type="password" placeholder="Senha" />
+      <button id="loginBtn">Entrar</button>
+      <p id="feedbackMessage"></p>
     </div>
-</div>
+  </div>
 
-<div id="app" style="display:none; height:100vh;">
-
+  <!-- APP -->
+  <div id="app">
     <div id="sidebar">
-        <button id="btnCamera">📷 Câmera</button>
-        <button id="btnDeliveries">📦 Entregas (0)</button>
-        <button id="btnMap">🗺️ Mapa</button>
-        <button id="btnRoute">🚗 Rota</button>
-        <button id="btnManageUsers">👥 Usuários</button>
-        <button id="btnSair" class="backBtn" style="background:#dc3545; color:white;">Sair</button>
+      <button id="btnCamera">📷 Câmera</button>
+      <button id="btnDeliveries">📦 Entregas (0)</button>
+      <button id="btnMap">🗺️ Mapa</button>
+      <button id="btnRoute">🚗 Rota</button>
+      <button id="btnManageUsers">👥 Usuários</button>
+
+      <button id="btnSair" class="backBtn">🔙 Sair</button>
     </div>
 
-    <div class="view-container" style="margin-left:230px; height:100%;">
+    <div class="view-container">
+      <div id="map"></div>
 
-        <div id="map" style="height:100%;"></div>
+      <div id="deliveriesList"></div>
 
-        <div id="deliveriesList"></div>
-
-        <div id="userManagementView">
-            <h2>Criar Usuário</h2>
-
-            <input type="text" id="newUsername" placeholder="Nome" />
-            <input type="password" id="newPassword" placeholder="Senha" />
-
-            <select id="newUserRole">
-                <option value="gestor">gestor</option>
-                <option value="colaborador">colaborador</option>
-                <option value="admin">admin</option>
-            </select>
-
-            <button id="createUserBtn" style="background:#28a745; color:white;">Criar Usuário</button>
-
-            <p id="userFeedbackMessage"></p>
-
-            <hr>
-
-            <h2>Usuários</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Usuário</th>
-                        <th>Função</th>
-                        <th>Criado Por</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="userTableBody"></tbody>
-            </table>
+      <div id="userManagementView">
+        <div class="user-form">
+          <h3>Criar Novo Usuário</h3>
+          <input id="newUsername" placeholder="Nome de usuário" />
+          <input id="newPassword" placeholder="Senha" />
+          <select id="newUserRole">
+            <option value="gestor">gestor</option>
+            <option value="colaborador">colaborador</option>
+            <option value="admin">admin</option>
+          </select>
+          <button id="createUserBtn">Criar Usuário</button>
+          <p id="userFeedbackMessage" style="margin-top:8px"></p>
         </div>
 
-        <div id="cameraContainer" style="display:none;">
-            <h1>Função câmera mock</h1>
+        <div style="background:transparent;padding:0 0 40px 0">
+          <h3>Usuários</h3>
+          <table class="users">
+            <thead>
+              <tr><th>Usuário</th><th>Função</th><th>Criado Por</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
         </div>
+      </div>
 
+      <div id="cameraContainer">
+        <div style="text-align:center;color:white">
+          <h2>Modo Câmera (mock)</h2>
+          <p>Use o console para registrar uma entrega ou habilite câmera real depois.</p>
+        </div>
+      </div>
     </div>
-</div>
+  </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js"></script>
-
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
