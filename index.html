@@ -1,113 +1,163 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PegazusLog - Controle de Pacotes</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<style>
-body { margin:0; font-family: Arial,sans-serif; background:#f2f2f2; height:100vh; display:flex; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pegazus Log - Scanner Fixo</title>
+    <style>
+        :root {
+            --primary: #003a73;
+            --bg: #f2f4f8;
+            --card: #fff;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: var(--bg);
+            display: flex; /* Layout de coluna lateral */
+            height: 100vh;
+        }
+        
+        /* --- Sidebar Style (Fixo) --- */
+        #sidebar {
+            width: 250px;
+            background: var(--primary);
+            color: white;
+            padding: 20px 15px;
+            display: none; /* Inicia Oculta, mostrada após login */
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+        }
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        /* --- Main Content / Containers --- */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: auto;
+        }
+        #loginContainer {
+            max-width: 350px;
+            margin: auto;
+            padding: 30px;
+            background: var(--card);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        #loginContainer input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #loginBtn {
+            width: 100%;
+            padding: 10px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        #feedbackMessage { color: red; margin-top: 10px; }
+        
+        /* --- Content Area (Lista/Mapa/Rota) --- */
+        #contentArea {
+            padding: 20px;
+            background: var(--card);
+            border-radius: 8px;
+            display: none; 
+            flex: 1; /* Ocupa o espaço disponível */
+        }
 
-/* Login */
-.login-container { width:100%; display:flex; align-items:center; justify-content:center; }
-.login-box { width:320px; background:white; padding:25px; border-radius:10px; box-shadow:0 0 15px rgba(0,0,0,0.18); text-align:center; }
-.login-box h1 { margin-bottom:15px; font-size:24px; }
-.login-box input { width:100%; margin-top:10px; padding:10px; border-radius:6px; border:1px solid #ccc; }
-.login-btn { width:100%; margin-top:15px; padding:12px; background:#003a73; color:white; border:none; border-radius:6px; cursor:pointer; }
-
-/* Sidebar */
-.sidebar { width:230px; background:#003a73; color:white; padding:15px 10px; display:flex; flex-direction:column; display:none; }
-.sidebar h2 { text-align:center; margin-bottom:25px; font-size:18px; }
-.nav-btn { background: rgba(255,255,255,0.15); padding:12px; border-radius:6px; margin-bottom:8px; cursor:pointer; text-align:center; font-size:15px; transition:0.2s; }
-.nav-btn:hover { background: rgba(255,255,255,0.28); }
-
-/* Main app */
-#app { flex:1; padding:15px; display:flex; flex-direction:column; overflow-y:auto; position:relative; }
-.hidden { display:none; }
-
-/* Camera Scanner */
-#cameraContainer {
-    display:none;
-    justify-content:center;
-    align-items:center;
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background:rgba(0,0,0,0.85);
-    z-index:1000;
-    flex-direction:column;
-}
-#qr-reader {
-    width:8cm; 
-    height:8cm; 
-    position:relative; 
-    border:2px solid white; 
-    box-sizing:border-box;
-}
-#scanner-line {
-    position:absolute; top:0; left:0; width:100%; height:2px; background:red;
-    animation: scanmove 2s infinite linear;
-}
-@keyframes scanmove { 0% { top:0; } 50% { top:calc(100% - 2px); } 100% { top:0; } }
-#qrFeedback {
-    position:absolute;
-    bottom:100px;
-    color:white;
-    font-size:20px;
-    background:rgba(0,0,0,0.6);
-    padding:10px 20px;
-    border-radius:8px;
-    display:none;
-    text-align:center;
-}
-
-/* Botão Voltar */
-#btnBack {
-    position:fixed; bottom:40px; left:50%; transform:translateX(-50%);
-    width:90%; max-width:400px;
-    padding:12px; background:#003a73; color:white; border:none; border-radius:6px;
-    cursor:pointer; font-size:16px; display:none; z-index:1001;
-}
-</style>
+        /* --- Camera View --- */
+        #cameraContainer {
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            flex: 1;
+        }
+        #qr-reader {
+            width: 350px; 
+            max-width: 90%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        #qrFeedback {
+            position: fixed; 
+            bottom: 20px;
+            padding: 10px 15px;
+            color: white;
+            border-radius: 5px;
+            display: none;
+            z-index: 100;
+        }
+        #btnBack {
+            background: #888;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: none;
+        }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 </head>
 <body>
 
-<!-- Login -->
-<div class="login-container" id="loginContainer">
-    <div class="login-box">
-        <h1>PegazusLog</h1>
-        <input id="loginUser" placeholder="Usuário">
-        <input id="loginPass" type="password" placeholder="Senha">
-        <button id="loginBtn" class="login-btn">Entrar</button>
-        <div id="feedbackMessage" style="margin-top:10px;color:#c00;font-size:14px;"></div>
+    <div id="sidebar">
+        <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 30px; text-align: center;">PEGZUS LOG</div>
+        <div id="btnCamera" class="nav-btn">📷 Scanner</div>
+        <div id="btnEntregas" class="nav-btn">📦 Entregas</div> 
+        <div id="btnGerarRota" class="nav-btn">🗺️ Gerar Rota</div>
+        <div id="btnMapa" class="nav-btn">📍 Visualizar Mapa</div> 
+        <div id="btnUsers" class="nav-btn">👥 Usuários</div> 
+        <div id="btnGenerateCSV" class="nav-btn">📄 Gerar Relatório CSV</div>
+        <div id="btnSair" class="nav-btn" style="margin-top: auto; background: #b02a37;">🔙 Sair</div>
     </div>
-</div>
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-    <h2>PEGZUS LOG</h2>
-    <div id="btnDeliveries" class="nav-btn">📦 Entregas</div>
-    <div id="btnCamera" class="nav-btn">📷 Câmera</div>
-    <div id="btnMap" class="nav-btn">🗺️ Mapa</div>
-    <div id="btnRoute" class="nav-btn">🚗 Rota</div>
-    <div id="btnManageUsers" class="nav-btn">👥 Usuários</div>
-    <div id="btnGenerateCSV" class="nav-btn">📄 Gerar CSV</div>
-    <div id="btnSair" class="nav-btn">🔙 Sair</div>
-</div>
+    <div class="main-content">
+        <button id="btnBack">⬅ Voltar</button>
 
-<!-- App -->
-<div id="app">
-    <div id="cameraContainer">
-        <div id="qr-reader">
-            <div id="scanner-line"></div>
+        <div id="loginContainer">
+            <h2>Acesso</h2>
+            <input type="text" id="loginUser" placeholder="Usuário (thon)">
+            <input type="password" id="loginPass" placeholder="Senha (882010)">
+            <button id="loginBtn">Entrar</button>
+            <div id="feedbackMessage"></div>
         </div>
-        <div id="qrFeedback"></div>
+
+        <div id="contentArea">
+            </div>
+
+        <div id="cameraContainer">
+            <h3>Aponte a Câmera para o QR Code</h3>
+            <div id="qr-reader"></div>
+            <div id="qrFeedback"></div>
+        </div>
     </div>
-</div>
 
-<button id="btnBack">🔙 Voltar</button>
-
-<script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
-<script src="app.js"></script>
+    <script>
+        // COLE O CÓDIGO JS DA SEÇÃO 2 AQUI
+    </script>
 </body>
 </html>
