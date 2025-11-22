@@ -1,119 +1,108 @@
-// ============================
-// Usuários iniciais
-// ============================
-let users = [
-    { username: 'admin', password: 'admin123', role: 'admin' },
-    { username: 'gestor', password: 'gestor123', role: 'gestor' }
-];
-
-// Carregar usuários do localStorage se existirem
-if (localStorage.getItem('users')) {
-    users = JSON.parse(localStorage.getItem('users'));
-} else {
-    localStorage.setItem('users', JSON.stringify(users));
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    display: flex;
+    background-color: #f5f5f5;
 }
 
-// ============================
-// Funções de Navegação
-// ============================
-function showDashboard() {
-    document.getElementById('login-section').classList.add('hidden');
-    document.getElementById('users-section').classList.add('hidden');
-    document.getElementById('dashboard-section').classList.remove('hidden');
+.sidebar {
+    width: 220px;
+    background-color: #ff5722;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100vh;
+    padding: 20px;
 }
 
-function showUsers() {
-    document.getElementById('login-section').classList.add('hidden');
-    document.getElementById('dashboard-section').classList.add('hidden');
-    document.getElementById('users-section').classList.remove('hidden');
-    renderUserList();
+.sidebar h2 {
+    text-align: center;
+    margin-bottom: 20px;
 }
 
-function goBack() {
-    showDashboard();
+.sidebar button {
+    margin: 10px 0;
+    padding: 10px;
+    border: none;
+    background-color: #e64a19;
+    color: white;
+    cursor: pointer;
+    width: 100%;
+    border-radius: 8px;
+    font-weight: bold;
 }
 
-// ============================
-// Login
-// ============================
-function login() {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const user = users.find(u => u.username === username && u.password === password);
-
-    if (user) {
-        document.getElementById('login-error').textContent = '';
-        sessionStorage.setItem('currentUser', JSON.stringify(user));
-        showDashboard();
-    } else {
-        document.getElementById('login-error').textContent = 'Usuário ou senha incorretos';
-    }
+.sidebar button:hover {
+    background-color: #ff7043;
 }
 
-// ============================
-// CRUD de Usuários
-// ============================
-function addUser() {
-    const username = document.getElementById('new-username').value.trim();
-    const password = document.getElementById('new-password').value.trim();
-
-    if (!username || !password) {
-        alert('Preencha todos os campos');
-        return;
-    }
-
-    if (users.find(u => u.username === username)) {
-        alert('Usuário já existe');
-        return;
-    }
-
-    users.push({ username, password, role: 'gestor' });
-    localStorage.setItem('users', JSON.stringify(users));
-    renderUserList();
-
-    // Limpar campos
-    document.getElementById('new-username').value = '';
-    document.getElementById('new-password').value = '';
+.footer-btn {
+    margin-top: auto;
 }
 
-// Renderiza a lista de usuários com botões de exclusão conforme permissões
-function renderUserList() {
-    const userList = document.getElementById('user-list');
-    userList.innerHTML = '';
-
-    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-
-    users.forEach((user, index) => {
-        const li = document.createElement('li');
-        li.textContent = `${user.username} (${user.role})`;
-
-        // Permissões para excluir
-        if ((currentUser.role === 'gestor' && user.role === 'gestor') ||
-            (currentUser.role === 'admin' && user.username !== 'admin')) {
-            const delBtn = document.createElement('button');
-            delBtn.textContent = 'Excluir';
-            delBtn.onclick = () => deleteUser(index);
-            li.appendChild(delBtn);
-        }
-
-        userList.appendChild(li);
-    });
+.main-content {
+    flex: 1;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-// Excluir usuário
-function deleteUser(index) {
-    users.splice(index, 1);
-    localStorage.setItem('users', JSON.stringify(users));
-    renderUserList();
+.card {
+    background-color: white;
+    padding: 20px 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 500px;
 }
 
-// ============================
-// Inicialização
-// ============================
-// Se já estiver logado, mostrar dashboard automaticamente
-window.addEventListener('load', () => {
-    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'));
-    if (currentUser) {
-        showDashboard();
-    }
-});
+.hidden {
+    display: none;
+}
+
+input {
+    display: block;
+    margin: 10px 0;
+    padding: 10px;
+    width: 100%;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+button {
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.error {
+    color: red;
+    margin-top: 5px;
+}
+
+#user-list li {
+    margin: 5px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#user-list button {
+    padding: 4px 8px;
+    font-size: 0.85em;
+}
+
+#qr-reader {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 20px;
+}
+
+#scan-result {
+    margin-top: 10px;
+    font-weight: bold;
+    text-align: center;
+    color: #4caf50;
+}
