@@ -1,8 +1,8 @@
-// ======= Usuários iniciais =======
+// ======= USUÁRIOS =======
 let users = [
-    { username: 'admin', password: 'admin123', role: 'admin' },
-    { username: 'gestor', password: 'gestor123', role: 'gestor' },
-    { username: 'thon', password: '882010', role: 'gestor' }
+    { username:'admin', password:'admin123', role:'admin' },
+    { username:'gestor', password:'gestor123', role:'gestor' },
+    { username:'thon', password:'882010', role:'gestor' }
 ];
 
 const loginBtn = document.getElementById('loginBtn');
@@ -29,6 +29,7 @@ loginBtn.addEventListener('click', ()=>{
     } else { feedback.textContent='Usuário ou senha incorretos'; }
 });
 
+// ======= LOGOUT =======
 document.getElementById('btnSair').addEventListener('click', ()=>{
     localStorage.removeItem('pegazus_session_v1');
     document.querySelector('.login-container').style.display='flex';
@@ -48,7 +49,8 @@ function hideAllViews(){
 
 function showView(viewId){
     hideAllViews();
-    document.getElementById(viewId).classList.remove('hidden');
+    const view = document.getElementById(viewId);
+    view.classList.remove('hidden');
     btnBack.style.display='block';
     sidebar.style.display='none';
     if(viewId==='cameraContainer') startScanner();
@@ -72,7 +74,6 @@ function renderUserList(){
         tbody.appendChild(tr);
     });
 }
-
 document.getElementById('createUserBtn').addEventListener('click', ()=>{
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value.trim();
@@ -83,19 +84,16 @@ document.getElementById('createUserBtn').addEventListener('click', ()=>{
     document.getElementById('newUsername').value='';
     document.getElementById('newPassword').value='';
 });
-
 function deleteUser(index){ users.splice(index,1); renderUserList(); }
 
-// ======= CAMERA READER =======
+// ======= CAMERA SCANNER =======
 function startScanner(){
     if(html5QrCode) return;
+    cameraContainer.style.display='flex';
     html5QrCode = new Html5Qrcode("qr-reader");
-    const config = { fps: 10, qrbox: 250 };
-
-    html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        qrCodeMessage => {
+    const config = { fps:10, qrbox:250 };
+    html5QrCode.start({facingMode:"environment"}, config,
+        qrCodeMessage=>{
             if(scannedQRCodes.has(qrCodeMessage)){
                 qrFeedback.textContent='QR Code já escaneado';
                 qrFeedback.style.display='block';
@@ -108,58 +106,43 @@ function startScanner(){
             }
             setTimeout(()=>{ qrFeedback.style.display='none'; },2000);
         },
-        errorMessage => {
-            // opcional: feedback de erro
-        }
+        errorMessage=>{}
     ).catch(err=>console.error(err));
 }
 
 function stopScanner(){
     if(html5QrCode){
-        html5QrCode.stop().then(()=>{ html5QrCode.clear(); html5QrCode=null; }).catch(err=>console.error(err));
+        html5QrCode.stop().then(()=>{
+            html5QrCode.clear();
+            html5QrCode=null;
+        }).catch(err=>console.error(err));
     }
 }
+
+// ======= MENU BUTTONS =======
+document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
+document.getElementById('btnDeliveries').addEventListener('click', ()=>showView('deliveriesList'));
+document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
+
+// ======= CSV =======
+document.getElementById('btnGenerateCSV').addEventListener('click', ()=>{
+    alert('Função CSV gerada (exemplo)');
+});
 
 // ======= MAP =======
 let map;
-function initMap(){
-    if(map) return;
-    map = L.map('map').setView([-23.5505,-46.6333], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        attribution:'&copy; OpenStreetMap contributors'
-    }).addTo(map);
-}
-
-// ======= CSV =======
-function generateCSV(){
-    const daily=[['Data','Entregas']], fortnight=[['Semana','Entregas']], monthly=[['Mês','Entregas']];
-    for(let i=0;i<5;i++){
-        daily.push([`2025-11-${i+1}`,Math.floor(Math.random()*20)]);
-        fortnight.push([`Semana ${i+1}`,Math.floor(Math.random()*50)]);
-        monthly.push([`Novembro`,Math.floor(Math.random()*200)]);
+document.getElementById('btnMap').addEventListener('click', ()=>{
+    showView('map');
+    if(!map){
+        map = L.map('map').setView([-23.5505,-46.6333],12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+            attribution:'&copy; OpenStreetMap contributors'
+        }).addTo(map);
     }
-    downloadCSV(daily,'relatorio_diario.csv');
-    downloadCSV(fortnight,'relatorio_quinzenal.csv');
-    downloadCSV(monthly,'relatorio_mensal.csv');
-}
-function downloadCSV(data, filename){
-    let csvContent = data.map(e=>e.join(",")).join("\n");
-    let blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
-    let link=document.createElement('a');
-    link.href=URL.createObjectURL(blob);
-    link.download=filename;
-    link.click();
-}
+});
 
 // ======= LOAD SESSION =======
 window.addEventListener('load', ()=>{
     const session = localStorage.getItem('pegazus_session_v1');
     if(session){ document.querySelector('.login-container').style.display='none'; sidebar.style.display='flex'; }
 });
-
-// ======= MENU BUTTONS =======
-document.getElementById('btnManageUsers').addEventListener('click', ()=>showView('userManagementView'));
-document.getElementById('btnDeliveries').addEventListener('click', ()=>showView('deliveriesList'));
-document.getElementById('btnCamera').addEventListener('click', ()=>showView('cameraContainer'));
-document.getElementById('btnMap').addEventListener('click', ()=>showView('map'));
-document.getElementById('btnGenerateCSV').addEventListener('click', ()=>generateCSV());
