@@ -1,341 +1,327 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PegazusLog</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PegazusLog - Mock Local (Scanner Real)</title>
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-  <style>
-    :root{
-      --primary: #003a73;
-      --bg: #f2f4f8;
-      --card: #fff;
-      --muted: #666;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family:Inter,Arial,Helvetica,sans-serif;
-      height:100vh;
-      background:var(--bg);
-      display:flex;
-      flex-direction:row;
-    }
+  <style>
+    :root{
+      --primary: #003a73;
+      --bg: #f2f4f8;
+      --card: #fff;
+      --muted: #666;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,Arial,Helvetica,sans-serif;
+      height:100vh;
+      background:var(--bg);
+      display:flex;
+      flex-direction:row;
+    }
 
-    /* SIDEBAR */
-    .sidebar{
-      width:230px;
-      background:var(--primary);
-      color:white;
-      padding:18px;
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      transition:all .18s;
-    }
-    .brand{
-      font-weight:800;
-      text-align:center;
-      margin-bottom:6px;
-    }
-    .nav-btn{
-      background:rgba(255,255,255,0.06);
-      padding:12px;
-      border-radius:8px;
-      color:white;
-      cursor:pointer;
-      font-weight:700;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-    }
-    .nav-btn:active{ transform:translateY(1px); }
+    /* SIDEBAR */
+    .sidebar{
+      width:230px;
+      background:var(--primary);
+      color:white;
+      padding:18px;
+      /* Removido: display:flex para que o JS controle a visibilidade */
+      flex-direction:column;
+      gap:8px;
+      transition:all .18s;
+    }
+    .brand{
+      font-weight:800;
+      text-align:center;
+      margin-bottom:6px;
+    }
+    .nav-btn{
+      background:rgba(255,255,255,0.06);
+      padding:12px;
+      border-radius:8px;
+      color:white;
+      cursor:pointer;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .nav-btn:active{ transform:translateY(1px); }
 
-    /* MAIN */
-    .main{ flex:1;padding:16px;overflow:auto; }
-    #btnBack{
-      display:none;
-      padding:8px 12px;
-      border-radius:8px;
-      border:none;
-      background:var(--primary);
-      color:white;
-      margin-bottom:12px;
-      cursor:pointer;
-    }
+    /* MAIN */
+    .main{ flex:1;padding:16px;overflow:auto; }
+    #btnBack{
+      display:none;
+      padding:8px 12px;
+      border-radius:8px;
+      border:none;
+      background:var(--primary);
+      color:white;
+      margin-bottom:12px;
+      cursor:pointer;
+    }
 
-    /* Views */
-    #map{ height:70vh;display:none;border-radius:8px;overflow:hidden }
-    #deliveriesList{ display:none }
-    #userManagementView{ display:none }
-    #cameraContainer{
-      display:none;
-      align-items:center;
-      justify-content:center;
-      flex-direction:column;
-    }
-    #cameraBox{
-      width:320px;
-      max-width:95vw;
-      border-radius:8px;
-      overflow:hidden;
-      background:#000;
-      padding:6px;
-    }
+    /* Views */
+    #map{ height:70vh;display:none;border-radius:8px;overflow:hidden }
+    #deliveriesList{ display:none }
+    #userManagementView{ display:none }
+    #cameraContainer{
+      display:none;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+    }
+    #cameraBox{
+      width:320px;
+      max-width:95vw;
+      border-radius:8px;
+      overflow:hidden;
+      background:#000;
+      padding:6px;
+    }
 
-    .card{
-      background:var(--card);
-      padding:14px;
-      border-radius:10px;
-      box-shadow:0 6px 18px rgba(0,0,0,0.04);
-    }
-    .delivery-item{
-      background:var(--card);
-      padding:12px;
-      border-radius:8px;
-      margin-bottom:10px;
-      border-left:5px solid var(--primary);
-    }
-    .controls{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      margin-bottom:10px;
-    }
+    .card{
+      background:var(--card);
+      padding:14px;
+      border-radius:10px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.04);
+    }
+    .delivery-item{
+      background:var(--card);
+      padding:12px;
+      border-radius:8px;
+      margin-bottom:10px;
+      border-left:5px solid var(--primary);
+    }
+    .controls{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
 
-    /* Export dropdown */
-    .export-menu{ position:relative;display:inline-block }
-    .export-list{
-      position:absolute;
-      top:42px;
-      left:0;
-      background:white;
-      border-radius:8px;
-      box-shadow:0 8px 24px rgba(0,0,0,0.12);
-      display:none;
-      z-index:50;
-    }
-    .export-list button{
-      display:block;
-      padding:10px 14px;
-      width:220px;
-      border:none;
-      background:white;
-      text-align:left;
-      cursor:pointer;
-    }
+    /* Export dropdown */
+    .export-menu{ position:relative;display:inline-block }
+    .export-list{
+      position:absolute;
+      top:42px;
+      left:0;
+      background:white;
+      border-radius:8px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.12);
+      display:none;
+      z-index:50;
+    }
+    .export-list button{
+      display:block;
+      padding:10px 14px;
+      width:220px;
+      border:none;
+      background:white;
+      text-align:left;
+      cursor:pointer;
+    }
 
-    /* FILTERS */
-    .filter-btn{ padding:8px 10px; border-radius:6px; border:none; background:#eee; cursor:pointer }
-    .filter-btn.active{ background:#cfe6ff }
+    /* FILTERS */
+    .filter-btn{ padding:8px 10px; border-radius:6px; border:none; background:#eee; cursor:pointer }
+    .filter-btn.active{ background:#cfe6ff }
 
-    /* responsive */
-    @media(max-width:900px){
-      body{ flex-direction:column }
-      .sidebar{
-        width:100%;
-        flex-direction:row;
-        gap:6px;
-        padding:10px;
-        overflow:auto;
-      }
-      .main{ padding:12px }
-    }
-  </style>
+    /* responsive */
+    @media(max-width:900px){
+      body{ flex-direction:column }
+      .sidebar{
+        width:100%;
+        flex-direction:row;
+        gap:6px;
+        padding:10px;
+        overflow:auto;
+      }
+      .main{ padding:12px }
+    }
+  </style>
 </head>
 <body>
 
-  <!-- SIDEBAR -->
-  <div id="sidebar" class="sidebar">
-    <div class="brand">PEGZUS LOG</div>
+    <div id="sidebar" class="sidebar" style="display:none">
+    <div class="brand">PEGZUS LOG</div>
 
-    <div id="btnDeliveries" class="nav-btn">📦 Entregas</div>
-    <div id="btnCamera" class="nav-btn">📷 Câmera</div>
-    <div id="btnMap" class="nav-btn">🗺️ Mapa</div>
-    <div id="btnRoute" class="nav-btn">🚗 Rota</div>
-    <div id="btnManageUsers" class="nav-btn">👥 Usuários</div>
+    <div id="btnDeliveries" class="nav-btn">📦 Entregas</div>
+    <div id="btnCamera" class="nav-btn">📷 Câmera</div>
+    <div id="btnMap" class="nav-btn">🗺️ Mapa</div>
+    <div id="btnRoute" class="nav-btn">🚗 Rota</div>
+    <div id="btnManageUsers" class="nav-btn">👥 Usuários</div>
 
-    <div id="btnSair" class="nav-btn" style="margin-top:auto;background:#b02a37">
-      🔙 Sair
-    </div>
-  </div>
+    <div id="btnSair" class="nav-btn" style="margin-top:auto;background:#b02a37">
+      🔙 Sair
+    </div>
+  </div>
 
-  <!-- MAIN -->
-  <div class="main">
+    <div class="main">
 
-    <button id="btnBack">⬅ Voltar</button>
+    <button id="btnBack">⬅ Voltar</button>
 
-    <!-- LOGIN -->
-    <div id="loginBox" class="card" style="max-width:420px;margin:30px auto;text-align:center">
-      <h2>Login</h2>
-      <input id="loginUser" placeholder="Usuário"
-             style="width:100%;padding:10px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
-      <input id="loginPass" type="password" placeholder="Senha"
-             style="width:100%;padding:10px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
+        <div id="loginBox" class="card" style="max-width:420px;margin:30px auto;text-align:center">
+      <h2>Login</h2>
+      <input id="loginUser" placeholder="Usuário"
+             style="width:100%;padding:10px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
+      <input id="loginPass" type="password" placeholder="Senha"
+             style="width:100%;padding:10px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
 
-      <button id="loginBtn"
-              style="width:100%;padding:12px;margin-top:12px;border:none;border-radius:8px;background:var(--primary);color:white;font-weight:700">
-        Entrar
-      </button>
+      <button id="loginBtn"
+              style="width:100%;padding:12px;margin-top:12px;border:none;border-radius:8px;background:var(--primary);color:white;font-weight:700">
+        Entrar
+      </button>
 
-      <div id="feedbackMessage" style="color:#c00;margin-top:10px"></div>
-    </div>
+      <div id="feedbackMessage" style="color:#c00;margin-top:10px"></div>
+    </div>
 
-    <!-- APP ROOT -->
-    <div id="app" style="display:none">
+        <div id="app" style="display:none">
 
-      <!-- Controls -->
-      <div id="deliveriesControls"
-           style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
-        <div class="controls">
-          <button id="btnExportCSV"
-                  style="background:#0079c1;color:white;padding:10px 12px;border-radius:8px;border:none;cursor:pointer">
-            📄 Gerar Relatório
-          </button>
+            <div id="deliveriesControls"
+           style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+        <div class="controls">
+          <button id="btnExportCSV"
+                  style="background:#0079c1;color:white;padding:10px 12px;border-radius:8px;border:none;cursor:pointer">
+            📄 Gerar Relatório
+          </button>
 
-          <div class="export-menu">
-            <div id="exportToggle" class="nav-btn"
-                 style="background:#0079c1;padding:8px 10px;cursor:pointer">
-              ⋮ Opções
-            </div>
+          <div class="export-menu">
+            <div id="exportToggle" class="nav-btn"
+                 style="background:#0079c1;padding:8px 10px;cursor:pointer">
+              ⋮ Opções
+            </div>
 
-            <div id="exportList" class="export-list">
-              <button id="exportDaily">Relatório Diário</button>
-              <button id="exportQuinzenal">Relatório Quinzenal</button>
-              <button id="exportMensal">Relatório Mensal</button>
-            </div>
-          </div>
-        </div>
+            <div id="exportList" class="export-list">
+              <button id="exportDaily">Relatório Diário</button>
+              <button id="exportQuinzenal">Relatório Quinzenal</button>
+              <button id="exportMensal">Relatório Mensal</button>
+            </div>
+          </div>
+        </div>
 
-        <div id="deliveriesCount"
-             style="font-weight:700;color:var(--muted)"></div>
-      </div>
+        <div id="deliveriesCount"
+             style="font-weight:700;color:var(--muted)"></div>
+      </div>
 
-      <!-- Filters and report by collaborator -->
-      <div id="filtersSection" class="card" style="margin-bottom:12px; padding:12px;">
-        <h3>Filtros</h3>
+            <div id="filtersSection" class="card" style="margin-bottom:12px; padding:12px;">
+        <h3>Filtros</h3>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-          <button class="filter-btn" data-filter="today">Hoje</button>
-          <button class="filter-btn" data-filter="yesterday">Ontem</button>
-          <button class="filter-btn" data-filter="7d">Últimos 7 dias</button>
-          <button class="filter-btn" data-filter="30d">Últimos 30 dias</button>
-        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <button class="filter-btn" data-filter="today">Hoje</button>
+          <button class="filter-btn" data-filter="yesterday">Ontem</button>
+          <button class="filter-btn" data-filter="7d">Últimos 7 dias</button>
+          <button class="filter-btn" data-filter="30d">Últimos 30 dias</button>
+        </div>
 
-        <div style="margin-top:10px;">
-          <label>Intervalo Personalizado</label><br>
-          <input type="date" id="filterStart">
-          <input type="date" id="filterEnd">
-          <button id="btnFilterCustom">Aplicar</button>
-          <button id="btnClearFilter" style="margin-left:8px;">Limpar</button>
-        </div>
-      </div>
+        <div style="margin-top:10px;">
+          <label>Intervalo Personalizado</label><br>
+          <input type="date" id="filterStart">
+          <input type="date" id="filterEnd">
+          <button id="btnFilterCustom">Aplicar</button>
+          <button id="btnClearFilter" style="margin-left:8px;">Limpar</button>
+        </div>
+      </div>
 
-      <div id="reportColaboradorSection" class="card" style="margin-bottom:12px; padding:12px; display:none;">
-        <h3>Relatório por Colaborador</h3>
+      <div id="reportColaboradorSection" class="card" style="margin-bottom:12px; padding:12px; display:none;">
+        <h3>Relatório por Colaborador</h3>
 
-        <select id="reportUserSelect" style="padding:8px; width:100%; border-radius:6px;">
-        </select>
+        <select id="reportUserSelect" style="padding:8px; width:100%; border-radius:6px;">
+        </select>
 
-        <button id="btnReportUser" style="margin-top:10px;padding:10px;width:100%;background:#0079c1;color:white;border:none;border-radius:8px;">
-          Gerar CSV do Colaborador
-        </button>
-      </div>
+        <button id="btnReportUser" style="margin-top:10px;padding:10px;width:100%;background:#0079c1;color:white;border:none;border-radius:8px;">
+          Gerar CSV do Colaborador
+        </button>
+      </div>
 
-      <!-- Deliveries List -->
-      <div id="deliveriesList"></div>
+            <div id="deliveriesList"></div>
 
-      <!-- CAMERA with Scanner -->
-      <div id="cameraContainer" class="card" style="display:none;align-items:center">
-        <div id="cameraBox">
-          <div id="qr-reader" style="width:100%"></div>
-        </div>
-        <p style="margin-top:12px;color:var(--muted)">
-          Scanner ativo — a cada QR detectado a entrega será registrada automaticamente.
-        </p>
-      </div>
+            <div id="cameraContainer" class="card" style="display:none;align-items:center">
+        <div id="cameraBox">
+          <div id="qr-reader" style="width:100%"></div>
+        </div>
+        <p style="margin-top:12px;color:var(--muted)">
+          Scanner ativo — a cada QR detectado a entrega será registrada automaticamente.
+        </p>
+      </div>
 
-      <!-- MAP -->
-      <div id="map" class="card"></div>
+            <div id="map" class="card"></div>
 
-      <!-- USERS -->
-      <div id="userManagementView">
-        <div class="card" style="margin-bottom:12px;max-width:420px">
-          <h3>Criar Usuário</h3>
+            <div id="userManagementView">
+        <div class="card" style="margin-bottom:12px;max-width:420px">
+          <h3>Criar Usuário</h3>
 
-          <input id="newUsername" placeholder="Nome de usuário"
-                 style="width:100%;padding:8px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
+          <input id="newUsername" placeholder="Nome de usuário"
+                 style="width:100%;padding:8px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
 
-          <input id="newPassword" placeholder="Senha"
-                 style="width:100%;padding:8px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
+          <input id="newPassword" placeholder="Senha"
+                 style="width:100%;padding:8px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
 
-          <select id="newUserRole"
-                  style="width:100%;padding:8px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
-            <option value="gestor">gestor</option>
-            <option value="colaborador">colaborador</option>
-            <option value="admin">admin</option>
-          </select>
+          <select id="newUserRole"
+                  style="width:100%;padding:8px;margin-top:8px;border-radius:6px;border:1px solid #ddd">
+            <option value="gestor">gestor</option>
+            <option value="colaborador">colaborador</option>
+            <option value="admin">admin</option>
+          </select>
 
-          <button id="createUserBtn"
-                  style="margin-top:10px;background:#198754;color:white;border:none;padding:10px;border-radius:6px;cursor:pointer">
-            Criar
-          </button>
+          <button id="createUserBtn"
+                  style="margin-top:10px;background:#198754;color:white;border:none;padding:10px;border-radius:6px;cursor:pointer">
+            Criar
+          </button>
 
-          <div id="userFeedbackMessage" style="margin-top:8px"></div>
-        </div>
+          <div id="userFeedbackMessage" style="margin-top:8px"></div>
+        </div>
 
-        <h3>Usuários cadastrados</h3>
+        <h3>Usuários cadastrados</h3>
 
-        <table id="usersTable" style="width:100%;border-collapse:collapse;background:var(--card)">
-          <thead>
-            <tr>
-              <th>Usuário</th>
-              <th>Função</th>
-              <th>Criado por</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="userTableBody"></tbody>
-        </table>
-      </div>
+        <table id="usersTable" style="width:100%;border-collapse:collapse;background:var(--card)">
+          <thead>
+            <tr>
+              <th>Usuário</th>
+              <th>Função</th>
+              <th>Criado por</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
 
-    </div>
-  </div>
+    </div>
+  </div>
 
-  <!-- libs -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/minified/html5-qrcode.min.js"></script>
 
-  <!-- APP -->
-  <script src="app.js"></script>
+    <script src="app.js"></script>
 
-  <script>
-    // Toggle do menu de exportação
-    (function(){
-      const exportToggle = document.getElementById('exportToggle');
-      const exportList = document.getElementById('exportList');
+  <script>
+    // Toggle do menu de exportação
+    (function(){
+      const exportToggle = document.getElementById('exportToggle');
+      const exportList = document.getElementById('exportList');
 
-      exportToggle.addEventListener('click', ()=>{
-        exportList.style.display = (exportList.style.display === 'block') ? 'none' : 'block';
-      });
+      exportToggle.addEventListener('click', ()=>{
+        exportList.style.display = (exportList.style.display === 'block') ? 'none' : 'block';
+      });
 
-      document.getElementById('btnExportCSV').addEventListener('click', ()=>{
-        exportList.style.display = 'block';
-      });
+      document.getElementById('btnExportCSV').addEventListener('click', ()=>{
+        exportList.style.display = 'block';
+      });
 
-      document.addEventListener('click', (ev)=>{
-        if(!exportToggle.contains(ev.target) &&
-           !document.getElementById('btnExportCSV').contains(ev.target) &&
-           !exportList.contains(ev.target)){
-          exportList.style.display='none';
-        }
-      });
-    })();
-  </script>
+      document.addEventListener('click', (ev)=>{
+        if(!exportToggle.contains(ev.target) &&
+           !document.getElementById('btnExportCSV').contains(ev.target) &&
+           !exportList.contains(ev.target)){
+          exportList.style.display='none';
+        }
+      });
+    })();
+  </script>
 
 </body>
 </html>
-
