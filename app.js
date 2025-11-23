@@ -1,494 +1,378 @@
-document.addEventListener("DOMContentLoaded", ()=>{
+// app.js - PegazusLog integrated scanner (hybrid C)
+// Requires: jsQR (loaded in index.html) and Leaflet (loaded in index.html)
 
-    // ----------------- Usuários e Dados (Reestruturado) -----------------
-    let users = JSON.parse(localStorage.getItem('pegazus_users_v3')) || [
-        { id: 'u1', username: 'thon', password: '882010', role: 'admin' },
-        { id: 'u2', username: 'gestor01', password: '123', role: 'gestor' },
-        { id: 'u3', username: 'colab01', password: '456', role: 'colaborador' }
-    ];
-    let currentUser = null;
+document.addEventListener('DOMContentLoaded', ()=>{
 
-    // ALTERAÇÃO 1: A lista de entregas inicia VAZIA. Elas só aparecerão após o scan.
-    const deliveries = [];
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
+  // ---------- state ----------
+  let users = JSON.parse(localStorage.getItem('pegazus_users_v3')) || [
+    { id:'u1', username:'thon', password:'882010', role:'admin' },
+    { id:'u2', username:'gestor01', password:'123', role:'gestor' },
+    { id:'u3', username:'colab01', password:'456', role:'colaborador' }
+  ];
+  let currentUser = null;
+  const CD_LOCATION = { lat:-23.5505, lon:-46.6333 };
+  let scanRecords = JSON.parse(localStorage.getItem('pegazus_scans_v3') || '[]');
 
-    let scanRecords = JSON.parse(localStorage.getItem('pegazus_scans_v3') || '[]');
-    let nextUserId = users.reduce((max, u) => Math.max(max, parseInt(u.id.substring(1)) || 0), 0) + 1;
+  // ---------- elements ----------
+  const sidebar = document.getElementById('sidebar');
+  const userInfoDiv = document.getElementById('userInfo');
+  const loginContainer = document.getElementById('loginContainer');
+  const loginUser = document.getElementById('loginUser');
+  const loginPass = document.getElementById('loginPass');
+  const feedbackMessage = document.getElementById('feedbackMessage');
+  const btnLogin = document.getElementById('loginBtn');
+  const btnSair = document.getElementById('btnSair');
+  const btnCamera = document.getElementById('btnCamera');
+  const btnEntregas = document.getElementById('btnEntregas');
+  const btnMapa = document.getElementById('btnMapa');
+  const btnGerarRota = document.getElementById('btnGerarRota');
+  const btnUsers = document.getElementById('btnUsers');
+  const btnGenerateCSV = document.getElementById('btnGenerateCSV');
+  const btnTestImage = document.getElementById('btnTestImage');
+  const btnBack = document.getElementById('btnBack');
+  const contentArea = document.getElementById('contentArea');
 
-    function saveUsers() {
-        localStorage.setItem('pegazus_users_v3', JSON.stringify(users));
-    }
+  // camera UI
+  const video = document.getElementById('videoElement');
+  const overlay = document.getElementById('overlay');
+  const overlayCtx = overlay.getContext('2d');
+  const cameraContainer = document.getElementById('cameraContainer');
+  const qrFeedback = document.getElementById('qrFeedback');
+  const scansList = document.getElementById('scansList');
+  const stopButton = document.getElementById('stopButton');
+  const torchButton = document.getElementById('torchButton');
+  const deviceSelect = document.getElementById('deviceSelect');
+  const exportBtn = document.getElementById('exportBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const openScansList = document.getElementById('openScansList');
 
-    // ----------------- Elementos UI -----------------
-    const cameraContainer = document.getElementById('cameraContainer');
-    const qrFeedback = document.getElementById('qrFeedback');
-    const btnBack = document.getElementById('btnBack');
-    const sidebar = document.getElementById('sidebar');
-    const userInfoDiv = document.getElementById('userInfo');
-    const loginContainer = document.getElementById('loginContainer'); 
-    const btnSair = document.getElementById('btnSair');
-    const btnGenerateCSV = document.getElementById('btnGenerateCSV');
-    const contentArea = document.getElementById('contentArea'); 
-    const btnEntregas = document.getElementById('btnEntregas'); 
-    const btnMapa = document.getElementById('btnMapa'); 
-    const btnGerarRota = document.getElementById('btnGerarRota'); 
-    const btnUsers = document.getElementById('btnUsers'); 
-    const loginUser = document.getElementById('loginUser');
-    const loginPass = document.getElementById('loginPass');
+  // internals
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  let mediaStream = null, currentVideoTrack = null;
+  let scanning = false, rafId = null;
+  const STORAGE_KEY = 'pegazus_scans_v3';
+  const SCAN_INTERVAL = 700;
+  let lastScanTime = 0;
+  const DUPLICATE_WINDOW = 60*1000;
 
-    let html5QrcodeScanner;
-    let scannedQRCodes = new Set(scanRecords.map(r => r.qr)); 
-    let beepSuccess = { play: ()=>{} }; 
-    let beepError = { play: ()=>{} };  
+  // audio beeps (simple synthesized)
+  function beep(duration = 90, freq = 1400, vol = 0.12){
+    try{
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = freq; g.gain.value = vol;
+      o.connect(g); g.connect(ctx.destination); o.start();
+      setTimeout(()=>{ try{ o.stop(); ctx.close(); }catch(e){} }, duration);
+    }catch(e){}
+  }
 
-    try {
-        beepSuccess = new Audio('https://www.soundjay.com/button/beep-07.wav');
-        beepError = new Audio('https://www.soundjay.com/button/beep-10.wav');
-    } catch (e) {
-        console.error("Audio initialization failed:", e);
-    }
+  function showFeedback(text, ok=true, ms=1500){
+    qrFeedback.textContent = text;
+    qrFeedback.style.background = ok? 'rgba(0,128,0,0.7)' : 'rgba(255,0,0,0.7)';
+    qrFeedback.style.display = 'block';
+    setTimeout(()=> qrFeedback.style.display='none', ms);
+  }
 
-    if (loginUser) loginUser.value = '';
-    if (loginPass) loginPass.value = '';
-    if (sidebar) sidebar.style.display = 'none';
+  // helpers
+  function saveRecords(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(scanRecords)); }
+  function escapeHtml(s){ return (''+s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 
-    // ----------------- Funções de Navegação e Estado -----------------
+  // extraction helpers (hybrid from your provided scripts)
+  function extractIdFromLink(link){
+    if(!link) return {type:null,value:null};
+    const shopeePattern1 = /-i\.(\d+)\.(\d+)/i; const m1 = link.match(shopeePattern1); if(m1) return {type:'shopee_item',value:m1[2],shopId:m1[1]};
+    const shopeePattern2 = /shopee\.[^\/]+\/(?:product|products|item)\/(\d+)/i; const m2 = link.match(shopeePattern2); if(m2) return {type:'shopee_item',value:m2[1]};
+    const mlPattern1 = /ML[A-Z]*-?(\d+)/i; const m3 = link.match(mlPattern1); if(m3) return {type:'mercadolivre_item',value:m3[1]};
+    const mlPattern2 = /\/(\d{6,})(?:[^\d]|$)/; const m4 = link.match(mlPattern2); if(m4) return {type:'mercadolivre_item',value:m4[1]};
+    const fallback = link.match(/(\d{6,})/); if(fallback) return {type:'number',value:fallback[1]};
+    return {type:null,value:null};
+  }
+  function extractQrId(payload){
+    if(!payload) return {type:null,value:null};
+    const p = payload.trim();
+    const kv = [/(?:qr[_\-]?id|qrid|id|codigo|cod|codigo_id|qrCodeId)[:=]\s*([A-Za-z0-9\-_]+)/i, /(?:idPedido|pedido_id|order_id|order)[:=]\s*([A-Za-z0-9\-_]+)/i];
+    for(const re of kv){ const m = p.match(re); if(m) return {type:'qr_field',value:m[1]}; }
+    try{ const url = new URL(p); const qp = ['id','qrid','qr_id','codigo','code','itemId','orderId','order_id']; for(const k of qp) if(url.searchParams.has(k)) return {type:`qr_param:${k}`,value:url.searchParams.get(k)} }catch(e){}
+    const num = p.match(/([0-9]{6,})/); if(num) return {type:'numeric',value:num[1]};
+    if(p.length <= 64 && /[A-Za-z0-9\-_]{4,}/.test(p)) return {type:'text',value:p.split(/\s|;|,|\|/)[0]};
+    return {type:null,value:null};
+  }
 
-    btnBack.addEventListener('click', ()=>{
-        stopScanner(); 
-        cameraContainer.style.display='none';
-        btnBack.style.display='none';
-        showGenericContent(showDeliveries); 
+  // render editable scans list
+  function renderScans(){
+    scansList.innerHTML = '';
+    if(!scanRecords.length){ scansList.innerHTML = '<div style="color:#666">Nenhum registro ainda.</div>'; return; }
+    scanRecords.forEach((r, i)=>{
+      const div = document.createElement('div'); div.className='item';
+      div.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
+        <div class="badge">${escapeHtml(r.plataforma||'—')}</div>
+        <div style="flex:1"><div class="link-text" title="${escapeHtml(r.raw_qr)}">${escapeHtml(r.raw_qr)}</div>
+        <div class="meta">${escapeHtml(r.nomeCliente||'Sem nome')} — ${escapeHtml(r.endereco||'Sem endereço')}</div></div>
+        <div><button data-i="${i}" style="background:#00b4d8;color:white;padding:6px;border-radius:6px">Editar</button></div>
+      </div>`;
+      const btn = div.querySelector('button[data-i]'); btn.addEventListener('click', ()=> editRecord(i));
+      scansList.appendChild(div);
     });
+  }
 
-    // ----------------- Login / Logout -----------------
-
-    function updateSidebarInfo() {
-        if (currentUser) {
-            userInfoDiv.innerHTML = `
-                Usuário: <strong>${currentUser.username}</strong><br>
-                Nível: <strong>${currentUser.role.toUpperCase()}</strong>
-            `;
-            btnUsers.style.display = (currentUser.role !== 'colaborador') ? 'block' : 'none';
-        }
-    }
-
-    document.getElementById('loginBtn').addEventListener('click', ()=>{
-        const user = loginUser.value.trim();
-        const pass = loginPass.value; 
-        
-        const matched = users.find(u=>u.username===user && u.password===pass);
-        
-        if(matched){
-            currentUser = matched;
-            loginContainer.style.display='none';
-            sidebar.style.display='flex'; 
-            document.getElementById('feedbackMessage').textContent='';
-            updateSidebarInfo();
-            showGenericContent(showDeliveries); 
-        } else {
-            document.getElementById('feedbackMessage').textContent='Usuário ou senha inválidos';
-        }
+  function editRecord(idx){
+    const r = scanRecords[idx];
+    const form = document.createElement('div'); form.className='item';
+    form.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label>Nome cliente <input id="edit_name" value="${escapeHtml(r.nomeCliente||'')}" /></label>
+        <label>Endereço <input id="edit_addr" value="${escapeHtml(r.endereco||'')}" /></label>
+        <label>ID entrega <input id="edit_id" value="${escapeHtml(r.idEntrega||'')}" /></label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button id="saveRec" style="background:${'var(--success)'};padding:6px;border-radius:6px;color:#fff">Salvar</button>
+          <button id="cancelRec" style="background:#6c757d;padding:6px;border-radius:6px;color:#fff">Cancelar</button>
+        </div>
+      </div>`;
+    scansList.innerHTML=''; scansList.appendChild(form);
+    document.getElementById('cancelRec').addEventListener('click', renderScans);
+    document.getElementById('saveRec').addEventListener('click', ()=>{
+      r.nomeCliente = document.getElementById('edit_name').value.trim();
+      r.endereco = document.getElementById('edit_addr').value.trim();
+      r.idEntrega = document.getElementById('edit_id').value.trim();
+      scanRecords[idx]=r; saveRecords(); renderScans();
     });
+  }
 
-    if(btnSair) {
-        btnSair.addEventListener('click', ()=>{
-            currentUser = null;
-            scannedQRCodes.clear();
-            sidebar.style.display='none';
-            stopScanner();
-            cameraContainer.style.display = 'none';
-            contentArea.style.display = 'none';
-            loginContainer.style.display='block';
-            if (loginUser) loginUser.value = '';
-            if (loginPass) loginPass.value = '';
-        });
+  // ---------- camera helpers ----------
+  async function enumerateVideoDevices(){
+    try{ const devs = await navigator.mediaDevices.enumerateDevices(); return devs.filter(d=>d.kind==='videoinput'); }catch(e){ return []; }
+  }
+
+  function fitCanvases(){
+    const vw = video.videoWidth || video.clientWidth || 640;
+    const vh = video.videoHeight || video.clientHeight || 480;
+    const targetW = Math.min(1024, Math.max(320, Math.round(vw * 0.6)));
+    const targetH = Math.round((vh / vw) * targetW) || 480;
+    tempCanvas.width = targetW; tempCanvas.height = targetH;
+    overlay.width = vw; overlay.height = vh;
+    drawBoundingBox(null);
+  }
+
+  function drawBoundingBox(loc){
+    overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+    if(!loc){
+      const w = overlay.width, h = overlay.height;
+      const boxW = Math.round(w * 0.45), boxH = Math.round(boxW);
+      const x = Math.round((w - boxW)/2), y = Math.round((h - boxH)/2);
+      overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x,y,boxW,boxH);
+      return;
     }
+    overlayCtx.strokeStyle = 'rgba(0,200,83,0.95)'; overlayCtx.lineWidth = Math.max(2, overlay.width/200);
+    overlayCtx.beginPath();
+    overlayCtx.moveTo(loc.topLeftCorner.x, loc.topLeftCorner.y);
+    overlayCtx.lineTo(loc.topRightCorner.x, loc.topRightCorner.y);
+    overlayCtx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y);
+    overlayCtx.lineTo(loc.bottomLeftCorner.x, loc.bottomLeftCorner.y);
+    overlayCtx.closePath(); overlayCtx.stroke();
+  }
 
-    // ----------------- Lógica de Visualização de Conteúdo -----------------
-
-    function showGenericContent(contentFunction) {
-        if (!currentUser) return;
-        
-        cameraContainer.style.display = 'none';
-        btnBack.style.display = 'none';
-        stopScanner(); 
-        
-        contentArea.style.display = 'none';
-
-        contentFunction(); 
-
-        contentArea.style.display = 'block';
+  async function startScanner(){
+    if(scanning) return;
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ alert('Câmera não suportada'); return; }
+    try{
+      let stream;
+      try{
+        stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ideal:1280}, height:{ideal:720} }, audio:false });
+      }catch(e){
+        await navigator.mediaDevices.getUserMedia({ video:true, audio:false }).then(s=>{ stream=s }).catch(err=>{ throw err; });
+      }
+      mediaStream = stream; video.srcObject = mediaStream; await video.play();
+      currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
+      try{ const caps = currentVideoTrack.getCapabilities(); torchButton.style.display = (caps && caps.torch)? 'inline-block':'none'; }catch(e){ torchButton.style.display='none'; }
+      const devices = await enumerateVideoDevices();
+      populateDeviceSelect(devices);
+      scanning = true; stopButton.style.display='inline-block'; cameraContainer.style.display='flex'; btnBack.style.display='block';
+      fitCanvases(); rafId = requestAnimationFrame(scanLoop);
+    }catch(err){
+      console.error('Erro ao abrir câmera',err);
+      showFeedback('Erro ao acessar câmera — ver console', false, 4000);
     }
+  }
 
-    // ----------------- Scanner Logic -----------------
+  function populateDeviceSelect(devices){
+    deviceSelect.innerHTML=''; if(!devices || devices.length===0){ deviceSelect.style.display='none'; return; }
+    devices.forEach(d=>{ const opt = document.createElement('option'); opt.value=d.deviceId; opt.text=d.label||('Câmera '+(deviceSelect.length+1)); deviceSelect.appendChild(opt); });
+    deviceSelect.style.display = devices.length>1 ? 'inline-block' : 'none';
+  }
 
-    document.getElementById('btnCamera').addEventListener('click', ()=>{
-        if (!currentUser) return;
-        
-        contentArea.style.display = 'none';
-        
-        cameraContainer.style.display='flex'; 
-        btnBack.style.display='block'; 
-        
-        // ALTERAÇÃO 2: Tenta iniciar o scanner ao clicar
-        startScanner();
+  function stopScanner(){
+    if(mediaStream) mediaStream.getTracks().forEach(t=>t.stop());
+    mediaStream = null; currentVideoTrack=null; if(rafId) cancelAnimationFrame(rafId); rafId=null; scanning=false;
+    video.pause(); video.srcObject = null;
+    stopButton.style.display='none'; torchButton.style.display='none'; deviceSelect.style.display='none';
+    cameraContainer.style.display='none'; btnBack.style.display='none';
+    overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+  }
+
+  async function toggleTorch(){
+    if(!currentVideoTrack) return;
+    try{ const caps = currentVideoTrack.getCapabilities(); if(!caps.torch) return; await currentVideoTrack.applyConstraints({ advanced:[{ torch: !currentVideoTrack.torchOn }] }); }catch(e){ console.warn('torch not supported', e); }
+  }
+
+  function scanLoop(){
+    if(!scanning) return;
+    if(video.readyState === video.HAVE_ENOUGH_DATA){
+      try{
+        const vw = video.videoWidth || video.clientWidth; const vh = video.videoHeight || video.clientHeight;
+        if(!vw||!vh){ rafId = requestAnimationFrame(scanLoop); return; }
+        const cropFactor = 0.6; const sw = Math.floor(vw * cropFactor); const sh = Math.floor(vh * cropFactor);
+        const sx = Math.floor((vw - sw)/2); const sy = Math.floor((vh - sh)/2);
+        tempCtx.drawImage(video, sx, sy, sw, sh, 0,0, tempCanvas.width, tempCanvas.height);
+        const imageData = tempCtx.getImageData(0,0,tempCanvas.width,tempCanvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+        if(code && code.data){
+          let loc = null;
+          if(code.location){
+            const scaleX = sw / tempCanvas.width; const scaleY = sh / tempCanvas.height;
+            const mapCorner = (pt)=>({ x: Math.round(pt.x*scaleX + sx), y: Math.round(pt.y*scaleY + sy) });
+            loc = { topLeftCorner: mapCorner(code.location.topLeftCorner), topRightCorner: mapCorner(code.location.topRightCorner), bottomLeftCorner: mapCorner(code.location.bottomLeftCorner), bottomRightCorner: mapCorner(code.location.bottomRightCorner) };
+            drawBoundingBox(loc);
+          } else drawBoundingBox(null);
+          const now = Date.now();
+          if(now - lastScanTime >= SCAN_INTERVAL){ lastScanTime = now; handleScanResult((code.data||'').trim()); }
+        } else drawBoundingBox(null);
+      }catch(e){ console.error('frame error', e); }
+    }
+    rafId = requestAnimationFrame(scanLoop);
+  }
+
+  // core handling
+  async function handleScanResult(payload){
+    if(!payload) return;
+    if(scanRecords.some(it => it.raw_qr === payload && (Date.now() - (it.timestamp||0)) < DUPLICATE_WINDOW)){
+      showFeedback('Já escaneado recentemente', false); beep(70,600,0.06); return;
+    }
+    const plataforma = (()=>{ const l=payload.toLowerCase(); if(l.includes('shopee.')) return 'Shopee'; if(l.includes('mercadolivre')||l.includes('mercadolibre')) return 'Mercado Livre'; return 'Outra'; })();
+    const extractedId = extractIdFromLink(payload); const qrId = extractQrId(payload);
+    const record = {
+      idEntrega: extractedId.value || qrId.value || payload.substring(0,12),
+      nomeCliente: '', endereco: '', raw_qr: payload,
+      plataforma, extractedId, qrId,
+      usuario: currentUser ? currentUser.username : 'anon',
+      datetime: new Date().toISOString(),
+      timestamp: Date.now(),
+      lat: CD_LOCATION.lat + (Math.random()-0.5)*0.05,
+      lon: CD_LOCATION.lon + (Math.random()-0.5)*0.05
+    };
+    scanRecords.unshift(record); saveRecords(); renderScans();
+    beep(); try{ if(navigator.vibrate) navigator.vibrate(80); }catch(e){}
+    showFeedback('Leitura OK: ' + (record.idEntrega||'---'));
+    try{ await navigator.clipboard.writeText(record.idEntrega||record.raw_qr); }catch(e){}
+  }
+
+  // CSV generation (diário/quinzenal/mensal)
+  function generateCSVPeriod(period){
+    if(!currentUser) return;
+    const now = new Date();
+    let filtered = [];
+    if(period==='diário'){
+      filtered = scanRecords.filter(r=> new Date(r.datetime).toDateString() === now.toDateString());
+    } else if(period==='quinzenal'){
+      filtered = scanRecords.filter(r=> (now - new Date(r.datetime))/(1000*60*60*24) <= 15);
+    } else if(period==='mensal'){
+      filtered = scanRecords.filter(r=> (now - new Date(r.datetime))/(1000*60*60*24) <= 30);
+    }
+    if(filtered.length===0){ alert('Nenhum registro para este período'); return; }
+    let csv = 'ID Entrega,Nome Cliente,Endereço,Raw QR,Plataforma,Usuário,Data e Hora,Latitude,Longitude\n';
+    filtered.forEach(r=>{
+      const nome = (r.nomeCliente||'').replace(/"/g,'""');
+      const end = (r.endereco||'').replace(/"/g,'""');
+      csv += `${r.idEntrega},"${nome}","${end}","${r.raw_qr}",${r.plataforma},${r.usuario},${r.datetime},${r.lat||''},${r.lon||''}\n`;
     });
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=`relatorio_${period}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
 
-    function startScanner(){
-        if(html5QrcodeScanner) return; // Se já está rodando, não faz nada
+  function generateCSV(){
+    if(!currentUser) return;
+    const p = prompt('Digite o período: diário / quinzenal / mensal').toLowerCase();
+    if(!p) return;
+    if(!['diário','diario','quinzenal','mensal'].includes(p)) { alert('Período inválido'); return;}
+    if(p.startsWith('di')) generateCSVPeriod('diário');
+    else if(p.startsWith('qui')) generateCSVPeriod('quinzenal');
+    else generateCSVPeriod('mensal');
+  }
 
-        html5QrcodeScanner = new Html5Qrcode("qr-reader");
-        html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            { fps:10, qrbox:250 },
-            qrCodeMessage=>{
-                const qrString = String(qrCodeMessage);
-                
-                // Simula os dados de entrega com base no QR Code
-                let delivery = scanRecords.find(r => r.qr === qrString) 
-                                || { id: qrString.substring(0, 8), nome: 'Entrega (QR: ' + qrString.substring(0, 15) + '...)', endereco: 'Endereço Indefinido', lat: CD_LOCATION.lat, lon: CD_LOCATION.lon };
-                
-                // Se for um novo código, adiciona o nome/endereço simulado ao registro
-                if (!delivery.nome) {
-                     delivery.nome = 'Entrega (QR: ' + qrString.substring(0, 15) + '...)';
-                     delivery.endereco = 'Endereço Indefinido';
-                     delivery.lat = CD_LOCATION.lat;
-                     delivery.lon = CD_LOCATION.lon;
-                }
-
-                if(scannedQRCodes.has(qrString)){
-                    qrFeedback.textContent=`❌ Entrega (QR: ${qrString.substring(0, 8)}...) já registrada.`;
-                    qrFeedback.style.background='rgba(255,0,0,0.6)';
-                    beepError.play();
-                } else {
-                    scannedQRCodes.add(qrString);
-                    qrFeedback.textContent=`✅ Entrega: ${delivery.nome.substring(0, 30)} registrada!`;
-                    qrFeedback.style.background='rgba(0,128,0,0.6)';
-                    beepSuccess.play();
-
-                    const record = {
-                        idEntrega: delivery.id,
-                        nomeCliente: delivery.nome,
-                        endereco: delivery.endereco,
-                        qr: qrString,
-                        usuario: currentUser.username,
-                        datetime: new Date().toISOString(),
-                        // Dados de localização simulados do CD para novas entregas
-                        lat: CD_LOCATION.lat + (Math.random() - 0.5) * 0.05, 
-                        lon: CD_LOCATION.lon + (Math.random() - 0.5) * 0.05
-                    };
-                    scanRecords.push(record);
-                    localStorage.setItem('pegazus_scans_v3', JSON.stringify(scanRecords));
-                }
-                qrFeedback.style.display='block';
-                setTimeout(()=>{ qrFeedback.style.display='none'; },3000);
-            }
-        ).catch(err=>{
-            qrFeedback.textContent='❌ Erro ao acessar câmera. Verifique as permissões. (Rodando em servidor local?)';
-            qrFeedback.style.background='rgba(255,0,0,0.6)';
-            qrFeedback.style.display='block';
-            console.error("Scanner startup failed:", err);
-            setTimeout(()=>{ qrFeedback.style.display='none'; }, 6000);
-        });
+  // UI: deliveries view
+  function showDeliveries(){
+    if(!currentUser) return;
+    cameraContainer.style.display='none'; contentArea.style.display='block'; btnBack.style.display='none';
+    if(!scanRecords.length) contentArea.innerHTML = '<h2>📦 Entregas Pendentes</h2><p>Nenhuma entrega registrada. Use o Scanner.</p>';
+    else {
+      let html = `<h2>📦 Entregas Registradas</h2><p>Total: ${scanRecords.length}</p><ul>`;
+      scanRecords.forEach(r=>{ html += `<li><strong>${escapeHtml(r.nomeCliente||r.idEntrega)}</strong> — ${escapeHtml(r.endereco||r.raw_qr)}<br><small>${escapeHtml(r.datetime)}</small></li>`; });
+      html += '</ul>'; contentArea.innerHTML = html;
     }
+  }
 
-    function stopScanner(){
-        if(html5QrcodeScanner){
-            // Verifica se o scanner está em estado de "started" antes de tentar parar
-            if(html5QrcodeScanner.isScanning) {
-                html5QrcodeScanner.stop().then(()=>{
-                    html5QrcodeScanner.clear();
-                    html5QrcodeScanner=null;
-                }).catch(err=>console.error("Error stopping scanner, but proceeding:", err));
-            } else {
-                html5QrcodeScanner.clear();
-                html5QrcodeScanner=null;
-            }
-        }
-    }
+  // UI: map
+  function showMap(){
+    if(!currentUser) return;
+    cameraContainer.style.display='none'; contentArea.style.display='block'; btnBack.style.display='none';
+    contentArea.innerHTML = `<h2>📍 Mapa</h2><div id="fleetMap" style="height:60vh;border-radius:8px;margin-top:12px"></div>`;
+    setTimeout(()=>{ // initialize leaflet
+      const map = L.map('fleetMap').setView([CD_LOCATION.lat, CD_LOCATION.lon], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      L.marker([CD_LOCATION.lat, CD_LOCATION.lon]).addTo(map).bindPopup('Centro de Distribuição').openPopup();
+      scanRecords.forEach(r=>{ if(r.lat && r.lon) L.marker([r.lat, r.lon]).addTo(map).bindPopup(`${r.idEntrega} • ${r.nomeCliente||'—'}`); });
+      map.locate({setView:false, maxZoom:16}).on('locationfound', e=>{ L.marker(e.latlng,{icon:L.divIcon({className:'custom-user-icon',html:'<div style="background:#007bff;width:12px;height:12px;border-radius:50%;border:3px solid white;"></div>'})}).addTo(map).bindPopup('Você está aqui'); });
+    },50);
+  }
 
+  // users management
+  function showUsers(){
+    if(!currentUser) return;
+    cameraContainer.style.display='none'; contentArea.style.display='block'; btnBack.style.display='none';
+    if(currentUser.role === 'colaborador'){ contentArea.innerHTML='<h2>Acesso negado</h2>'; return; }
+    let html = `<h2>👥 Gestão de Usuários</h2><ul>`;
+    users.forEach(u=> html += `<li><strong>${u.username}</strong> (${u.role}) ${u.id===currentUser.id?'(você)':''} ${ (currentUser.role!=='colaborador' && u.id!==currentUser.id) ? `<button data-id="${u.id}" class="editUserBtn">Editar</button>` : '' }</li>`);
+    html += '</ul><h3>Criar Usuário</h3><div><input id="newU" placeholder="username"><input id="newP" placeholder="senha"><select id="newR"><option value="colaborador">Colaborador</option>${currentUser.role==='admin'?'<option value="gestor">Gestor</option>':''}</select><button id="createU">Criar</button></div>';
+    contentArea.innerHTML = html;
+    document.querySelectorAll('.editUserBtn').forEach(btn=> btn.addEventListener('click', (e)=> { const id = e.target.dataset.id; editUserById(id); }));
+    document.getElementById('createU').addEventListener('click', ()=>{ const nn = document.getElementById('newU').value.trim(); const np = document.getElementById('newP').value; const nr = document.getElementById('newR').value; if(!nn||!np){ alert('Preencha'); return; } if(users.some(u=>u.username===nn)){ alert('Usuário já existe'); return; } const nu = { id:'u'+(Date.now()), username:nn, password:np, role:nr }; users.push(nu); localStorage.setItem('pegazus_users_v3', JSON.stringify(users)); showUsers(); });
+  }
+  function editUserById(id){
+    const u = users.find(x=>x.id===id); if(!u) return; const form = `<div><h3>Editar ${u.username}</h3><input id="eu" value="${u.username}"><input id="ep" placeholder="nova senha (deixe vazio para manter)"><select id="er"><option value="colaborador" ${u.role==='colaborador'?'selected':''}>Colaborador</option>${currentUser.role==='admin'?'<option value="gestor" '+(u.role==='gestor'?'selected':'')+'>Gestor</option><option value="admin" '+(u.role==='admin'?'selected':'')+'>Admin</option>':''}</select><button id="saveU">Salvar</button></div>`; contentArea.innerHTML = form; document.getElementById('saveU').addEventListener('click', ()=> { const newPass = document.getElementById('ep').value.trim(); const newRole = document.getElementById('er').value; if(newPass) u.password = newPass; if(currentUser.role==='admin') u.role = newRole; localStorage.setItem('pegazus_users_v3', JSON.stringify(users)); showUsers(); });
+  }
 
-    // ----------------- Funções de Conteúdo -----------------
+  // ---------- events ----------
+  btnLogin.addEventListener('click', ()=>{
+    const u = loginUser.value.trim(), p = loginPass.value;
+    const matched = users.find(x=> x.username===u && x.password===p);
+    if(!matched){ feedbackMessage.textContent='Usuário ou senha inválidos'; return; }
+    currentUser = matched; feedbackMessage.textContent=''; loginContainer.style.display='none'; sidebar.style.display='flex'; userInfoDiv.innerHTML = `Usuário: <strong>${currentUser.username}</strong><br>Nível: <strong>${currentUser.role}</strong>`;
+    showDeliveries();
+  });
 
-    if (btnEntregas) {
-        btnEntregas.addEventListener('click', () => showGenericContent(showDeliveries));
-    }
-    function showDeliveries() {
-        // Agora mostra as entregas que JÁ FORAM escaneadas
-        if (scanRecords.length === 0) {
-            contentArea.innerHTML = '<h2>📦 Entregas Pendentes</h2><p>Nenhuma entrega registrada ainda. Por favor, use o **Scanner** primeiro.</p>';
-        } else {
-            let listHtml = '<h2>📦 Entregas Registradas:</h2><p>Total Escaneadas: <strong>' + scanRecords.length + '</strong></p><ul class="delivery-list">';
-            
-            scanRecords.forEach((r, index) => {
-                // Simula que todas as entregas escaneadas estão "concluídas"
-                const status = '✅ Concluída'; 
-                listHtml += `<li style="display:block;"><strong>${r.nomeCliente}</strong> (ID: ${r.idEntrega})<br><small>Endereço: ${r.endereco}</small> - [${status}]</li>`;
-            });
-            listHtml += '</ul>';
-            contentArea.innerHTML = listHtml;
-        }
-    }
+  btnSair.addEventListener('click', ()=>{ currentUser=null; sidebar.style.display='none'; loginContainer.style.display='block'; contentArea.style.display='none'; stopScanner(); });
 
-    if (btnGerarRota) {
-        btnGerarRota.addEventListener('click', () => showGenericContent(generateRoute));
-    }
-    function generateRoute() {
-        if (scanRecords.length < 2) {
-            contentArea.innerHTML = '<h2>🗺️ Geração de Rota</h2><p style="color:red; font-weight: bold;">Necessário escanear pelo menos 2 entregas para gerar a rota.</p>';
-        } else {
-            contentArea.innerHTML = `<h2>🗺️ Geração de Rota</h2><p style="color:green; font-weight: bold;">Rota gerada com sucesso para ${scanRecords.length} entregas escaneadas!</p><p> (Integração com serviço de otimização de rotas pendente)</p>`;
-        }
-    }
+  btnCamera.addEventListener('click', ()=>{ if(!currentUser) return; contentArea.style.display='none'; cameraContainer.style.display='flex'; btnBack.style.display='block'; startScanner(); });
+  stopButton.addEventListener('click', ()=> stopScanner());
+  torchButton.addEventListener('click', ()=> toggleTorch());
+  deviceSelect.addEventListener('change', async ()=>{ const id = deviceSelect.value; if(!id) return; stopScanner(); try{ mediaStream = await navigator.mediaDevices.getUserMedia({ video:{ deviceId:{ exact:id } }, audio:false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning=true; rafId = requestAnimationFrame(scanLoop); stopButton.style.display='inline-block'; }catch(e){ console.warn('device select failed', e); showFeedback('Falha ao selecionar câmera', false); } });
+  exportBtn.addEventListener('click', ()=>{ if(!currentUser){ alert('Faça login'); return;} generateCSV(); });
+  clearBtn.addEventListener('click', ()=>{ if(confirm('Limpar registros?')){ scanRecords=[]; saveRecords(); renderScans(); }});
+  openScansList.addEventListener('click', ()=>{ renderScans(); cameraContainer.scrollIntoView({behavior:'smooth'}); });
 
-    if (btnMapa) {
-        btnMapa.addEventListener('click', () => showGenericContent(showMapPlaceholder));
-    }
-    
-    // FUNÇÃO: Inicializa o mapa Leaflet com localização do usuário
-    function showMapPlaceholder() {
-        contentArea.innerHTML = `
-            <h2>📍 Mapa de Frota & Localização Atual</h2>
-            <p>O mapa é centralizado na sua posição atual (se a permissão for concedida).</p>
-            <div id="fleetMap"></div>
-        `;
+  btnEntregas.addEventListener('click', ()=> showDeliveries());
+  btnMapa.addEventListener('click', ()=> showMap());
+  btnGenerateCSV.addEventListener('click', ()=> generateCSV());
+  btnGerarRota.addEventListener('click', ()=> { showDeliveries(); setTimeout(()=> alert('Rota (placeholder) — depende de entregas escaneadas'),200); });
+  btnUsers.addEventListener('click', ()=> showUsers());
+  btnBack.addEventListener('click', ()=> { stopScanner(); cameraContainer.style.display='none'; btnBack.style.display='none'; showDeliveries(); });
 
-        var map = L.map('fleetMap').setView([CD_LOCATION.lat, CD_LOCATION.lon], 13); 
+  btnTestImage.addEventListener('click', ()=> { window.open('/mnt/data/ex qrcode.jpg','_blank'); });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }).addTo(map);
+  // initial render
+  renderScans();
 
-        // Marcador do Centro de Distribuição
-        L.marker([CD_LOCATION.lat, CD_LOCATION.lon]).addTo(map)
-            .bindPopup('Centro de Distribuição')
-            .openPopup();
-        
-        // Adiciona marcadores para as entregas registradas
-        scanRecords.forEach(r => {
-            if (r.lat && r.lon) {
-                L.marker([r.lat, r.lon], { icon: L.divIcon({ className: 'custom-div-icon', html: '<div style="background-color: var(--success); width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>', iconSize: [12, 12] }) }).addTo(map)
-                    .bindPopup(`Entrega ${r.idEntrega}: ${r.nomeCliente} (Entregue por: ${r.usuario})`);
-            }
-        });
+  // expose debug
+  window._pegazus = { startScanner, stopScanner, getScans: ()=> scanRecords };
 
-        // Tenta localizar o usuário em tempo real
-        map.locate({setView: true, maxZoom: 16, watch: true, enableHighAccuracy: true});
-        
-        let userMarker = null;
-
-        function onLocationFound(e) {
-            const radius = e.accuracy / 2;
-            
-            if (userMarker) {
-                map.removeLayer(userMarker);
-                map.eachLayer(layer => {
-                    if (layer instanceof L.Circle) map.removeLayer(layer);
-                });
-            }
-            
-            userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'custom-user-icon', html: '<div style="background-color: var(--primary); width: 15px; height: 15px; border-radius: 50%; border: 3px solid white;"></div>', iconSize: [18, 18] }) }).addTo(map)
-                .bindPopup("Você está aqui dentro de " + radius.toFixed(0) + " metros.")
-                .openPopup();
-
-            L.circle(e.latlng, radius).addTo(map);
-        }
-
-        function onLocationError(e) {
-            console.error("Erro na Geolocalização: ", e.message);
-        }
-
-        map.on('locationfound', onLocationFound);
-        map.on('locationerror', onLocationError);
-    }
-
-    if (btnUsers) {
-        btnUsers.addEventListener('click', () => showGenericContent(showUsers));
-    }
-    
-    // ----------------- Gestão de Usuários (Admin/Gestor/Colaborador) -----------------
-
-    function canEdit(targetRole) {
-        const role = currentUser.role;
-        if (role === 'admin') return true;
-        if (role === 'gestor' && (targetRole === 'colaborador')) return true;
-        return false;
-    }
-
-    function canDelete(targetRole) {
-        return canEdit(targetRole); 
-    }
-
-    function showUsers() {
-        if (currentUser.role === 'colaborador') {
-            contentArea.innerHTML = '<h2>Acesso Negado</h2><p style="color:red; font-weight: bold;">Você não tem permissão para visualizar ou gerenciar usuários.</p>';
-            return;
-        }
-
-        let listHtml = '<h2>👥 Gestão de Usuários</h2><p>Você pode editar a senha de qualquer usuário, ou excluir usuários conforme sua permissão.</p><ul class="user-list">';
-        
-        users.forEach(u => {
-            const isCurrentUser = u.id === currentUser.id;
-            const canRemove = canDelete(u.role) && !isCurrentUser;
-            
-            listHtml += `<li data-user-id="${u.id}" id="user-row-${u.id}">
-                <div class="user-details">
-                    <strong>${u.username}</strong> (${u.role.toUpperCase()})
-                </div>
-                <div class="user-actions">
-                    <button class="action-btn edit-btn" onclick="editUser('${u.id}', '${u.role}', ${isCurrentUser})">✏️ Editar</button>
-                    ${canRemove ? `<button class="action-btn delete-btn" onclick="deleteUser('${u.id}', '${u.username}')">🗑️ Excluir</button>` : ''}
-                </div>
-            </li>`;
-        });
-        listHtml += '</ul>';
-
-        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-            listHtml += `
-                <h3 style="margin-top: 20px;">+ Novo Usuário</h3>
-                <div class="user-management">
-                    <input type="text" id="newUsername" placeholder="Nome de Usuário (login)" required>
-                    <input type="password" id="newPassword" placeholder="Senha" required>
-                    <select id="newUserRole">
-                        ${currentUser.role === 'admin' ? '<option value="gestor">Gestor</option>' : ''}
-                        <option value="colaborador">Colaborador</option>
-                    </select>
-                    <button id="createUserBtn" class="action-btn save-btn">Criar Usuário</button>
-                </div>
-            `;
-        }
-
-        contentArea.innerHTML = listHtml;
-        
-        if (document.getElementById('createUserBtn')) {
-            document.getElementById('createUserBtn').addEventListener('click', createUser);
-        }
-    }
-    
-    // Funções de manipulação de usuário no escopo global (windows)
-    window.editUser = function(id, role, isCurrentUser) {
-        const user = users.find(u => u.id === id);
-        if (!user || (!canEdit(user.role) && !isCurrentUser)) {
-            alert('Ação não permitida.');
-            return;
-        }
-
-        const row = document.getElementById(`user-row-${id}`);
-
-        row.innerHTML = `
-            <div class="user-details" style="width: 100%;">
-                <strong>${user.username}</strong> (${user.role.toUpperCase()})
-                <input type="password" id="editPassword-${id}" placeholder="Nova Senha (deixe vazio para não alterar)">
-                <select id="editRole-${id}" ${currentUser.role === 'admin' && !isCurrentUser ? '' : 'disabled'}>
-                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-                    <option value="gestor" ${user.role === 'gestor' ? 'selected' : ''}>Gestor</option>
-                    <option value="colaborador" ${user.role === 'colaborador' ? 'selected' : ''}>Colaborador</option>
-                </select>
-            </div>
-            <div class="user-actions">
-                <button class="action-btn save-btn" onclick="saveUser('${id}')">💾 Salvar</button>
-                <button class="action-btn cancel-btn" onclick="showUsers()">❌ Cancelar</button>
-            </div>
-        `;
-    }
-
-    window.saveUser = function(id) {
-        const user = users.find(u => u.id === id);
-        if (!user) return;
-
-        const newPass = document.getElementById(`editPassword-${id}`).value;
-        const newRoleElement = document.getElementById(`editRole-${id}`);
-        const newRole = newRoleElement ? newRoleElement.value : user.role;
-        
-        if (newPass) {
-            user.password = newPass;
-        }
-        
-        if (currentUser.role === 'admin' && user.id !== currentUser.id) {
-             user.role = newRole;
-        }
-        
-        if (user.id === currentUser.id) {
-            currentUser.password = user.password;
-            updateSidebarInfo();
-        }
-
-        saveUsers();
-        showUsers();
-    }
-
-    window.deleteUser = function(id, username) {
-        const user = users.find(u => u.id === id);
-        if (!user || !canDelete(user.role)) {
-            alert('Ação não permitida para o seu nível de acesso.');
-            return;
-        }
-        if (confirm(`Tem certeza que deseja excluir o usuário ${username}? Esta ação é irreversível.`)) {
-            users = users.filter(u => u.id !== id);
-            saveUsers();
-            showUsers();
-        }
-    }
-
-    function createUser() {
-        const username = document.getElementById('newUsername').value.trim();
-        const password = document.getElementById('newPassword').value;
-        const role = document.getElementById('newUserRole').value;
-
-        if (!username || !password || users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-            alert('Usuário ou senha inválidos, ou nome de usuário já existe.');
-            return;
-        }
-
-        const newUser = {
-            id: 'u' + (nextUserId++),
-            username: username,
-            password: password,
-            role: role
-        };
-
-        users.push(newUser);
-        saveUsers();
-        showUsers();
-    }
-
-    // ----------------- CSV Logic -----------------
-
-    if (btnGenerateCSV) {
-        btnGenerateCSV.addEventListener('click', generateAndShowCSV);
-    }
-
-    function generateAndShowCSV(){
-        if (!currentUser) return;
-
-        if(scanRecords.length===0){ 
-            alert('Nenhum registro disponível para relatório.'); 
-            showGenericContent(showDeliveries); 
-            return; 
-        }
-
-        let csv = 'ID Entrega,Nome Cliente,Endereço,QR Code,Usuário,Data e Hora,Latitude,Longitude\n';
-        scanRecords.forEach(r=>{
-            const nome = r.nomeCliente.replace(/"/g, '""');
-            const endereco = r.endereco.replace(/"/g, '""');
-            csv += `${r.idEntrega},"${nome}","${endereco}",${r.qr},${r.usuario},${r.datetime},${r.lat || ''},${r.lon || ''}\n`;
-        });
-
-        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href=url;
-        a.download='relatorio_scans.csv';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        showGenericContent(()=>{
-            contentArea.innerHTML = '<h2>📄 Relatório CSV</h2><p style="color:var(--success); font-weight: bold;">Relatório de scans baixado com sucesso!</p>';
-            setTimeout(() => showGenericContent(showDeliveries), 2000);
-        });
-    }
-
-});
+}); // DOMContentLoaded
