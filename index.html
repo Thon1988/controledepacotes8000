@@ -1,120 +1,147 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>PegazusLog</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PegazusLog</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --card: #ffffff;
+      --accent: #00b4d8;
+      --text: #ffffff;
+      --muted: #9aa0a6;
+    }
 
-<style>
-:root{--primary:#003a73;--bg:#f2f4f8;--card:#fff;--success:#28a745;--danger:#dc3545}
-*{box-sizing:border-box}
-body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);display:flex;height:100vh;}
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, Arial;
+    }
 
-/* Sidebar */
-#sidebar{width:250px;background:var(--primary);color:#fff;padding:20px 16px;display:none;flex-direction:column;gap:10px;flex-shrink:0}
-#sidebar .title{font-weight:700;text-align:center;font-size:1.2rem;margin-bottom:6px}
-.nav-btn{background:rgba(255,255,255,0.08);padding:10px;border-radius:8px;text-align:center;cursor:pointer;font-weight:600}
-.nav-btn:hover{background:rgba(255,255,255,0.16)}
-#userInfo{font-size:0.9rem;padding:6px;border-bottom:1px solid rgba(255,255,255,0.12);}
+    h1 {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 22px;
+    }
 
-/* Main */
-.main-content{flex:1;padding:18px;display:flex;flex-direction:column;overflow:auto}
-#loginContainer{max-width:380px;margin:auto;padding:26px;background:var(--card);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.08);text-align:center}
-#loginContainer input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #ccc}
-#loginBtn{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer}
+    /* LOGIN */
+    #loginBox {
+      max-width: 360px;
+      margin: 50px auto;
+      background: #111;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    }
 
-/* content area */
-#contentArea{display:none;background:var(--card);padding:16px;border-radius:8px;min-height:200px}
+    #loginBox input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 8px;
+      background: #222;
+      color: #fff;
+    }
 
-/* camera container (integrated) */
-#cameraContainer{display:none;position:relative;align-items:center;justify-content:center;flex-direction:column;height:80vh}
-.camera-wrap{position:relative;background:#000;border-radius:12px;overflow:hidden;width:100%;max-width:900px;height:68vh;display:flex;align-items:center;justify-content:center}
-video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
-canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+    #loginBox button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
 
-/* Quadrado proporcional: 40% da largura da tela */
-.scan-box{position:absolute;border:2px solid rgba(255,255,255,0.45);width:40vw;height:40vw;max-width:420px;max-height:420px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
-.scan-line{position:absolute;left:0;right:0;height:3px;background:#00b4d8;animation:scan-back-forth 2s linear infinite}
-@keyframes scan-back-forth{0%{top:2%}50%{top:calc(100% - 2%)}100%{top:2%}}
-#qrFeedback{position:fixed;left:50%;transform:translateX(-50%);bottom:110px;padding:10px 14px;border-radius:8px;color:#fff;display:none;z-index:2000}
+    /* APP */
+    #app {
+      display: none;
+      padding: 12px;
+      max-width: 900px;
+      margin: auto;
+    }
 
-/* small UI pieces */
-.panel{background:var(--card);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 4px 10px rgba(0,0,0,0.06)}
-.list{max-height:220px;overflow:auto;margin-top:8px;border-radius:6px;border:1px solid #eee;padding:8px}
-.item{padding:8px;border-bottom:1px solid #eee;display:flex;flex-direction:column;gap:6px}
-.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eee;font-size:12px;color:#111}
-.link-text{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+    .cameraWrap {
+      margin-top: 16px;
+      position: relative;
+      width: 40vw;
+      height: 40vw;
+      max-width: 360px;
+      max-height: 360px;
+      margin-left: auto;
+      margin-right: auto;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
 
-/* responsive */
-@media(max-width:720px){ .scan-box{width:70vw;height:70vw} .camera-wrap{height:52vh} }
-</style>
+    video, canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+    }
+
+    .scanLine {
+      position: absolute;
+      width: 100%;
+      height: 3px;
+      background: var(--accent);
+      top: 0;
+      left: 0;
+      animation: scan 2.2s infinite alternate ease-in-out;
+    }
+
+    @keyframes scan {
+      from { top: 0; }
+      to { top: calc(100% - 3px); }
+    }
+
+    #logBox {
+      background: #fff;
+      color: #111;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 16px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .item {
+      padding: 6px;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
 </head>
 <body>
 
-<!-- Sidebar -->
-<div id="sidebar">
-  <div class="title">PegazusLog</div>
-  <div id="userInfo">Usuário: —</div>
-  <div id="btnCamera" class="nav-btn">📷 Scanner</div>
-  <div id="btnEntregas" class="nav-btn">📦 Entregas</div>
-  <div id="btnGerarRota" class="nav-btn">🗺️ Gerar Rota</div>
-  <div id="btnMapa" class="nav-btn">📍 Visualizar Mapa</div>
-  <div id="btnUsers" class="nav-btn">👥 Usuários</div>
-  <div id="btnGenerateCSV" class="nav-btn">📄 Gerar Relatório CSV</div>
-  <div id="btnTestImage" class="nav-btn">🖼️ Testar QR (imagem)</div>
-  <div id="btnSair" class="nav-btn" style="margin-top:auto;background:#b02a37">🔙 Sair</div>
-</div>
-
-<!-- Main -->
-<div class="main-content">
-  <button id="btnBack" style="display:none;margin-bottom:12px">⬅ Voltar ao Menu</button>
+  <h1>PegazusLog</h1>
 
   <!-- LOGIN -->
-  <div id="loginContainer">
-    <h2>PegazusLog</h2>
-    <input id="loginUser" placeholder="Usuário" />
-    <input id="loginPass" type="password" placeholder="Senha" />
+  <div id="loginBox">
+    <input id="userInput" type="text" placeholder="Usuário">
+    <input id="passInput" type="password" placeholder="Senha">
     <button id="loginBtn">Entrar</button>
-    <div id="feedbackMessage" style="color:var(--danger);margin-top:8px"></div>
+    <div id="loginMsg" style="margin-top:10px;color:#f55"></div>
   </div>
 
-  <!-- CONTENT AREA -->
-  <div id="contentArea"></div>
-
-  <!-- CAMERA (integrated, opens inside content area) -->
-  <div id="cameraContainer">
-    <div class="camera-wrap">
-      <video id="videoElement" muted playsinline></video>
-      <canvas id="overlay"></canvas>
-      <div class="scan-box" aria-hidden="true">
-        <div class="scan-line" id="scanLine"></div>
-      </div>
+  <!-- APP -->
+  <div id="app">
+    <div class="cameraWrap">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div class="scanLine"></div>
     </div>
-    <div id="qrFeedback"></div>
-    <div class="panel" style="width:100%;max-width:900px">
-      <div class="controls">
-        <button id="stopButton" style="display:none">⏹️ Parar</button>
-        <button id="torchButton" style="display:none">🔦 Flash</button>
-        <select id="deviceSelect" style="display:none"></select>
-        <button id="exportBtn">⬇️ Exportar CSV</button>
-        <button id="clearBtn">🧹 Limpar registros</button>
-        <button id="openScansList">📜 Ver Scans</button>
-      </div>
 
-      <div class="list" id="scansList" aria-live="polite"></div>
-    </div>
+    <div id="logBox"></div>
   </div>
-</div>
 
-<!-- hidden test image link -->
-<a id="testImageLink" href="/mnt/data/ex qrcode.jpg" target="_blank" style="display:none">test image</a>
+  <script src="app.js"></script>
 
-<!-- load app.js -->
-<script src="app.js"></script>
 </body>
 </html>
