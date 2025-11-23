@@ -4,11 +4,35 @@
 document.addEventListener('DOMContentLoaded', ()=>{
 
   // ---------- state ----------
-  let users = JSON.parse(localStorage.getItem('pegazus_users_v3')) || [
-    { id:'u1', username:'thon', password:'882010', role:'admin' },
-    { id:'u2', username:'gestor01', password:'123', role:'gestor' },
-    { id:'u3', username:'colab01', password:'456', role:'colaborador' }
+  // For now we ensure only 'thon' exists (admin). This overrides localStorage on first load.
+  const DEFAULT_USERS = [
+    { id:'u1', username:'thon', password:'882010', role:'admin' }
   ];
+  let users = (() => {
+    try {
+      const raw = localStorage.getItem('pegazus_users_v3');
+      if (!raw) {
+        localStorage.setItem('pegazus_users_v3', JSON.stringify(DEFAULT_USERS));
+        return JSON.parse(JSON.stringify(DEFAULT_USERS));
+      }
+      // if exists, keep it (but ensure thon exists). If you want to force overwrite, clear localStorage first.
+      const parsed = JSON.parse(raw);
+      // ensure thon exists; if not, add
+      if (!parsed.some(u=>u.username==='thon')) {
+        parsed.unshift(DEFAULT_USERS[0]);
+        localStorage.setItem('pegazus_users_v3', JSON.stringify(parsed));
+      }
+      return parsed;
+    } catch (e) {
+      localStorage.setItem('pegazus_users_v3', JSON.stringify(DEFAULT_USERS));
+      return JSON.parse(JSON.stringify(DEFAULT_USERS));
+    }
+  })();
+
+  function saveUsers() {
+    localStorage.setItem('pegazus_users_v3', JSON.stringify(users));
+  }
+
   let currentUser = null;
   const CD_LOCATION = { lat:-23.5505, lon:-46.6333 };
   let scanRecords = JSON.parse(localStorage.getItem('pegazus_scans_v3') || '[]');
@@ -68,6 +92,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 
   function showFeedback(text, ok=true, ms=1500){
+    if (!qrFeedback) return;
     qrFeedback.textContent = text;
     qrFeedback.style.background = ok? 'rgba(0,128,0,0.7)' : 'rgba(255,0,0,0.7)';
     qrFeedback.style.display = 'block';
@@ -101,6 +126,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // render editable scans list
   function renderScans(){
+    if(!scansList) return;
     scansList.innerHTML = '';
     if(!scanRecords.length){ scansList.innerHTML = '<div style="color:#666">Nenhum registro ainda.</div>'; return; }
     scanRecords.forEach((r, i)=>{
@@ -158,7 +184,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     overlayCtx.clearRect(0,0,overlay.width,overlay.height);
     if(!loc){
       const w = overlay.width, h = overlay.height;
-      const boxW = Math.round(w * 0.45), boxH = Math.round(boxW);
+      const boxW = Math.round(w * 0.40), boxH = Math.round(boxW); // 40% width square
       const x = Math.round((w - boxW)/2), y = Math.round((h - boxH)/2);
       overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x,y,boxW,boxH);
       return;
@@ -266,7 +292,26 @@ document.addEventListener('DOMContentLoaded', ()=>{
     try{ await navigator.clipboard.writeText(record.idEntrega||record.raw_qr); }catch(e){}
   }
 
-  // CSV generation (diário/quinzenal/mensal)
+  // CSV generation (diário/quinzenal/mensal) with menu
+  function generateCSVMenu(){
+    if(!currentUser) { alert('Faça login para gerar relatórios'); return; }
+    contentArea.innerHTML = `
+      <h2>📄 Gerar Relatório CSV</h2>
+      <p>Escolha o período:</p>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="csvDiario" class="nav-btn">Diário</button>
+        <button id="csvQuinze" class="nav-btn">Quinzenal</button>
+        <button id="csvMensal" class="nav-btn">Mensal</button>
+        <button id="csvCancelar" style="background:#6c757d;color:#fff;border:none;border-radius:6px;padding:8px">Cancelar</button>
+      </div>
+      <p style="margin-top:12px;color:#666">Total registros: ${scanRecords.length}</p>
+    `;
+    document.getElementById('csvDiario').addEventListener('click', ()=> generateCSVPeriod('diário'));
+    document.getElementById('csvQuinze').addEventListener('click', ()=> generateCSVPeriod('quinzenal'));
+    document.getElementById('csvMensal').addEventListener('click', ()=> generateCSVPeriod('mensal'));
+    document.getElementById('csvCancelar').addEventListener('click', ()=> showDeliveries());
+  }
+
   function generateCSVPeriod(period){
     if(!currentUser) return;
     const now = new Date();
@@ -287,16 +332,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=url; a.download=`relatorio_${period}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }
-
-  function generateCSV(){
-    if(!currentUser) return;
-    const p = prompt('Digite o período: diário / quinzenal / mensal').toLowerCase();
-    if(!p) return;
-    if(!['diário','diario','quinzenal','mensal'].includes(p)) { alert('Período inválido'); return;}
-    if(p.startsWith('di')) generateCSVPeriod('diário');
-    else if(p.startsWith('qui')) generateCSVPeriod('quinzenal');
-    else generateCSVPeriod('mensal');
+    // after generation go back to deliveries
+    setTimeout(()=> showDeliveries(), 600);
   }
 
   // UI: deliveries view
@@ -321,7 +358,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
       L.marker([CD_LOCATION.lat, CD_LOCATION.lon]).addTo(map).bindPopup('Centro de Distribuição').openPopup();
       scanRecords.forEach(r=>{ if(r.lat && r.lon) L.marker([r.lat, r.lon]).addTo(map).bindPopup(`${r.idEntrega} • ${r.nomeCliente||'—'}`); });
-      map.locate({setView:false, maxZoom:16}).on('locationfound', e=>{ L.marker(e.latlng,{icon:L.divIcon({className:'custom-user-icon',html:'<div style="background:#007bff;width:12px;height:12px;border-radius:50%;border:3px solid white;"></div>'})}).addTo(map).bindPopup('Você está aqui'); });
+      // locate user and show a small blue GPS icon
+      map.locate({setView:false, maxZoom:16}).on('locationfound', e=>{
+        const blueIcon = L.divIcon({
+          className: 'custom-user-icon',
+          html: '<div style="background:#007bff;width:12px;height:12px;border-radius:50%;border:3px solid white;"></div>',
+          iconSize: [18,18]
+        });
+        L.marker(e.latlng, {icon: blueIcon}).addTo(map).bindPopup('Você está aqui').openPopup();
+      });
     },50);
   }
 
@@ -332,47 +377,100 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if(currentUser.role === 'colaborador'){ contentArea.innerHTML='<h2>Acesso negado</h2>'; return; }
     let html = `<h2>👥 Gestão de Usuários</h2><ul>`;
     users.forEach(u=> html += `<li><strong>${u.username}</strong> (${u.role}) ${u.id===currentUser.id?'(você)':''} ${ (currentUser.role!=='colaborador' && u.id!==currentUser.id) ? `<button data-id="${u.id}" class="editUserBtn">Editar</button>` : '' }</li>`);
-    html += '</ul><h3>Criar Usuário</h3><div><input id="newU" placeholder="username"><input id="newP" placeholder="senha"><select id="newR"><option value="colaborador">Colaborador</option>${currentUser.role==='admin'?'<option value="gestor">Gestor</option>':''}</select><button id="createU">Criar</button></div>';
+    html += '</ul><h3>Criar Usuário</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="newU" placeholder="username"><input id="newP" placeholder="senha"><select id="newR"><option value="colaborador">Colaborador</option>${currentUser.role==='admin'?'<option value="gestor">Gestor</option>':''}</select><button id="createU">Criar</button></div>';
     contentArea.innerHTML = html;
     document.querySelectorAll('.editUserBtn').forEach(btn=> btn.addEventListener('click', (e)=> { const id = e.target.dataset.id; editUserById(id); }));
-    document.getElementById('createU').addEventListener('click', ()=>{ const nn = document.getElementById('newU').value.trim(); const np = document.getElementById('newP').value; const nr = document.getElementById('newR').value; if(!nn||!np){ alert('Preencha'); return; } if(users.some(u=>u.username===nn)){ alert('Usuário já existe'); return; } const nu = { id:'u'+(Date.now()), username:nn, password:np, role:nr }; users.push(nu); localStorage.setItem('pegazus_users_v3', JSON.stringify(users)); showUsers(); });
+    document.getElementById('createU').addEventListener('click', ()=>{
+      const nn = document.getElementById('newU').value.trim();
+      const np = document.getElementById('newP').value;
+      const nr = document.getElementById('newR').value;
+      if(!nn||!np){ alert('Preencha'); return; }
+      if(users.some(u=>u.username===nn)){ alert('Usuário já existe'); return; }
+      const nu = { id:'u'+(Date.now()), username:nn, password:np, role:nr };
+      users.push(nu); saveUsers(); showUsers();
+    });
   }
+
   function editUserById(id){
-    const u = users.find(x=>x.id===id); if(!u) return; const form = `<div><h3>Editar ${u.username}</h3><input id="eu" value="${u.username}"><input id="ep" placeholder="nova senha (deixe vazio para manter)"><select id="er"><option value="colaborador" ${u.role==='colaborador'?'selected':''}>Colaborador</option>${currentUser.role==='admin'?'<option value="gestor" '+(u.role==='gestor'?'selected':'')+'>Gestor</option><option value="admin" '+(u.role==='admin'?'selected':'')+'>Admin</option>':''}</select><button id="saveU">Salvar</button></div>`; contentArea.innerHTML = form; document.getElementById('saveU').addEventListener('click', ()=> { const newPass = document.getElementById('ep').value.trim(); const newRole = document.getElementById('er').value; if(newPass) u.password = newPass; if(currentUser.role==='admin') u.role = newRole; localStorage.setItem('pegazus_users_v3', JSON.stringify(users)); showUsers(); });
+    const u = users.find(x=>x.id===id); if(!u) return;
+    // Build form that allows admin to edit username, password and role (if admin)
+    const form = document.createElement('div');
+    form.innerHTML = `
+      <h3>Editar usuário</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label>Usuário (login)<input id="eu" value="${escapeHtml(u.username)}"></label>
+        <label>Nova senha (deixe vazio para manter)<input id="ep" placeholder="nova senha"></label>
+        <label>Perfil
+          <select id="er">
+            <option value="colaborador" ${u.role==='colaborador'?'selected':''}>Colaborador</option>
+            <option value="gestor" ${u.role==='gestor'?'selected':''}>Gestor</option>
+            ${currentUser.role==='admin'?`<option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>`:''}
+          </select>
+        </label>
+        <div style="display:flex;gap:8px">
+          <button id="saveU" style="background:var(--success);color:#fff;padding:8px;border-radius:6px">Salvar</button>
+          <button id="cancelU" style="background:#6c757d;color:#fff;padding:8px;border-radius:6px">Cancelar</button>
+        </div>
+      </div>
+    `;
+    contentArea.innerHTML = '';
+    contentArea.appendChild(form);
+    document.getElementById('cancelU').addEventListener('click', showUsers);
+    document.getElementById('saveU').addEventListener('click', ()=>{
+      const newUsername = document.getElementById('eu').value.trim();
+      const newPass = document.getElementById('ep').value.trim();
+      const newRole = document.getElementById('er').value;
+      if(!newUsername){ alert('Nome de usuário não pode ficar vazio'); return; }
+      // ensure unique username except for this user
+      if(users.some(x=> x.username===newUsername && x.id !== u.id)){ alert('Nome de usuário já existe'); return; }
+      u.username = newUsername;
+      if(newPass) u.password = newPass;
+      if(currentUser.role === 'admin') u.role = newRole;
+      saveUsers();
+      // if editing yourself, update currentUser reference
+      if(u.id === currentUser.id) currentUser = u;
+      showUsers();
+    });
   }
 
   // ---------- events ----------
+  // login handling
   btnLogin.addEventListener('click', ()=>{
-    const u = loginUser.value.trim(), p = loginPass.value;
+    const u = (loginUser && loginUser.value || '').trim();
+    const p = (loginPass && loginPass.value) || '';
     const matched = users.find(x=> x.username===u && x.password===p);
     if(!matched){ feedbackMessage.textContent='Usuário ou senha inválidos'; return; }
-    currentUser = matched; feedbackMessage.textContent=''; loginContainer.style.display='none'; sidebar.style.display='flex'; userInfoDiv.innerHTML = `Usuário: <strong>${currentUser.username}</strong><br>Nível: <strong>${currentUser.role}</strong>`;
+    currentUser = matched; feedbackMessage.textContent=''; loginContainer.style.display='none'; sidebar.style.display='flex';
+    userInfoDiv.innerHTML = `Usuário: <strong>${currentUser.username}</strong><br>Nível: <strong>${currentUser.role}</strong>`;
+    // show deliveries by default
     showDeliveries();
   });
 
   btnSair.addEventListener('click', ()=>{ currentUser=null; sidebar.style.display='none'; loginContainer.style.display='block'; contentArea.style.display='none'; stopScanner(); });
 
   btnCamera.addEventListener('click', ()=>{ if(!currentUser) return; contentArea.style.display='none'; cameraContainer.style.display='flex'; btnBack.style.display='block'; startScanner(); });
-  stopButton.addEventListener('click', ()=> stopScanner());
-  torchButton.addEventListener('click', ()=> toggleTorch());
-  deviceSelect.addEventListener('change', async ()=>{ const id = deviceSelect.value; if(!id) return; stopScanner(); try{ mediaStream = await navigator.mediaDevices.getUserMedia({ video:{ deviceId:{ exact:id } }, audio:false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning=true; rafId = requestAnimationFrame(scanLoop); stopButton.style.display='inline-block'; }catch(e){ console.warn('device select failed', e); showFeedback('Falha ao selecionar câmera', false); } });
-  exportBtn.addEventListener('click', ()=>{ if(!currentUser){ alert('Faça login'); return;} generateCSV(); });
-  clearBtn.addEventListener('click', ()=>{ if(confirm('Limpar registros?')){ scanRecords=[]; saveRecords(); renderScans(); }});
-  openScansList.addEventListener('click', ()=>{ renderScans(); cameraContainer.scrollIntoView({behavior:'smooth'}); });
+  stopButton && stopButton.addEventListener('click', ()=> stopScanner());
+  torchButton && torchButton.addEventListener('click', ()=> toggleTorch());
+  deviceSelect && deviceSelect.addEventListener('change', async ()=>{ const id = deviceSelect.value; if(!id) return; stopScanner(); try{ mediaStream = await navigator.mediaDevices.getUserMedia({ video:{ deviceId:{ exact:id } }, audio:false }); video.srcObject = mediaStream; await video.play(); currentVideoTrack = mediaStream.getVideoTracks()[0] || null; fitCanvases(); scanning=true; rafId = requestAnimationFrame(scanLoop); stopButton.style.display='inline-block'; }catch(e){ console.warn('device select failed', e); showFeedback('Falha ao selecionar câmera', false); } });
+  exportBtn && exportBtn.addEventListener('click', ()=>{ if(!currentUser){ alert('Faça login'); return;} generateCSVMenu(); });
+  clearBtn && clearBtn.addEventListener('click', ()=>{ if(confirm('Limpar registros?')){ scanRecords=[]; saveRecords(); renderScans(); }});
+  openScansList && openScansList.addEventListener('click', ()=>{ renderScans(); cameraContainer.scrollIntoView({behavior:'smooth'}); });
 
   btnEntregas.addEventListener('click', ()=> showDeliveries());
   btnMapa.addEventListener('click', ()=> showMap());
-  btnGenerateCSV.addEventListener('click', ()=> generateCSV());
+  btnGenerateCSV.addEventListener('click', ()=> generateCSVMenu());
   btnGerarRota.addEventListener('click', ()=> { showDeliveries(); setTimeout(()=> alert('Rota (placeholder) — depende de entregas escaneadas'),200); });
   btnUsers.addEventListener('click', ()=> showUsers());
   btnBack.addEventListener('click', ()=> { stopScanner(); cameraContainer.style.display='none'; btnBack.style.display='none'; showDeliveries(); });
 
-  btnTestImage.addEventListener('click', ()=> { window.open('/mnt/data/ex qrcode.jpg','_blank'); });
+  btnTestImage && btnTestImage.addEventListener('click', ()=> { try{ window.open('/mnt/data/ex qrcode.jpg','_blank'); }catch(e){ alert('Imagem de teste não encontrada') } });
 
   // initial render
   renderScans();
+  // ensure feedback blank
+  if(feedbackMessage) feedbackMessage.textContent='';
 
   // expose debug
-  window._pegazus = { startScanner, stopScanner, getScans: ()=> scanRecords };
+  window._pegazus = { startScanner, stopScanner, getScans: ()=> scanRecords, getUsers: ()=> users };
 
 }); // DOMContentLoaded
