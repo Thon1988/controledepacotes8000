@@ -35,8 +35,10 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);displa
 .camera-wrap{position:relative;background:#000;border-radius:12px;overflow:hidden;width:100%;max-width:900px;height:68vh;display:flex;align-items:center;justify-content:center}
 video#videoElement{width:100%;height:100%;object-fit:cover;display:block;background:#000}
 canvas#overlay{position:absolute;left:0;top:0;pointer-events:none;width:100%;height:100%}
+
+/* Quadrado proporcional: 40% da largura da tela */
 .scan-box{position:absolute;border:2px solid rgba(255,255,255,0.45);width:40vw;height:40vw;max-width:420px;max-height:420px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
-.scan-line{position:absolute;left:0;right:0;height:3px;background:red;animation:scan-back-forth 2s linear infinite}
+.scan-line{position:absolute;left:0;right:0;height:3px;background:#00b4d8;animation:scan-back-forth 2s linear infinite}
 @keyframes scan-back-forth{0%{top:2%}50%{top:calc(100% - 2%)}100%{top:2%}}
 #qrFeedback{position:fixed;left:50%;transform:translateX(-50%);bottom:110px;padding:10px 14px;border-radius:8px;color:#fff;display:none;z-index:2000}
 
