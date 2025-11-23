@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", ()=>{
 
     // ----------------- Usuários e Dados (Reestruturado) -----------------
-    // Carrega usuários do localStorage ou usa valores iniciais se não existirem
     let users = JSON.parse(localStorage.getItem('pegazus_users_v3')) || [
         { id: 'u1', username: 'thon', password: '882010', role: 'admin' },
         { id: 'u2', username: 'gestor01', password: '123', role: 'gestor' },
@@ -9,19 +8,13 @@ document.addEventListener("DOMContentLoaded", ()=>{
     ];
     let currentUser = null;
 
-    // Dados de Entregas com QR codes simulados (inclui códigos longos para ML/Shopee) e Lat/Lon
-    const deliveries = [
-        { id:'101', nome:'João Silva (Shopee)', endereco:'Rua A, 123, São Paulo, SP', qr:'101', lat:-23.54, lon:-46.64 },
-        { id:'102', nome:'Maria Oliveira (ML)', endereco:'Av. B, 456, Rio de Janeiro, RJ', qr:'ML4567890', lat:-23.57, lon:-46.61 },
-        { id:'103', nome:'Carlos Souza', endereco:'Rua C, 789, Belo Horizonte, MG', qr:'103', lat:-23.53, lon:-46.67 },
-        { id:'104', nome:'Ana Lima', endereco:'Av. D, 321, Curitiba, PR', qr:'104', lat:-23.56, lon:-46.62 }
-    ];
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; // Centro de Distribuição - SP
+    // ALTERAÇÃO 1: A lista de entregas inicia VAZIA. Elas só aparecerão após o scan.
+    const deliveries = [];
+    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
 
     let scanRecords = JSON.parse(localStorage.getItem('pegazus_scans_v3') || '[]');
     let nextUserId = users.reduce((max, u) => Math.max(max, parseInt(u.id.substring(1)) || 0), 0) + 1;
 
-    // Função de utilidade para persistir usuários
     function saveUsers() {
         localStorage.setItem('pegazus_users_v3', JSON.stringify(users));
     }
@@ -44,7 +37,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
     const loginPass = document.getElementById('loginPass');
 
     let html5QrcodeScanner;
-    // Garante que os códigos de QR e ID de entrega estejam no Set para verificação
     let scannedQRCodes = new Set(scanRecords.map(r => r.qr)); 
     let beepSuccess = { play: ()=>{} }; 
     let beepError = { play: ()=>{} };  
@@ -56,7 +48,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
         console.error("Audio initialization failed:", e);
     }
 
-    // Inicialização: Limpar campos de login e garantir que o sidebar esteja oculto
     if (loginUser) loginUser.value = '';
     if (loginPass) loginPass.value = '';
     if (sidebar) sidebar.style.display = 'none';
@@ -78,7 +69,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
                 Usuário: <strong>${currentUser.username}</strong><br>
                 Nível: <strong>${currentUser.role.toUpperCase()}</strong>
             `;
-            // Esconde botão de Usuários para Colaboradores
             btnUsers.style.display = (currentUser.role !== 'colaborador') ? 'block' : 'none';
         }
     }
@@ -141,11 +131,12 @@ document.addEventListener("DOMContentLoaded", ()=>{
         cameraContainer.style.display='flex'; 
         btnBack.style.display='block'; 
         
+        // ALTERAÇÃO 2: Tenta iniciar o scanner ao clicar
         startScanner();
     });
 
     function startScanner(){
-        if(html5QrcodeScanner) return;
+        if(html5QrcodeScanner) return; // Se já está rodando, não faz nada
 
         html5QrcodeScanner = new Html5Qrcode("qr-reader");
         html5QrcodeScanner.start(
@@ -153,20 +144,26 @@ document.addEventListener("DOMContentLoaded", ()=>{
             { fps:10, qrbox:250 },
             qrCodeMessage=>{
                 const qrString = String(qrCodeMessage);
-                // Busca a entrega pelo código QR (simulando Shopee/ML) ou ID
-                const delivery = deliveries.find(d=>d.qr===qrString || d.id===qrString); 
                 
-                if(!delivery){
-                    qrFeedback.textContent=`❌ Código '${qrString}' não encontrado na lista.`;
-                    qrFeedback.style.background='rgba(255,0,0,0.6)';
-                    beepError.play();
-                } else if(scannedQRCodes.has(qrString)){
-                    qrFeedback.textContent=`❌ Entrega: ${delivery.nome} (ID: ${delivery.id}) já registrada.`;
+                // Simula os dados de entrega com base no QR Code
+                let delivery = scanRecords.find(r => r.qr === qrString) 
+                                || { id: qrString.substring(0, 8), nome: 'Entrega (QR: ' + qrString.substring(0, 15) + '...)', endereco: 'Endereço Indefinido', lat: CD_LOCATION.lat, lon: CD_LOCATION.lon };
+                
+                // Se for um novo código, adiciona o nome/endereço simulado ao registro
+                if (!delivery.nome) {
+                     delivery.nome = 'Entrega (QR: ' + qrString.substring(0, 15) + '...)';
+                     delivery.endereco = 'Endereço Indefinido';
+                     delivery.lat = CD_LOCATION.lat;
+                     delivery.lon = CD_LOCATION.lon;
+                }
+
+                if(scannedQRCodes.has(qrString)){
+                    qrFeedback.textContent=`❌ Entrega (QR: ${qrString.substring(0, 8)}...) já registrada.`;
                     qrFeedback.style.background='rgba(255,0,0,0.6)';
                     beepError.play();
                 } else {
                     scannedQRCodes.add(qrString);
-                    qrFeedback.textContent=`✅ Entrega: ${delivery.nome} registrada!`;
+                    qrFeedback.textContent=`✅ Entrega: ${delivery.nome.substring(0, 30)} registrada!`;
                     qrFeedback.style.background='rgba(0,128,0,0.6)';
                     beepSuccess.play();
 
@@ -177,8 +174,9 @@ document.addEventListener("DOMContentLoaded", ()=>{
                         qr: qrString,
                         usuario: currentUser.username,
                         datetime: new Date().toISOString(),
-                        lat: delivery.lat,
-                        lon: delivery.lon
+                        // Dados de localização simulados do CD para novas entregas
+                        lat: CD_LOCATION.lat + (Math.random() - 0.5) * 0.05, 
+                        lon: CD_LOCATION.lon + (Math.random() - 0.5) * 0.05
                     };
                     scanRecords.push(record);
                     localStorage.setItem('pegazus_scans_v3', JSON.stringify(scanRecords));
@@ -187,20 +185,26 @@ document.addEventListener("DOMContentLoaded", ()=>{
                 setTimeout(()=>{ qrFeedback.style.display='none'; },3000);
             }
         ).catch(err=>{
-            qrFeedback.textContent='❌ Erro ao acessar câmera. Verifique as permissões.';
+            qrFeedback.textContent='❌ Erro ao acessar câmera. Verifique as permissões. (Rodando em servidor local?)';
             qrFeedback.style.background='rgba(255,0,0,0.6)';
             qrFeedback.style.display='block';
             console.error("Scanner startup failed:", err);
-            setTimeout(()=>{ qrFeedback.style.display='none'; }, 4000);
+            setTimeout(()=>{ qrFeedback.style.display='none'; }, 6000);
         });
     }
 
     function stopScanner(){
         if(html5QrcodeScanner){
-            html5QrcodeScanner.stop().then(()=>{
+            // Verifica se o scanner está em estado de "started" antes de tentar parar
+            if(html5QrcodeScanner.isScanning) {
+                html5QrcodeScanner.stop().then(()=>{
+                    html5QrcodeScanner.clear();
+                    html5QrcodeScanner=null;
+                }).catch(err=>console.error("Error stopping scanner, but proceeding:", err));
+            } else {
                 html5QrcodeScanner.clear();
                 html5QrcodeScanner=null;
-            }).catch(err=>console.error("Error stopping scanner, but proceeding:", err));
+            }
         }
     }
 
@@ -211,14 +215,16 @@ document.addEventListener("DOMContentLoaded", ()=>{
         btnEntregas.addEventListener('click', () => showGenericContent(showDeliveries));
     }
     function showDeliveries() {
-        if (deliveries.length === 0) {
-            contentArea.innerHTML = '<h2>Não há Entregas</h2><p>Nenhuma entrega cadastrada para ser exibida.</p>';
+        // Agora mostra as entregas que JÁ FORAM escaneadas
+        if (scanRecords.length === 0) {
+            contentArea.innerHTML = '<h2>📦 Entregas Pendentes</h2><p>Nenhuma entrega registrada ainda. Por favor, use o **Scanner** primeiro.</p>';
         } else {
-            let listHtml = '<h2>📦 Entregas Cadastradas:</h2><p>Escaneadas: <strong>' + scanRecords.filter(r=>deliveries.some(d=>d.qr===r.qr || d.id===r.idEntrega)).length + '</strong> de ' + deliveries.length + '</p><ul class="delivery-list">';
-            deliveries.forEach(d => {
-                const isScanned = scannedQRCodes.has(d.qr) || scannedQRCodes.has(d.id);
-                const status = isScanned ? '✅ Concluída' : '⏳ Pendente';
-                listHtml += `<li style="display:block;"><strong>${d.nome}</strong> (ID: ${d.id})<br><small>Endereço: ${d.endereco}</small> - [${status}]</li>`;
+            let listHtml = '<h2>📦 Entregas Registradas:</h2><p>Total Escaneadas: <strong>' + scanRecords.length + '</strong></p><ul class="delivery-list">';
+            
+            scanRecords.forEach((r, index) => {
+                // Simula que todas as entregas escaneadas estão "concluídas"
+                const status = '✅ Concluída'; 
+                listHtml += `<li style="display:block;"><strong>${r.nomeCliente}</strong> (ID: ${r.idEntrega})<br><small>Endereço: ${r.endereco}</small> - [${status}]</li>`;
             });
             listHtml += '</ul>';
             contentArea.innerHTML = listHtml;
@@ -229,15 +235,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
         btnGerarRota.addEventListener('click', () => showGenericContent(generateRoute));
     }
     function generateRoute() {
-        if (deliveries.length === 0) {
-            showDeliveries(); 
-            return;
-        }
-        
-        if (scannedQRCodes.size < 2) {
+        if (scanRecords.length < 2) {
             contentArea.innerHTML = '<h2>🗺️ Geração de Rota</h2><p style="color:red; font-weight: bold;">Necessário escanear pelo menos 2 entregas para gerar a rota.</p>';
         } else {
-            contentArea.innerHTML = `<h2>🗺️ Geração de Rota</h2><p style="color:green; font-weight: bold;">Rota gerada com sucesso para ${scannedQRCodes.size} entregas escaneadas!</p><p> (Integração com serviço de otimização de rotas pendente)</p>`;
+            contentArea.innerHTML = `<h2>🗺️ Geração de Rota</h2><p style="color:green; font-weight: bold;">Rota gerada com sucesso para ${scanRecords.length} entregas escaneadas!</p><p> (Integração com serviço de otimização de rotas pendente)</p>`;
         }
     }
 
@@ -245,7 +246,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
         btnMapa.addEventListener('click', () => showGenericContent(showMapPlaceholder));
     }
     
-    // FUNÇÃO ATUALIZADA: Inicializa o mapa Leaflet com localização do usuário
+    // FUNÇÃO: Inicializa o mapa Leaflet com localização do usuário
     function showMapPlaceholder() {
         contentArea.innerHTML = `
             <h2>📍 Mapa de Frota & Localização Atual</h2>
@@ -253,8 +254,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
             <div id="fleetMap"></div>
         `;
 
-        // Inicializa o mapa em uma localização padrão (Centro de Distribuição)
-        // É essencial que a div "fleetMap" esteja no DOM antes desta linha
         var map = L.map('fleetMap').setView([CD_LOCATION.lat, CD_LOCATION.lon], 13); 
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -270,7 +269,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
         // Adiciona marcadores para as entregas registradas
         scanRecords.forEach(r => {
             if (r.lat && r.lon) {
-                // Cria um ícone personalizado para a entrega (círculo verde)
                 L.marker([r.lat, r.lon], { icon: L.divIcon({ className: 'custom-div-icon', html: '<div style="background-color: var(--success); width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>', iconSize: [12, 12] }) }).addTo(map)
                     .bindPopup(`Entrega ${r.idEntrega}: ${r.nomeCliente} (Entregue por: ${r.usuario})`);
             }
@@ -286,24 +284,20 @@ document.addEventListener("DOMContentLoaded", ()=>{
             
             if (userMarker) {
                 map.removeLayer(userMarker);
-                // Remove o círculo de precisão anterior (se houver)
                 map.eachLayer(layer => {
                     if (layer instanceof L.Circle) map.removeLayer(layer);
                 });
             }
             
-            // Marcador de usuário (ícone azul/primário)
             userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'custom-user-icon', html: '<div style="background-color: var(--primary); width: 15px; height: 15px; border-radius: 50%; border: 3px solid white;"></div>', iconSize: [18, 18] }) }).addTo(map)
                 .bindPopup("Você está aqui dentro de " + radius.toFixed(0) + " metros.")
                 .openPopup();
 
-            // Círculo de precisão
             L.circle(e.latlng, radius).addTo(map);
         }
 
         function onLocationError(e) {
             console.error("Erro na Geolocalização: ", e.message);
-            // alert("Acesso à localização negado ou falhou: " + e.message + " O mapa será exibido na localização padrão.");
         }
 
         map.on('locationfound', onLocationFound);
@@ -318,14 +312,12 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
     function canEdit(targetRole) {
         const role = currentUser.role;
-        // Admin pode editar qualquer um. Gestor pode editar Colaborador.
         if (role === 'admin') return true;
         if (role === 'gestor' && (targetRole === 'colaborador')) return true;
         return false;
     }
 
     function canDelete(targetRole) {
-        // Regras de exclusão são as mesmas das regras de edição
         return canEdit(targetRole); 
     }
 
@@ -339,8 +331,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
         
         users.forEach(u => {
             const isCurrentUser = u.id === currentUser.id;
-            const canPerformActions = canEdit(u.role);
-            const canRemove = canDelete(u.role) && !isCurrentUser; // Admin/Gestor não pode excluir a si mesmo
+            const canRemove = canDelete(u.role) && !isCurrentUser;
             
             listHtml += `<li data-user-id="${u.id}" id="user-row-${u.id}">
                 <div class="user-details">
@@ -354,7 +345,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
         });
         listHtml += '</ul>';
 
-        // Formulário de Criação (Apenas Admin e Gestor)
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             listHtml += `
                 <h3 style="margin-top: 20px;">+ Novo Usuário</h3>
@@ -410,18 +400,16 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
         const newPass = document.getElementById(`editPassword-${id}`).value;
         const newRoleElement = document.getElementById(`editRole-${id}`);
-        const newRole = newRoleElement ? newRoleElement.value : user.role; // Pega o cargo atual se não puder editar
+        const newRole = newRoleElement ? newRoleElement.value : user.role;
         
         if (newPass) {
             user.password = newPass;
         }
         
-        // Admin pode alterar o cargo de outros, exceto o seu próprio
         if (currentUser.role === 'admin' && user.id !== currentUser.id) {
              user.role = newRole;
         }
         
-        // Atualiza a informação do usuário logado se ele for o editado
         if (user.id === currentUser.id) {
             currentUser.password = user.password;
             updateSidebarInfo();
@@ -483,7 +471,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
         let csv = 'ID Entrega,Nome Cliente,Endereço,QR Code,Usuário,Data e Hora,Latitude,Longitude\n';
         scanRecords.forEach(r=>{
-            // Escapa aspas dentro dos campos CSV
             const nome = r.nomeCliente.replace(/"/g, '""');
             const endereco = r.endereco.replace(/"/g, '""');
             csv += `${r.idEntrega},"${nome}","${endereco}",${r.qr},${r.usuario},${r.datetime},${r.lat || ''},${r.lon || ''}\n`;
