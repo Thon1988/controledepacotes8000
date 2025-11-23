@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PegazusLog - Scanner</title>
+    <title>PegazusLog - Scanner e Logística</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -74,7 +74,7 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
-        #loginContainer input, .user-management input {
+        #loginContainer input, .user-management input, .user-management select {
             width: 100%;
             padding: 10px;
             margin-bottom: 10px;
@@ -120,6 +120,13 @@
         .delete-btn { background: var(--danger); color: white; }
         .save-btn { background: var(--success); color: white; }
         .cancel-btn { background: #6c757d; color: white; }
+        
+        .user-management {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
 
         /* --- Camera View --- */
         #cameraContainer {
@@ -157,7 +164,7 @@
             display: none;
         }
 
-        /* NOVO: Estilo para o container do mapa */
+        /* Estilo para o container do mapa */
         #fleetMap { 
             height: 60vh; 
             width: 100%;
@@ -201,7 +208,7 @@
             </div>
 
         <div id="cameraContainer">
-            <h3>Aponte a Câmera para o QR Code</h3>
+            <h3>Aponte a Câmera para o QR Code (Shopee/ML/Outros)</h3>
             <div id="qr-reader"></div>
             <div id="qrFeedback"></div>
         </div>
@@ -218,18 +225,13 @@
             ];
             let currentUser = null;
 
-            const deliveries = [
-                { id:'101', nome:'João Silva (Shopee)', endereco:'Rua A, 123, São Paulo, SP', qr:'101', lat:-23.54, lon:-46.64 },
-                { id:'102', nome:'Maria Oliveira (ML)', endereco:'Av. B, 456, Rio de Janeiro, RJ', qr:'ML4567890', lat:-23.57, lon:-46.61 },
-                { id:'103', nome:'Carlos Souza', endereco:'Rua C, 789, Belo Horizonte, MG', qr:'103', lat:-23.53, lon:-46.67 },
-                { id:'104', nome:'Ana Lima', endereco:'Av. D, 321, Curitiba, PR', qr:'104', lat:-23.56, lon:-46.62 }
-            ];
-            const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; // Centro de Distribuição - SP
+            // ALTERAÇÃO: Lista de entregas inicia VAZIA.
+            const deliveries = [];
+            const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
 
             let scanRecords = JSON.parse(localStorage.getItem('pegazus_scans_v3') || '[]');
-            let nextUserId = 4;
+            let nextUserId = users.reduce((max, u) => Math.max(max, parseInt(u.id.substring(1)) || 0), 0) + 1;
 
-            // Função de utilidade para persistir usuários
             function saveUsers() {
                 localStorage.setItem('pegazus_users_v3', JSON.stringify(users));
             }
@@ -252,7 +254,7 @@
             const loginPass = document.getElementById('loginPass');
 
             let html5QrcodeScanner;
-            let scannedQRCodes = new Set(scanRecords.map(r => r.qr));
+            let scannedQRCodes = new Set(scanRecords.map(r => r.qr)); 
             let beepSuccess = { play: ()=>{} }; 
             let beepError = { play: ()=>{} };  
 
@@ -263,7 +265,6 @@
                 console.error("Audio initialization failed:", e);
             }
 
-            // Inicialização: Limpar campos de login e garantir que o sidebar esteja oculto
             if (loginUser) loginUser.value = '';
             if (loginPass) loginPass.value = '';
             if (sidebar) sidebar.style.display = 'none';
@@ -285,7 +286,6 @@
                         Usuário: <strong>${currentUser.username}</strong><br>
                         Nível: <strong>${currentUser.role.toUpperCase()}</strong>
                     `;
-                    // Esconde botão de Usuários para Colaboradores
                     btnUsers.style.display = (currentUser.role !== 'colaborador') ? 'block' : 'none';
                 }
             }
@@ -360,20 +360,22 @@
                     { fps:10, qrbox:250 },
                     qrCodeMessage=>{
                         const qrString = String(qrCodeMessage);
-                        // Tenta encontrar a entrega pelo QR code ou ID
-                        const delivery = deliveries.find(d=>d.qr===qrString || d.id===qrString); 
                         
-                        if(!delivery){
-                            qrFeedback.textContent=`❌ Código '${qrString}' não encontrado na lista.`;
-                            qrFeedback.style.background='rgba(255,0,0,0.6)';
-                            beepError.play();
-                        } else if(scannedQRCodes.has(qrString)){
-                            qrFeedback.textContent=`❌ Entrega: ${delivery.nome} (ID: ${delivery.id}) já registrada.`;
+                        let delivery = scanRecords.find(r => r.qr === qrString) 
+                                        || { id: qrString.substring(0, 8), nome: 'Entrega (QR: ' + qrString.substring(0, 15) + '...)', endereco: 'Endereço Indefinido' };
+                        
+                        if (!delivery.nome) {
+                             delivery.nome = 'Entrega (QR: ' + qrString.substring(0, 15) + '...)';
+                             delivery.endereco = 'Endereço Indefinido';
+                        }
+
+                        if(scannedQRCodes.has(qrString)){
+                            qrFeedback.textContent=`❌ Entrega (QR: ${qrString.substring(0, 8)}...) já registrada.`;
                             qrFeedback.style.background='rgba(255,0,0,0.6)';
                             beepError.play();
                         } else {
                             scannedQRCodes.add(qrString);
-                            qrFeedback.textContent=`✅ Entrega: ${delivery.nome} registrada!`;
+                            qrFeedback.textContent=`✅ Entrega: ${delivery.nome.substring(0, 30)} registrada!`;
                             qrFeedback.style.background='rgba(0,128,0,0.6)';
                             beepSuccess.play();
 
@@ -384,8 +386,9 @@
                                 qr: qrString,
                                 usuario: currentUser.username,
                                 datetime: new Date().toISOString(),
-                                lat: delivery.lat,
-                                lon: delivery.lon
+                                // Localização simulada de 5km em torno do CD
+                                lat: CD_LOCATION.lat + (Math.random() - 0.5) * 0.05, 
+                                lon: CD_LOCATION.lon + (Math.random() - 0.5) * 0.05
                             };
                             scanRecords.push(record);
                             localStorage.setItem('pegazus_scans_v3', JSON.stringify(scanRecords));
@@ -394,20 +397,25 @@
                         setTimeout(()=>{ qrFeedback.style.display='none'; },3000);
                     }
                 ).catch(err=>{
-                    qrFeedback.textContent='❌ Erro ao acessar câmera. Verifique as permissões.';
+                    qrFeedback.textContent='❌ Erro ao acessar câmera. Verifique as permissões. (Rodando em servidor local?)';
                     qrFeedback.style.background='rgba(255,0,0,0.6)';
                     qrFeedback.style.display='block';
                     console.error("Scanner startup failed:", err);
-                    setTimeout(()=>{ qrFeedback.style.display='none'; }, 4000);
+                    setTimeout(()=>{ qrFeedback.style.display='none'; }, 6000);
                 });
             }
 
             function stopScanner(){
                 if(html5QrcodeScanner){
-                    html5QrcodeScanner.stop().then(()=>{
+                    if(html5QrcodeScanner.isScanning) {
+                        html5QrcodeScanner.stop().then(()=>{
+                            html5QrcodeScanner.clear();
+                            html5QrcodeScanner=null;
+                        }).catch(err=>console.error("Error stopping scanner, but proceeding:", err));
+                    } else {
                         html5QrcodeScanner.clear();
                         html5QrcodeScanner=null;
-                    }).catch(err=>console.error("Error stopping scanner, but proceeding:", err));
+                    }
                 }
             }
 
@@ -418,14 +426,14 @@
                 btnEntregas.addEventListener('click', () => showGenericContent(showDeliveries));
             }
             function showDeliveries() {
-                if (deliveries.length === 0) {
-                    contentArea.innerHTML = '<h2>Não há Entregas</h2><p>Nenhuma entrega cadastrada para ser exibida.</p>';
+                if (scanRecords.length === 0) {
+                    contentArea.innerHTML = '<h2>📦 Entregas Pendentes</h2><p>Nenhuma entrega registrada ainda. Por favor, use o **Scanner** primeiro.</p>';
                 } else {
-                    let listHtml = '<h2>📦 Entregas Cadastradas:</h2><p>Escaneadas: <strong>' + scanRecords.filter(r=>deliveries.some(d=>d.qr===r.qr || d.id===r.idEntrega)).length + '</strong> de ' + deliveries.length + '</p><ul class="delivery-list">';
-                    deliveries.forEach(d => {
-                        const isScanned = scannedQRCodes.has(d.qr) || scannedQRCodes.has(d.id);
-                        const status = isScanned ? '✅ Concluída' : '⏳ Pendente';
-                        listHtml += `<li style="display:block;"><strong>${d.nome}</strong> (ID: ${d.id})<br><small>Endereço: ${d.endereco}</small> - [${status}]</li>`;
+                    let listHtml = '<h2>📦 Entregas Registradas:</h2><p>Total Escaneadas: <strong>' + scanRecords.length + '</strong></p><ul class="delivery-list">';
+                    
+                    scanRecords.forEach((r, index) => {
+                        const status = '✅ Concluída'; 
+                        listHtml += `<li style="display:block;"><strong>${r.nomeCliente}</strong> (ID: ${r.idEntrega})<br><small>Endereço: ${r.endereco}</small> - [${status}]</li>`;
                     });
                     listHtml += '</ul>';
                     contentArea.innerHTML = listHtml;
@@ -436,15 +444,10 @@
                 btnGerarRota.addEventListener('click', () => showGenericContent(generateRoute));
             }
             function generateRoute() {
-                if (deliveries.length === 0) {
-                    showDeliveries(); 
-                    return;
-                }
-                
-                if (scannedQRCodes.size < 2) {
+                if (scanRecords.length < 2) {
                     contentArea.innerHTML = '<h2>🗺️ Geração de Rota</h2><p style="color:red; font-weight: bold;">Necessário escanear pelo menos 2 entregas para gerar a rota.</p>';
                 } else {
-                    contentArea.innerHTML = `<h2>🗺️ Geração de Rota</h2><p style="color:green; font-weight: bold;">Rota gerada com sucesso para ${scannedQRCodes.size} entregas escaneadas!</p><p> (Integração com serviço de otimização de rotas pendente)</p>`;
+                    contentArea.innerHTML = `<h2>🗺️ Geração de Rota</h2><p style="color:green; font-weight: bold;">Rota gerada com sucesso para ${scanRecords.length} entregas escaneadas!</p><p> (Integração com serviço de otimização de rotas pendente)</p>`;
                 }
             }
 
@@ -452,7 +455,7 @@
                 btnMapa.addEventListener('click', () => showGenericContent(showMapPlaceholder));
             }
             
-            // FUNÇÃO ATUALIZADA: Inicializa o mapa Leaflet com localização do usuário
+            // FUNÇÃO: Inicializa o mapa Leaflet com localização do usuário
             function showMapPlaceholder() {
                 contentArea.innerHTML = `
                     <h2>📍 Mapa de Frota & Localização Atual</h2>
@@ -460,20 +463,17 @@
                     <div id="fleetMap"></div>
                 `;
 
-                // Inicializa o mapa em uma localização padrão
-                var map = L.map('fleetMap').setView([CD_LOCATION.lat, CD_LOCATION.lon], 13);
+                var map = L.map('fleetMap').setView([CD_LOCATION.lat, CD_LOCATION.lon], 13); 
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 }).addTo(map);
 
-                // Adiciona o Centro de Distribuição
                 L.marker([CD_LOCATION.lat, CD_LOCATION.lon]).addTo(map)
                     .bindPopup('Centro de Distribuição')
                     .openPopup();
                 
-                // Adiciona todas as entregas escaneadas como marcadores (verdes)
                 scanRecords.forEach(r => {
                     if (r.lat && r.lon) {
                         L.marker([r.lat, r.lon], { icon: L.divIcon({ className: 'custom-div-icon', html: '<div style="background-color: var(--success); width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>', iconSize: [12, 12] }) }).addTo(map)
@@ -481,7 +481,6 @@
                     }
                 });
 
-                // Tenta localizar o usuário em tempo real
                 map.locate({setView: true, maxZoom: 16, watch: true, enableHighAccuracy: true});
                 
                 let userMarker = null;
@@ -491,19 +490,20 @@
                     
                     if (userMarker) {
                         map.removeLayer(userMarker);
+                        map.eachLayer(layer => {
+                            if (layer instanceof L.Circle) map.removeLayer(layer);
+                        });
                     }
                     
-                    // Marcador de usuário
                     userMarker = L.marker(e.latlng, { icon: L.divIcon({ className: 'custom-user-icon', html: '<div style="background-color: var(--primary); width: 15px; height: 15px; border-radius: 50%; border: 3px solid white;"></div>', iconSize: [18, 18] }) }).addTo(map)
                         .bindPopup("Você está aqui dentro de " + radius.toFixed(0) + " metros.")
                         .openPopup();
 
-                    // Círculo de precisão
                     L.circle(e.latlng, radius).addTo(map);
                 }
 
                 function onLocationError(e) {
-                    alert("Acesso à localização negado ou falhou: " + e.message);
+                    console.error("Erro na Geolocalização: ", e.message);
                 }
 
                 map.on('locationfound', onLocationFound);
@@ -514,7 +514,7 @@
                 btnUsers.addEventListener('click', () => showGenericContent(showUsers));
             }
             
-            // ----------------- Gestão de Usuários -----------------
+            // ----------------- Gestão de Usuários (Admin/Gestor/Colaborador) -----------------
 
             function canEdit(targetRole) {
                 const role = currentUser.role;
@@ -524,7 +524,6 @@
             }
 
             function canDelete(targetRole) {
-                // Admin pode excluir Gestor e Colaborador. Gestor pode excluir Colaborador.
                 return canEdit(targetRole); 
             }
 
@@ -538,8 +537,7 @@
                 
                 users.forEach(u => {
                     const isCurrentUser = u.id === currentUser.id;
-                    const canPerformActions = canEdit(u.role);
-                    const canRemove = canDelete(u.role) && !isCurrentUser; // Não pode excluir a si mesmo
+                    const canRemove = canDelete(u.role) && !isCurrentUser;
                     
                     listHtml += `<li data-user-id="${u.id}" id="user-row-${u.id}">
                         <div class="user-details">
@@ -553,7 +551,6 @@
                 });
                 listHtml += '</ul>';
 
-                // Formulário de Criação (Apenas Admin e Gestor)
                 if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                     listHtml += `
                         <h3 style="margin-top: 20px;">+ Novo Usuário</h3>
@@ -576,12 +573,15 @@
                 }
             }
             
+            // Funções de manipulação de usuário no escopo global (windows)
             window.editUser = function(id, role, isCurrentUser) {
                 const user = users.find(u => u.id === id);
-                if (!user) return;
+                if (!user || (!canEdit(user.role) && !isCurrentUser)) {
+                    alert('Ação não permitida.');
+                    return;
+                }
 
                 const row = document.getElementById(`user-row-${id}`);
-                const currentDetails = row.querySelector('.user-details').innerHTML;
 
                 row.innerHTML = `
                     <div class="user-details" style="width: 100%;">
@@ -605,7 +605,8 @@
                 if (!user) return;
 
                 const newPass = document.getElementById(`editPassword-${id}`).value;
-                const newRole = document.getElementById(`editRole-${id}`).value;
+                const newRoleElement = document.getElementById(`editRole-${id}`);
+                const newRole = newRoleElement ? newRoleElement.value : user.role;
                 
                 if (newPass) {
                     user.password = newPass;
@@ -615,7 +616,6 @@
                      user.role = newRole;
                 }
                 
-                // Admin não pode rebaixar a si mesmo (embora não possa editar o próprio cargo aqui)
                 if (user.id === currentUser.id) {
                     currentUser.password = user.password;
                     updateSidebarInfo();
@@ -626,7 +626,12 @@
             }
 
             window.deleteUser = function(id, username) {
-                if (confirm(`Tem certeza que deseja excluir o usuário ${username}?`)) {
+                const user = users.find(u => u.id === id);
+                if (!user || !canDelete(user.role)) {
+                    alert('Ação não permitida para o seu nível de acesso.');
+                    return;
+                }
+                if (confirm(`Tem certeza que deseja excluir o usuário ${username}? Esta ação é irreversível.`)) {
                     users = users.filter(u => u.id !== id);
                     saveUsers();
                     showUsers();
@@ -634,11 +639,11 @@
             }
 
             function createUser() {
-                const username = document.getElementById('newUsername').value;
+                const username = document.getElementById('newUsername').value.trim();
                 const password = document.getElementById('newPassword').value;
                 const role = document.getElementById('newUserRole').value;
 
-                if (!username || !password || users.some(u => u.username === username)) {
+                if (!username || !password || users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
                     alert('Usuário ou senha inválidos, ou nome de usuário já existe.');
                     return;
                 }
@@ -672,7 +677,6 @@
 
                 let csv = 'ID Entrega,Nome Cliente,Endereço,QR Code,Usuário,Data e Hora,Latitude,Longitude\n';
                 scanRecords.forEach(r=>{
-                    // Escapa aspas dentro dos campos CSV
                     const nome = r.nomeCliente.replace(/"/g, '""');
                     const endereco = r.endereco.replace(/"/g, '""');
                     csv += `${r.idEntrega},"${nome}","${endereco}",${r.qr},${r.usuario},${r.datetime},${r.lat || ''},${r.lon || ''}\n`;
