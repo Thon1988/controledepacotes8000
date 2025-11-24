@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PegazusLog — Scanner A</title>
+  <title>PegazusLog — Scanner (A)</title>
 
   <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
 
-  <!-- Leaflet -->
+  <!-- Leaflet (mapa) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
@@ -22,126 +22,125 @@
       font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
     }
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%,#071827 100%);color:#e6eef6}
-    .app {
-      display:grid; grid-template-columns: 280px 1fr; gap:16px; padding:18px; height:100vh;
-      box-sizing:border-box;
-    }
+    .app { display:grid; grid-template-columns: 280px 1fr; gap:16px; padding:18px; height:100vh; box-sizing:border-box; }
 
     /* sidebar */
     .sidebar {
       background:rgba(10,14,20,0.6); border-radius:12px; padding:14px; overflow:auto;
-      box-shadow:0 6px 18px rgba(2,6,23,0.6);
-      display:none;
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+      display:none; /* IMPORTANTE — sidebar escondida */
     }
     .logo { font-weight:700; font-size:18px; color:var(--accent); margin-bottom:10px }
     .user-info{ font-size:13px; color:var(--muted); margin-bottom:12px}
     .nav { display:flex; flex-direction:column; gap:8px; }
     .nav button { background:transparent; border:1px solid rgba(255,255,255,0.04); color:#dbeafe; padding:8px 10px; border-radius:8px; text-align:left; cursor:pointer; }
     .nav button.primary { background:var(--accent); color:#042028; border:none; font-weight:600; }
+    .small { font-size:13px; color:var(--muted) }
 
     /* main */
     .main { display:flex; flex-direction:column; gap:12px; height:100%; }
-    .card { background: rgba(7,12,20,0.5); border-radius:12px; padding:12px; box-shadow:0 6px 14px rgba(0,0,0,0.3); }
-    #contentArea { overflow:auto; flex:1; display:none; }
+    .card { background: rgba(7,12,20,0.5); border-radius:12px; padding:12px; box-shadow: 0 6px 14px rgba(0,0,0,0.3); }
+    #contentArea { overflow:auto; flex:1; display:none }
 
     /* login */
-    #loginContainer { display:flex; flex-direction:column; gap:8px; align-items:stretch; }
+    #loginContainer { display:flex; flex-direction:column; gap:8px; }
     #loginContainer input { padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
     #loginContainer button { padding:10px; border-radius:8px; border:none; background:var(--accent); color:#012; font-weight:600; cursor:pointer; }
 
     /* camera */
-    .camera-wrap { 
-      position:relative; width:100%; height:60vh; border-radius:10px; overflow:hidden;
-      background:#000; display:none; align-items:center; justify-content:center;
-    }
+    .camera-wrap { position:relative; width:100%; height:60vh; border-radius:10px; overflow:hidden; background:#000; display:none }
     video#videoElement { width:100%; height:100%; object-fit:cover; display:block; }
-    canvas#overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
-    .scan-line { position:absolute; left:0; right:0; height:3px;
-      background:red; animation:scan-back-forth 2s linear infinite;
+    canvas#overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+
+    /* scan line */
+    .scan-line {
+      position:absolute; left:0; right:0; height:2px;
+      background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
+      animation: sweep 2s linear infinite;
+      mix-blend-mode:screen; opacity:0.95; top:20%;
     }
-    @keyframes scan-back-forth{
-      0%{ top:2% }
-      50%{ top:calc(100% - 2%) }
-      100%{ top:2% }
+    @keyframes sweep {
+      0%{ top:20% } 50%{ top:50% } 100%{ top:80% }
     }
 
-    /* scans */
-    #scansList { max-height:220px; overflow:auto; }
-    .item { padding:8px; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,0.05); display:flex; gap:8px; align-items:center; }
-    .badge { background:rgba(255,255,255,0.15); padding:6px 8px; border-radius:6px; font-weight:600; font-size:12px; }
-
-    /* feedback */
-    #qrFeedback { display:none; position:fixed; left:50%; transform:translateX(-50%); top:18px; padding:10px 14px; border-radius:10px; color:white; z-index:9999; }
+    /* scans list */
+    #scansList { max-height:200px; overflow:auto; display:block }
+    .item { padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); margin-bottom:6px }
 
   </style>
 </head>
+
 <body>
-
-<div id="qrFeedback"></div>
-
-<div class="app">
-
-  <!-- SIDEBAR -->
-  <div class="sidebar card" id="sidebar">
-
-    <div class="logo">PegazusLog</div>
-
-    <!-- LOGIN -->
-    <div id="loginContainer">
-      <input id="loginUser" placeholder="usuário" value="thon" />
-      <input id="loginPass" placeholder="senha" type="password" />
-      <button id="loginBtn">Entrar</button>
-      <div id="feedbackMessage" style="height:18px;color:#ffb3b3;font-size:13px"></div>
-    </div>
-
-    <div id="userInfo" class="user-info" style="display:none">Usuário: —</div>
-
-    <div class="nav" id="menuNav" style="display:none">
-      <button id="btnCamera" class="primary">Abrir Scanner</button>
-      <button id="btnEntregas">Entregas</button>
-      <button id="btnMapa">Mapa</button>
-      <button id="btnUsers">Usuários</button>
-      <button id="btnGenerateCSV">Gerar CSV</button>
-      <button id="btnGerarRota">Gerar Rota</button>
-      <button id="btnSair" style="background:#b02a37;color:white">Sair</button>
-    </div>
-
-    <hr style="border:none;height:1px;background:rgba(255,255,255,0.1);margin:12px 0">
-
-    <!-- Câmera -->
-    <select id="deviceSelect" style="display:none;width:100%;padding:8px;border-radius:8px"></select>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button id="torchButton" style="display:none">Flash</button>
-      <button id="stopButton" style="display:none">Parar</button>
-    </div>
-
-    <!-- Lista -->
-    <h4 style="margin-top:12px;font-size:14px">Leituras</h4>
-    <div id="scansList"></div>
-
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button id="exportBtn">Exportar CSV</button>
-      <button id="clearBtn">Limpar</button>
-    </div>
-
+  <div id="qrFeedback" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#00c853;padding:10px 14px;border-radius:8px;z-index:9999;font-weight:700">
+    OK
   </div>
 
-  <!-- MAIN AREA -->
-  <div class="main">
-    <div class="card camera-wrap" id="cameraContainer">
-      <video id="videoElement" playsinline></video>
-      <canvas id="overlay"></canvas>
-      <div class="scan-line"></div>
+  <div class="app">
+    
+    <!-- SIDEBAR — escondido até login -->
+    <div class="sidebar card" id="sidebar">
+      <div class="logo">PegazusLog — Scanner A</div>
+
+      <div class="user-info" id="userInfo">Usuário: —</div>
+
+      <div class="nav">
+        <button id="btnCamera" class="primary">Abrir Scanner</button>
+        <button id="btnEntregas">Entregas</button>
+        <button id="btnMapa">Mapa</button>
+        <button id="btnUsers">Usuários</button>
+        <button id="btnGenerateCSV">Gerar CSV</button>
+        <button id="btnGerarRota">Gerar Rota</button>
+        <button id="btnSair">Sair</button>
+      </div>
+
+      <hr style="border:none;height:1px;background:#333;margin:12px 0">
+
+      <div class="small">Câmera</div>
+      <select id="deviceSelect" style="width:100%;padding:8px;border-radius:8px;margin-top:6px"></select>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="torchButton">Flash</button>
+        <button id="stopButton" style="display:none">Parar</button>
+      </div>
+
+      <div style="height:12px"></div>
+      <div class="small">Leituras Recentes</div>
+      <div id="scansList"></div>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="exportBtn">Exportar CSV</button>
+        <button id="clearBtn">Limpar</button>
+      </div>
     </div>
 
-    <div id="contentArea" class="card">
-      <h2>Bem-vindo ao PegazusLog</h2>
-      <p>Use o menu ao lado para iniciar.</p>
-    </div>
-  </div>
+    <!-- MAIN -->
+    <div class="main">
 
-</div>
+      <!-- LOGIN -->
+      <div id="loginContainer" class="card">
+        <div class="small">Acesse a aplicação</div>
+        <input id="loginUser" placeholder="usuário" value="thon">
+        <input id="loginPass" placeholder="senha" type="password">
+        <button id="loginBtn">Entrar</button>
+        <div id="feedbackMessage" class="small" style="color:#ff6a6a"></div>
+      </div>
 
-<script src="app.js" defer></script>
+      <!-- CAMERA -->
+      <div class="card camera-wrap" id="cameraContainer">
+        <video id="videoElement" playsinline></video>
+        <canvas id="overlay"></canvas>
+        <div class="scan-line"></div>
+      </div>
+
+      <!-- CONTEÚDO -->
+      <div id="contentArea" class="card">
+        <h2>Bem-vindo!</h2>
+        <p>Use o menu à esquerda após fazer login.</p>
+      </div>
+
+    </div><!-- main -->
+  </div><!-- app -->
+
+  <script src="app.js" defer></script>
 </body>
 </html>
