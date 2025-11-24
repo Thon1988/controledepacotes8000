@@ -199,6 +199,8 @@ document.addEventListener('DOMContentLoaded', () => {
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
     if (!loc) {
       const w = overlay.width, h = overlay.height;
+      // desired square approx 10cm x 10cm on screen isn't directly enforceable in px;
+      // we approximate by using a relative width (40% of viewport width). Keep your animation.
       const boxW = Math.round(w * 0.40), boxH = Math.round(boxW);
       const x = Math.round((w - boxW) / 2), y = Math.round((h - boxH) / 2);
       overlayCtx.strokeStyle = 'rgba(255,255,255,0.25)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x, y, boxW, boxH);
@@ -225,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       mediaStream = stream; video.srcObject = mediaStream; await video.play();
       currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
-      try { const caps = currentVideoTrack.getCapabilities(); torchButton.style.display = (caps && caps.torch) ? 'inline-block' : 'none'; } catch (e) { if (torchButton) torchButton.style.display = 'none'; }
+      try { const caps = currentVideoTrack.getCapabilities(); if (torchButton) torchButton.style.display = (caps && caps.torch) ? 'inline-block' : 'none'; } catch (e) { if (torchButton) torchButton.style.display = 'none'; }
       const devices = await enumerateVideoDevices(); populateDeviceSelect(devices);
 
       scanning = true;
@@ -382,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showDeliveries() {
     if (!currentUser) return;
     if (cameraContainer) cameraContainer.style.display = 'none';
-    contentArea.style.display = 'block'; btnBack.style.display = 'none';
+    contentArea.style.display = 'block'; if (btnBack) btnBack.style.display = 'none';
     if (!scanRecords.length) contentArea.innerHTML = '<h2>📦 Entregas Pendentes</h2><p>Nenhuma entrega registrada. Use o Scanner.</p>';
     else {
       let html = `<h2>📦 Entregas Registradas</h2><p>Total: ${scanRecords.length}</p><ul>`;
@@ -396,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showMap() {
     if (!currentUser) return;
     if (cameraContainer) cameraContainer.style.display = 'none';
-    contentArea.style.display = 'block'; btnBack.style.display = 'none';
+    contentArea.style.display = 'block'; if (btnBack) btnBack.style.display = 'none';
     contentArea.innerHTML = `<h2>📍 Mapa</h2><div id="fleetMap" style="height:60vh;border-radius:8px;margin-top:12px"></div>`;
     setTimeout(() => {
       const map = L.map('fleetMap').setView([CD_LOCATION.lat, CD_LOCATION.lon], 12);
@@ -413,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function showUsers() {
     if (!currentUser) return;
     if (cameraContainer) cameraContainer.style.display = 'none';
-    contentArea.style.display = 'block'; btnBack.style.display = 'none';
+    contentArea.style.display = 'block'; if (btnBack) btnBack.style.display = 'none';
     if (currentUser.role === 'colaborador') { contentArea.innerHTML = '<h2>Acesso negado</h2>'; return; }
     let html = `<h2>👥 Gestão de Usuários</h2><ul>`;
     users.forEach(u => html += `<li><strong>${escapeHtml(u.username)}</strong> (${u.role}) ${u.id === currentUser.id ? '(você)' : ''} ${(currentUser.role !== 'colaborador' && u.id !== currentUser.id) ? `<button data-id="${u.id}" class="editUserBtn">Editar</button>` : '' }</li>`);
@@ -510,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ---------- outros eventos UI ---------- */
-  btnCamera.addEventListener('click', () => { if (!currentUser) return; contentArea.style.display = 'none'; if (cameraContainer) cameraContainer.style.display = 'flex'; try { btnBack.style.display = 'block'; } catch (e) {} startScanner(); });
+  btnCamera.addEventListener('click', () => { if (!currentUser) return; contentArea.style.display = 'none'; if (cameraContainer) cameraContainer.style.display = 'flex'; try { if (btnBack) btnBack.style.display = 'block'; } catch (e) {} startScanner(); });
   if (stopButton) stopButton.addEventListener('click', () => stopScanner());
   if (torchButton) torchButton.addEventListener('click', () => toggleTorch());
   if (deviceSelect) deviceSelect.addEventListener('change', async () => {
@@ -530,10 +532,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnEntregas.addEventListener('click', () => showDeliveries());
   btnMapa.addEventListener('click', () => showMap());
-  btnGenerateCSV.addEventListener('click', () => generateCSVMenu());
-  btnGerarRota.addEventListener('click', () => { showDeliveries(); setTimeout(() => alert('Rota (placeholder) — depende de entregas escaneadas'), 200); });
-  btnUsers.addEventListener('click', () => showUsers());
-  btnBack.addEventListener('click', () => { stopScanner(); if (cameraContainer) cameraContainer.style.display = 'none'; try { btnBack.style.display = 'none'; } catch (e) {} showDeliveries(); });
+  if (btnGenerateCSV) btnGenerateCSV.addEventListener('click', () => generateCSVMenu());
+  if (btnGerarRota) btnGerarRota.addEventListener('click', () => { showDeliveries(); setTimeout(() => alert('Rota (placeholder) — depende de entregas escaneadas'), 200); });
+  if (btnUsers) btnUsers.addEventListener('click', () => showUsers());
+  if (btnBack) btnBack.addEventListener('click', () => { stopScanner(); if (cameraContainer) cameraContainer.style.display = 'none'; try { if (btnBack) btnBack.style.display = 'none'; } catch (e) {} showDeliveries(); });
 
   if (btnTestImage) btnTestImage.addEventListener('click', () => { try { window.open('/mnt/data/ex qrcode.jpg', '_blank'); } catch (e) { alert('Imagem de teste não encontrada'); } });
 
@@ -542,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ---------- inicial ---------- */
   renderScans();
   if (feedbackMessage) feedbackMessage.textContent = '';
-  sidebar.style.display = 'none';
+  if (sidebar) sidebar.style.display = 'none';
 
   // expose debug
   window._pegazus = {
