@@ -1,17 +1,14 @@
-// app.js - PegazusLog (refeito, com login integrado e melhorias)
+// app.js - PegazusLog Scanner (Opção A)
 // Requisitos: jsQR (index.html) e Leaflet (index.html)
-// Observações: usa localStorage para usuários e registros (offline)
+// Uso: importe este arquivo após o index.html (defer está ok)
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  /* ===========================
-     Config e Estado
-     =========================== */
+  /* ---------- Config e estado ---------- */
   const STORAGE_USERS_KEY = 'pegazus_users_v3';
   const STORAGE_SCANS_KEY = 'pegazus_scans_v3';
   const DEFAULT_USERS = [{ id: 'u1', username: 'thon', password: '882010', role: 'admin' }];
 
-  // garante existência de usuário padrão e faz parse seguro
   function loadUsersFromStorage() {
     try {
       const raw = localStorage.getItem(STORAGE_USERS_KEY);
@@ -20,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return JSON.parse(JSON.stringify(DEFAULT_USERS));
       }
       const parsed = JSON.parse(raw);
-      // adiciona thon se estiver faltando
       if (!parsed.some(u => u.username === 'thon')) {
         parsed.unshift(DEFAULT_USERS[0]);
         localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(parsed));
@@ -41,9 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentUser = null;
   const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
 
-  /* ===========================
-     Elementos DOM
-     =========================== */
+  /* ---------- DOM ---------- */
   const sidebar = document.getElementById('sidebar');
   const userInfoDiv = document.getElementById('userInfo');
   const loginContainer = document.getElementById('loginContainer');
@@ -62,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnBack = document.getElementById('btnBack');
   const contentArea = document.getElementById('contentArea');
 
-  // câmera UI
   const video = document.getElementById('videoElement');
   const overlay = document.getElementById('overlay');
   const overlayCtx = overlay ? overlay.getContext('2d') : null;
@@ -76,9 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearBtn = document.getElementById('clearBtn');
   const openScansList = document.getElementById('openScansList');
 
-  /* ===========================
-     Internals (scanner/util)
-     =========================== */
+  /* ---------- scanner internals ---------- */
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d');
   let mediaStream = null, currentVideoTrack = null;
@@ -87,21 +78,18 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastScanTime = 0;
   const DUPLICATE_WINDOW = 60 * 1000;
 
-  // util: escape HTML para segurança nas renderizações
   function escapeHtml(s) {
     return ('' + (s || '')).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
 
-  // feedback pequeno no topo (QR)
   function showFeedback(text, ok = true, ms = 1500) {
     if (!qrFeedback) return;
     qrFeedback.textContent = text;
-    qrFeedback.style.background = ok ? 'rgba(0,128,0,0.7)' : 'rgba(255,0,0,0.7)';
+    qrFeedback.style.background = ok ? 'rgba(0,128,0,0.85)' : 'rgba(255,0,0,0.85)';
     qrFeedback.style.display = 'block';
     setTimeout(() => { qrFeedback.style.display = 'none'; }, ms);
   }
 
-  // som simples
   function beep(duration = 90, freq = 1400, vol = 0.12) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -109,12 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
       o.type = 'sine'; o.frequency.value = freq; g.gain.value = vol;
       o.connect(g); g.connect(ctx.destination); o.start();
       setTimeout(() => { try { o.stop(); ctx.close(); } catch (e) { } }, duration);
-    } catch (e) { /* ignorar */ }
+    } catch (e) { }
   }
 
-  /* ===========================
-     Extração/Parse do conteúdo do QR/link
-     =========================== */
+  /* ---------- parse helpers ---------- */
   function extractIdFromLink(link) {
     if (!link) return { type: null, value: null };
     const shopeePattern1 = /-i\.(\d+)\.(\d+)/i; const m1 = link.match(shopeePattern1); if (m1) return { type: 'shopee_item', value: m1[2], shopId: m1[1] };
@@ -134,26 +120,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = new URL(p);
       const qp = ['id', 'qrid', 'qr_id', 'codigo', 'code', 'itemId', 'orderId', 'order_id'];
       for (const k of qp) if (url.searchParams.has(k)) return { type: `qr_param:${k}`, value: url.searchParams.get(k) };
-    } catch (e) { /* não é URL */ }
+    } catch (e) { }
     const num = p.match(/([0-9]{6,})/); if (num) return { type: 'numeric', value: num[1] };
     if (p.length <= 64 && /[A-Za-z0-9\-_]{4,}/.test(p)) return { type: 'text', value: p.split(/\s|;|,|\|/)[0] };
     return { type: null, value: null };
   }
 
-  /* ===========================
-     Render / edição de registros escaneados
-     =========================== */
+  /* ---------- render scans ---------- */
   function renderScans() {
     if (!scansList) return;
     scansList.innerHTML = '';
     if (!scanRecords.length) { scansList.innerHTML = '<div style="color:#666">Nenhum registro ainda.</div>'; return; }
     scanRecords.forEach((r, i) => {
-      const div = document.createElement('div'); div.className = 'item';
+      const div = document.createElement('div');
+      div.className = 'item';
       div.innerHTML = `<div style="display:flex;gap:8px;align-items:center">
         <div class="badge">${escapeHtml(r.plataforma || '—')}</div>
         <div style="flex:1">
-          <div class="link-text" title="${escapeHtml(r.raw_qr)}">${escapeHtml(r.raw_qr)}</div>
-          <div class="meta">${escapeHtml(r.nomeCliente || 'Sem nome')} — ${escapeHtml(r.endereco || 'Sem endereço')}</div>
+          <div style="font-size:13px" title="${escapeHtml(r.raw_qr)}">${escapeHtml(r.idEntrega || r.raw_qr)}</div>
+          <div class="small" style="color:var(--muted);font-size:12px">${escapeHtml(r.nomeCliente || '—')} — ${escapeHtml(r.endereco || '—')}</div>
         </div>
         <div>
           <button data-i="${i}" style="background:#00b4d8;color:white;padding:6px;border-radius:6px">Editar</button>
@@ -167,7 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function editRecord(idx) {
     const r = scanRecords[idx];
-    const form = document.createElement('div'); form.className = 'item';
+    const form = document.createElement('div');
+    form.className = 'item';
     form.innerHTML = `
       <div style="display:flex;flex-direction:column;gap:6px">
         <label>Nome cliente <input id="edit_name" value="${escapeHtml(r.nomeCliente || '')}" /></label>
@@ -188,9 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* ===========================
-     Scanner helpers
-     =========================== */
+  /* ---------- camera helpers ---------- */
   async function enumerateVideoDevices() {
     try {
       const devs = await navigator.mediaDevices.enumerateDevices();
@@ -199,26 +183,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function fitCanvases() {
-    // ajusta canvas de processamento e overlay conforme vídeo
     try {
       const vw = video.videoWidth || video.clientWidth || 640;
       const vh = video.videoHeight || video.clientHeight || 480;
-      const targetW = Math.min(1024, Math.max(320, Math.round(vw * 0.6)));
+      const targetW = Math.min(1280, Math.max(320, Math.round(vw * 0.6)));
       const targetH = Math.round((vh / vw) * targetW) || 480;
       tempCanvas.width = targetW; tempCanvas.height = targetH;
       if (overlay) { overlay.width = vw; overlay.height = vh; }
       drawBoundingBox(null);
-    } catch (e) { /* ignorar */ }
+    } catch (e) { }
   }
 
   function drawBoundingBox(loc) {
-    if (!overlayCtx) return;
+    if (!overlayCtx || !overlay) return;
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
     if (!loc) {
       const w = overlay.width, h = overlay.height;
       const boxW = Math.round(w * 0.40), boxH = Math.round(boxW);
       const x = Math.round((w - boxW) / 2), y = Math.round((h - boxH) / 2);
-      overlayCtx.strokeStyle = 'rgba(255,255,255,0.35)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x, y, boxW, boxH);
+      overlayCtx.strokeStyle = 'rgba(255,255,255,0.25)'; overlayCtx.lineWidth = 3; overlayCtx.strokeRect(x, y, boxW, boxH);
       return;
     }
     overlayCtx.strokeStyle = 'rgba(0,200,83,0.95)'; overlayCtx.lineWidth = Math.max(2, overlay.width / 200);
@@ -238,14 +221,17 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
       } catch (e) {
-        // fallback
         await navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(s => { stream = s }).catch(err => { throw err; });
       }
       mediaStream = stream; video.srcObject = mediaStream; await video.play();
       currentVideoTrack = mediaStream.getVideoTracks()[0] || null;
-      try { const caps = currentVideoTrack.getCapabilities(); torchButton.style.display = (caps && caps.torch) ? 'inline-block' : 'none'; } catch (e) { torchButton.style.display = 'none'; }
+      try { const caps = currentVideoTrack.getCapabilities(); torchButton.style.display = (caps && caps.torch) ? 'inline-block' : 'none'; } catch (e) { if (torchButton) torchButton.style.display = 'none'; }
       const devices = await enumerateVideoDevices(); populateDeviceSelect(devices);
-      scanning = true; stopButton.style.display = 'inline-block'; cameraContainer.style.display = 'flex'; btnBack.style.display = 'block';
+
+      scanning = true;
+      if (stopButton) stopButton.style.display = 'inline-block';
+      if (cameraContainer) cameraContainer.style.display = 'flex';
+      try { btnBack && (btnBack.style.display = 'block'); } catch (e) {}
       fitCanvases();
       rafId = requestAnimationFrame(scanLoop);
     } catch (err) {
@@ -274,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (torchButton) torchButton.style.display = 'none';
     if (deviceSelect) deviceSelect.style.display = 'none';
     if (cameraContainer) cameraContainer.style.display = 'none';
-    if (btnBack) btnBack.style.display = 'none';
+    try { btnBack && (btnBack.style.display = 'none'); } catch (e) {}
     if (overlayCtx && overlay) overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
   }
 
@@ -283,7 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const caps = currentVideoTrack.getCapabilities();
       if (!caps.torch) return;
-      // alguns navegadores não expõem torch state - tentamos alternar via applyConstraints
       await currentVideoTrack.applyConstraints({ advanced: [{ torch: !currentVideoTrack.torchOn }] });
     } catch (e) { console.warn('torch not supported', e); }
   }
@@ -320,16 +305,20 @@ document.addEventListener('DOMContentLoaded', () => {
     rafId = requestAnimationFrame(scanLoop);
   }
 
-  /* ===========================
-     Core: quando encontrar QR (registro)
-     =========================== */
+  /* ---------- trata resultado do scan ---------- */
   async function handleScanResult(payload) {
     if (!payload) return;
+    // popup já escaneado
     if (scanRecords.some(it => it.raw_qr === payload && (Date.now() - (it.timestamp || 0)) < DUPLICATE_WINDOW)) {
-      showFeedback('Já escaneado recentemente', false); beep(70, 600, 0.06); return;
+      showFeedback('Já escaneado recentemente', false);
+      beep(70, 600, 0.06);
+      try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { }
+      return;
     }
+
     const plataforma = (() => { const l = payload.toLowerCase(); if (l.includes('shopee.')) return 'Shopee'; if (l.includes('mercadolivre') || l.includes('mercadolibre')) return 'Mercado Livre'; return 'Outra'; })();
     const extractedId = extractIdFromLink(payload); const qrId = extractQrId(payload);
+
     const record = {
       idEntrega: extractedId.value || qrId.value || payload.substring(0, 12),
       nomeCliente: '', endereco: '', raw_qr: payload,
@@ -340,15 +329,17 @@ document.addEventListener('DOMContentLoaded', () => {
       lat: CD_LOCATION.lat + (Math.random() - 0.5) * 0.05,
       lon: CD_LOCATION.lon + (Math.random() - 0.5) * 0.05
     };
-    scanRecords.unshift(record); saveRecords(); renderScans();
-    beep(); try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) { }
+
+    scanRecords.unshift(record);
+    saveRecords();
+    renderScans();
+    beep();
+    try { if (navigator.vibrate) navigator.vibrate(80); } catch (e) { }
     showFeedback('Leitura OK: ' + (record.idEntrega || '---'));
     try { await navigator.clipboard.writeText(record.idEntrega || record.raw_qr); } catch (e) { }
   }
 
-  /* ===========================
-     CSV / Relatórios
-     =========================== */
+  /* ---------- CSV / relatórios ---------- */
   function generateCSVMenu() {
     if (!currentUser) { alert('Faça login para gerar relatórios'); return; }
     contentArea.innerHTML = `
@@ -387,9 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => showDeliveries(), 600);
   }
 
-  /* ===========================
-     Views (Entregas / Mapa / Usuários)
-     =========================== */
+  /* ---------- views ---------- */
   function showDeliveries() {
     if (!currentUser) return;
     if (cameraContainer) cameraContainer.style.display = 'none';
@@ -444,7 +433,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const nr = document.getElementById('newR').value;
       if (!nn || !np) { alert('Preencha'); return; }
       if (users.some(u => u.username === nn)) { alert('Usuário já existe'); return; }
-      // só admin pode criar gestor/admin (select não mostra admin a não ser que seja admin)
       const nu = { id: 'u' + (Date.now()), username: nn, password: np, role: nr };
       users.push(nu); saveUsers(); showUsers();
     });
@@ -483,15 +471,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (newPass) u.password = newPass;
       if (currentUser.role === 'admin') u.role = newRole;
       saveUsers();
-      if (u.id === currentUser.id) currentUser = u; // atualiza sessão
+      if (u.id === currentUser.id) currentUser = u;
       showUsers();
     });
   }
 
-  /* ===========================
-     Eventos / Login
-     =========================== */
-  // login handler
+  /* ---------- login events ---------- */
   function doLogin(username, password) {
     const matched = users.find(x => x.username === username && x.password === password);
     if (!matched) { feedbackMessage.textContent = 'Usuário ou senha inválidos'; return false; }
@@ -510,12 +495,9 @@ document.addEventListener('DOMContentLoaded', () => {
     doLogin(u, p);
   });
 
-  // permite Enter para login
   [loginUser, loginPass].forEach(el => {
     if (!el) return;
-    el.addEventListener('keyup', (e) => {
-      if (e.key === 'Enter') btnLogin.click();
-    });
+    el.addEventListener('keyup', (e) => { if (e.key === 'Enter') btnLogin.click(); });
   });
 
   btnSair.addEventListener('click', () => {
@@ -523,13 +505,12 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebar.style.display = 'none';
     loginContainer.style.display = 'block';
     contentArea.style.display = 'none';
-    // deixa campos de login limpos (opcional)
     if (loginPass) loginPass.value = '';
     stopScanner();
   });
 
-  // botões principais
-  btnCamera.addEventListener('click', () => { if (!currentUser) return; contentArea.style.display = 'none'; if (cameraContainer) cameraContainer.style.display = 'flex'; btnBack.style.display = 'block'; startScanner(); });
+  /* ---------- outros eventos UI ---------- */
+  btnCamera.addEventListener('click', () => { if (!currentUser) return; contentArea.style.display = 'none'; if (cameraContainer) cameraContainer.style.display = 'flex'; try { btnBack.style.display = 'block'; } catch (e) {} startScanner(); });
   if (stopButton) stopButton.addEventListener('click', () => stopScanner());
   if (torchButton) torchButton.addEventListener('click', () => toggleTorch());
   if (deviceSelect) deviceSelect.addEventListener('change', async () => {
@@ -552,21 +533,18 @@ document.addEventListener('DOMContentLoaded', () => {
   btnGenerateCSV.addEventListener('click', () => generateCSVMenu());
   btnGerarRota.addEventListener('click', () => { showDeliveries(); setTimeout(() => alert('Rota (placeholder) — depende de entregas escaneadas'), 200); });
   btnUsers.addEventListener('click', () => showUsers());
-  btnBack.addEventListener('click', () => { stopScanner(); if (cameraContainer) cameraContainer.style.display = 'none'; btnBack.style.display = 'none'; showDeliveries(); });
+  btnBack.addEventListener('click', () => { stopScanner(); if (cameraContainer) cameraContainer.style.display = 'none'; try { btnBack.style.display = 'none'; } catch (e) {} showDeliveries(); });
 
   if (btnTestImage) btnTestImage.addEventListener('click', () => { try { window.open('/mnt/data/ex qrcode.jpg', '_blank'); } catch (e) { alert('Imagem de teste não encontrada'); } });
 
-  // ajusta canvases no resize da janela
   window.addEventListener('resize', () => { try { if (scanning) fitCanvases(); } catch (e) { } });
 
-  /* ===========================
-     Inicialização
-     =========================== */
-  // Render inicial e esconder sidebar
+  /* ---------- inicial ---------- */
   renderScans();
   if (feedbackMessage) feedbackMessage.textContent = '';
   sidebar.style.display = 'none';
-  // Expor debug/util
+
+  // expose debug
   window._pegazus = {
     startScanner, stopScanner, getScans: () => scanRecords.slice(), getUsers: () => users.slice(), doLogin
   };
