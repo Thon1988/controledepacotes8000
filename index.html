@@ -3,11 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PegazusLog — Scanner (A)</title>
+  <title>PegazusLog — Scanner (Opção A)</title>
 
-  <!-- jsQR -->
+  <!-- jsQR (QR reader) -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-
   <!-- Leaflet (mapa) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
@@ -22,13 +21,14 @@
       font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
     }
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%,#071827 100%);color:#e6eef6}
-    .app { display:grid; grid-template-columns: 280px 1fr; gap:16px; padding:18px; height:100vh; box-sizing:border-box; }
-
+    .app {
+      display:grid; grid-template-columns: 280px 1fr; gap:16px; padding:18px; height:100vh;
+      box-sizing:border-box;
+    }
     /* sidebar */
     .sidebar {
       background:rgba(10,14,20,0.6); border-radius:12px; padding:14px; overflow:auto;
       box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-      display:none; /* IMPORTANTE — sidebar escondida */
     }
     .logo { font-weight:700; font-size:18px; color:var(--accent); margin-bottom:10px }
     .user-info{ font-size:13px; color:var(--muted); margin-bottom:12px}
@@ -37,50 +37,71 @@
     .nav button.primary { background:var(--accent); color:#042028; border:none; font-weight:600; }
     .small { font-size:13px; color:var(--muted) }
 
-    /* main */
-    .main { display:flex; flex-direction:column; gap:12px; height:100%; }
+    /* main area */
+    .main {
+      display:flex; flex-direction:column; gap:12px; height:100%;
+    }
     .card { background: rgba(7,12,20,0.5); border-radius:12px; padding:12px; box-shadow: 0 6px 14px rgba(0,0,0,0.3); }
-    #contentArea { overflow:auto; flex:1; display:none }
+    #contentArea { overflow:auto; flex:1; }
 
     /* login */
-    #loginContainer { display:flex; flex-direction:column; gap:8px; }
+    #loginContainer { display:flex; flex-direction:column; gap:8px; align-items:stretch; }
     #loginContainer input { padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
     #loginContainer button { padding:10px; border-radius:8px; border:none; background:var(--accent); color:#012; font-weight:600; cursor:pointer; }
 
-    /* camera */
-    .camera-wrap { position:relative; width:100%; height:60vh; border-radius:10px; overflow:hidden; background:#000; display:none }
-    video#videoElement { width:100%; height:100%; object-fit:cover; display:block; }
-    canvas#overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    /* camera area */
+    .camera-wrap { position:relative; width:100%; height:60vh; border-radius:10px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
+    video#videoElement { width:100%; height:100%; object-fit:cover; display:block; } 
+    canvas#overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
 
-    /* scan line */
+    /* scanning line animation */
     .scan-line {
-      position:absolute; left:0; right:0; height:2px;
-      background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
+      position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
       animation: sweep 2s linear infinite;
-      mix-blend-mode:screen; opacity:0.95; top:20%;
+      mix-blend-mode:screen; opacity:0.95;
     }
     @keyframes sweep {
-      0%{ top:20% } 50%{ top:50% } 100%{ top:80% }
+      0% { top:20%; transform:translateX(-2%); }
+      50% { top:50%; transform:translateX(2%); }
+      100% { top:80%; transform:translateX(-2%); }
     }
 
     /* scans list */
-    #scansList { max-height:200px; overflow:auto; display:block }
-    .item { padding:8px; border-radius:8px; background:rgba(255,255,255,0.03); margin-bottom:6px }
+    #scansList { max-height:220px; overflow:auto; display:block }
+    .item { padding:8px; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,0.02); display:flex; gap:8px; align-items:center; }
+    .badge { background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:6px; font-weight:600; color:var(--muted); font-size:12px; }
 
+    /* feedback */
+    #qrFeedback { display:none; position:fixed; left:50%; transform:translateX(-50%); top:18px; padding:10px 14px; border-radius:10px; color:white; z-index:9999; font-weight:600; box-shadow: 0 8px 22px rgba(0,0,0,0.5); }
+
+    /* responsive */
+    @media (max-width:900px){
+      .app{ grid-template-columns: 1fr; padding:12px; }
+      .sidebar{ order:2; height:auto; display:flex; }
+      .main{ order:1; }
+      .camera-wrap { height:52vh }
+    }
   </style>
 </head>
-
 <body>
-  <div id="qrFeedback" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#00c853;padding:10px 14px;border-radius:8px;z-index:9999;font-weight:700">
-    OK
-  </div>
+  <div id="qrFeedback">OK</div>
 
   <div class="app">
-    
-    <!-- SIDEBAR — escondido até login -->
     <div class="sidebar card" id="sidebar">
       <div class="logo">PegazusLog — Scanner A</div>
 
+      <div id="loginContainer">
+        <div class="small">Acesse a aplicação</div>
+        <input id="loginUser" placeholder="usuário" value="thon" />
+        <input id="loginPass" placeholder="senha" type="password" />
+        <div style="display:flex;gap:8px">
+          <button id="loginBtn">Entrar</button>
+          <button id="btnSair" style="display:none">Sair</button>
+        </div>
+        <div id="feedbackMessage" class="small" style="height:18px;color:#ffb3b3"></div>
+      </div>
+
+      <div style="height:10px"></div>
       <div class="user-info" id="userInfo">Usuário: —</div>
 
       <div class="nav">
@@ -90,57 +111,45 @@
         <button id="btnUsers">Usuários</button>
         <button id="btnGenerateCSV">Gerar CSV</button>
         <button id="btnGerarRota">Gerar Rota</button>
-        <button id="btnSair">Sair</button>
-      </div>
-
-      <hr style="border:none;height:1px;background:#333;margin:12px 0">
-
-      <div class="small">Câmera</div>
-      <select id="deviceSelect" style="width:100%;padding:8px;border-radius:8px;margin-top:6px"></select>
-
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button id="torchButton">Flash</button>
-        <button id="stopButton" style="display:none">Parar</button>
       </div>
 
       <div style="height:12px"></div>
-      <div class="small">Leituras Recentes</div>
+      <div>
+        <div class="small">Câmera</div>
+        <select id="deviceSelect" style="width:100%;padding:8px;border-radius:8px;margin-top:6px"></select>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="torchButton">Flash</button>
+          <button id="stopButton" style="display:none">Parar</button>
+        </div>
+      </div>
+
+      <hr style="border:none;height:1px;background:rgba(255,255,255,0.03);margin:12px 0">
+
+      <div class="small">Leituras recentes</div>
       <div id="scansList"></div>
 
-      <div style="display:flex;gap:8px;margin-top:8px">
+      <div style="height:12px"></div>
+      <div style="display:flex;gap:8px">
         <button id="exportBtn">Exportar CSV</button>
         <button id="clearBtn">Limpar</button>
       </div>
     </div>
 
-    <!-- MAIN -->
     <div class="main">
-
-      <!-- LOGIN -->
-      <div id="loginContainer" class="card">
-        <div class="small">Acesse a aplicação</div>
-        <input id="loginUser" placeholder="usuário" value="thon">
-        <input id="loginPass" placeholder="senha" type="password">
-        <button id="loginBtn">Entrar</button>
-        <div id="feedbackMessage" class="small" style="color:#ff6a6a"></div>
-      </div>
-
-      <!-- CAMERA -->
-      <div class="card camera-wrap" id="cameraContainer">
+      <div class="card camera-wrap" id="cameraContainer" style="display:none">
         <video id="videoElement" playsinline></video>
         <canvas id="overlay"></canvas>
-        <div class="scan-line"></div>
+        <div class="scan-line" aria-hidden="true"></div>
       </div>
 
-      <!-- CONTEÚDO -->
       <div id="contentArea" class="card">
-        <h2>Bem-vindo!</h2>
-        <p>Use o menu à esquerda após fazer login.</p>
+        <h2>Bem-vindo ao PegazusLog</h2>
+        <p>Use <strong>Abrir Scanner</strong> para iniciar. O scanner é responsivo e possui troca de câmeras, flash (quando suportado), leitura por jsQR, exportação CSV e lista de leituras.</p>
       </div>
+    </div>
+  </div>
 
-    </div><!-- main -->
-  </div><!-- app -->
-
+  <!-- app.js (coloque o conteúdo do arquivo app.js abaixo ou referencie externamente) -->
   <script src="app.js" defer></script>
 </body>
 </html>
