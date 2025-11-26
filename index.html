@@ -2,194 +2,328 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>PegazusLog — Scanner (Opção A)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>PegazusLog — Scanner Integrado</title>
 
-  <!-- jsQR (QR reader) -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-  <!-- Leaflet (mapa) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
   <style>
-    :root{
-      --bg:#071022;
-      --panel:rgba(10,14,20,0.6);
-      --accent:#00b4d8;
-      --success:#00c853;
-      --muted:#9aa4b2;
-      font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;
+    :root {
+      --bg: #0f172a;
+      --panel: rgba(30, 41, 59, 0.7);
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --muted: #94a3b8;
+      --text: #f1f5f9;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
-    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%,#071827 100%);color:#e6eef6}
+
+    * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+    
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, var(--bg) 0%, #020617 100%);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Layout Principal */
     .app {
-      display:grid; grid-template-columns: 280px 1fr; gap:16px; padding:18px; height:100vh;
-      box-sizing:border-box;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 16px;
+      padding: 16px;
+      height: 100vh;
     }
-    /* sidebar */
+
+    /* Sidebar / Menu */
     .sidebar {
-      background:var(--panel); border-radius:12px; padding:14px; overflow:auto;
-      box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-      min-height: calc(100vh - 36px);
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.05);
+      overflow-y: auto;
+      transition: transform 0.3s ease;
     }
-    .logo { font-weight:700; font-size:18px; color:var(--accent); margin-bottom:10px }
-    .user-info{ font-size:13px; color:var(--muted); margin-bottom:12px}
-    .nav { display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
-    .nav button { background:transparent; border:1px solid rgba(255,255,255,0.04); color:#dbeafe; padding:10px 12px; border-radius:8px; text-align:left; cursor:pointer; }
-    .nav button.primary { background:var(--accent); color:#042028; border:none; font-weight:600; }
 
-    /* main area */
-    .main { display:flex; flex-direction:column; gap:12px; height:100%; }
-    .card { background: rgba(7,12,20,0.5); border-radius:12px; padding:12px; box-shadow: 0 6px 14px rgba(0,0,0,0.3); }
-    #contentArea { overflow:auto; flex:1; display:flex; flex-direction:column; justify-content:flex-start; }
-
-    /* login */
-    #loginContainer { display:flex; flex-direction:column; gap:8px; align-items:stretch; }
-    #loginContainer input { padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
-    #loginContainer button { padding:10px; border-radius:8px; border:none; background:var(--accent); color:#012; font-weight:600; cursor:pointer; }
-
-    /* camera area */
-    .camera-wrap { position:relative; width:100%; height:calc(60vh); border-radius:10px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
-    video#videoElement { width:100%; height:100%; object-fit:cover; display:block; transform:scaleX(-1); } /* mirror */
-    canvas#overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
-
-    /* scanning square 10cm x 10cm centered */
-    .scan-target {
-      position:absolute;
-      width:10cm;
-      height:10cm;
-      border: 2px solid rgba(255,255,255,0.25);
-      border-radius:8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.6), inset 0 0 24px rgba(0,0,0,0.2);
-      display:flex; align-items:center; justify-content:center;
-      pointer-events:none;
-      transform:translate(-50%,-50%);
-      left:50%; top:50%;
+    .logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
+
+    /* Inputs e Botões */
+    input, select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.3);
+      color: white;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    button {
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-primary { background: var(--accent); color: #0f172a; }
+    .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+    
+    .nav-btn {
+      background: transparent;
+      color: var(--muted);
+      justify-content: flex-start;
+      padding: 10px;
+      width: 100%;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; }
+
+    /* Área Principal */
+    .main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 16px;
+      background: rgba(0,0,0,0.2);
+    }
+
+    /* Container da Câmera */
+    .camera-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: none; /* Controlado via JS */
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Overlay de Scanner (Mira) */
+    .scan-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 250px;
+      height: 250px;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 12px;
+      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6); /* Escurece o redor */
+      pointer-events: none;
+    }
+    
     .scan-line {
-      width:90%; height:3px; background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0) 100%);
-      animation: sweep 2s linear infinite;
-      mix-blend-mode:screen;
+      width: 100%;
+      height: 2px;
+      background: var(--success);
+      position: absolute;
+      animation: scanAnim 2s infinite linear;
+      box-shadow: 0 0 4px var(--success);
     }
-    @keyframes sweep { 0% { transform:translateY(-42%); } 50% { transform:translateY(0%); } 100% { transform:translateY(42%); } }
 
-    /* scanner controls floating top-right */
-    .scanner-controls {
-      position:absolute; right:12px; top:12px; background:rgba(0,0,0,0.45); padding:8px; border-radius:10px; display:flex; gap:8px; z-index:40;
-      backdrop-filter: blur(6px);
+    @keyframes scanAnim {
+      0% { top: 0; opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
     }
-    .scanner-controls select, .scanner-controls button { padding:8px 10px; border-radius:8px; border:none; cursor:pointer; background:rgba(255,255,255,0.03); color:inherit; }
 
-    /* scan-list */
-    #scansList { max-height:220px; overflow:auto; display:block; margin-top:8px; }
-    .item { padding:8px; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,0.02); display:flex; gap:8px; align-items:center; justify-content:space-between; }
-    .badge { background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:6px; font-weight:600; color:var(--muted); font-size:12px; }
-
-    /* feedback and sync */
-    #qrFeedback { display:none; position:fixed; left:50%; transform:translateX(-50%); top:18px; padding:10px 14px; border-radius:10px; color:white; z-index:9999; font-weight:600; box-shadow: 0 8px 22px rgba(0,0,0,0.5); }
-    .sync-indicator { display:inline-flex; gap:8px; align-items:center; font-size:13px; color:var(--muted); }
-    .sync-dot { width:10px;height:10px;border-radius:50%;background:var(--muted); }
-    .sync-dot.syncing { background:orange; animation: pulse 1s infinite; }
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
-
-    /* back button fixed bottom right of content area */
-    .back-area { margin-top:12px; display:flex; justify-content:center; }
-    .btn-back { padding:10px 14px; border-radius:8px; background:rgba(255,255,255,0.03); border:none; color:inherit; cursor:pointer; }
-
-    /* responsive */
-    @media (max-width:900px){
-      .app{ grid-template-columns: 1fr; padding:12px; }
-      .sidebar{ order:2; height:auto; display:flex; }
-      .main{ order:1; }
-      .camera-wrap { height:52vh }
-      video#videoElement{ transform:none; } /* don't mirror on small */
-      .scan-target { width:8.5cm; height:8.5cm; } /* slightly smaller on mobile */
-      .scanner-controls { right:8px; top:8px; }
+    /* Controles Flutuantes da Câmera */
+    .camera-controls {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+      z-index: 10;
     }
+    
+    .ctrl-btn {
+      background: rgba(0,0,0,0.6);
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      padding: 0;
+      font-size: 18px;
+    }
+
+    /* Lista de Scans */
+    .scan-list-container {
+      margin-top: auto;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .scan-item {
+      background: rgba(255,255,255,0.05);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      border-left: 3px solid var(--accent);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Conteúdo (Dashboard, Mapas, etc) */
+    #contentArea {
+      padding: 24px;
+      overflow-y: auto;
+      height: 100%;
+    }
+
+    /* Feedback Visual */
+    #feedbackMsg {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--success);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    /* Mobile Responsividade */
+    @media (max-width: 768px) {
+      .app { grid-template-columns: 1fr; padding: 0; gap: 0; }
+      .sidebar { 
+        position: fixed; 
+        z-index: 50; 
+        width: 80%; 
+        height: 100%; 
+        left: -100%;
+        border-radius: 0;
+      }
+      .sidebar.active { left: 0; }
+      .main { border-radius: 0; }
+      
+      .mobile-menu-btn {
+        display: block;
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        z-index: 20;
+        background: rgba(0,0,0,0.6);
+        color: white;
+        padding: 8px;
+        border-radius: 8px;
+      }
+      
+      .scan-overlay { width: 200px; height: 200px; }
+    }
+    
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <div id="qrFeedback">OK</div>
+
+  <div id="feedbackMsg">Leitura Confirmada!</div>
+
+  <button id="mobileMenuBtn" class="mobile-menu-btn hidden" onclick="toggleSidebar()">☰</button>
 
   <div class="app">
-    <div class="sidebar card" id="sidebar" style="display:none">
-      <div class="logo">PegazusLog — Scanner A</div>
+    <div class="sidebar" id="sidebar">
+      <div class="logo">⚡ PegazusLog</div>
 
-      <div id="loginContainer">
-        <div class="small">Acesse a aplicação</div>
-        <input id="loginUser" placeholder="usuário" value="thon" />
-        <input id="loginPass" placeholder="senha" type="password" />
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button id="loginBtn">Entrar</button>
-          <button id="btnSair" style="display:none">Sair</button>
-        </div>
-        <div id="feedbackMessage" class="small" style="height:18px;color:#ffb3b3;margin-top:6px"></div>
+      <div id="loginSection">
+        <p style="font-size:12px; color:var(--muted)">Identifique-se para começar</p>
+        <input type="text" id="loginUser" placeholder="Usuário" value="thon">
+        <input type="password" id="loginPass" placeholder="Senha">
+        <button class="btn-primary" id="btnLogin" style="width:100%">Entrar</button>
+        <div id="loginError" style="color:var(--danger); font-size:12px; margin-top:5px; height:15px"></div>
       </div>
 
-      <div style="height:10px"></div>
-      <div class="user-info" id="userInfo">Usuário: —</div>
-
-      <div class="nav">
-        <button id="btnCamera" class="primary">Abrir Scanner</button>
-        <button id="btnEntregas">Entregas</button>
-        <button id="btnMapa">Mapa</button>
-        <button id="btnUsers">Usuários</button>
-        <button id="btnGenerateCSV">Gerar CSV</button>
-        <button id="btnGerarRota">Gerar Rota</button>
-      </div>
-
-      <div style="height:12px"></div>
-      <div>
-        <div class="small">Câmera</div>
-        <select id="deviceSelect" style="width:100%;padding:8px;border-radius:8px;margin-top:6px"></select>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button id="torchButton">🔦 Flash</button>
-          <button id="stopButton" style="display:none">⏹ Parar</button>
+      <div id="menuSection" class="hidden">
+        <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; margin-bottom:15px">
+          <div style="font-size:12px; color:var(--muted)">Logado como</div>
+          <strong id="displayUser" style="color:var(--accent)">-</strong>
         </div>
-      </div>
 
-      <hr style="border:none;height:1px;background:rgba(255,255,255,0.03);margin:12px 0">
-
-      <div class="small">Leituras recentes</div>
-      <div id="scansList"></div>
-
-      <div style="height:12px"></div>
-      <div style="display:flex;gap:8px">
-        <button id="exportBtn">Exportar CSV</button>
-        <button id="clearBtn">Limpar</button>
-        <div style="flex:1;text-align:right">
-          <span class="sync-indicator" id="syncIndicator"><span class="sync-dot" id="syncDot"></span><small id="syncText">offline</small></span>
+        <button class="btn-primary" id="btnScanMode">📷 Abrir Scanner</button>
+        <div style="height:10px"></div>
+        <button class="nav-btn" id="btnDashboard">📦 Entregas</button>
+        <button class="nav-btn" id="btnMap">📍 Mapa</button>
+        <button class="nav-btn" id="btnUsers">👥 Usuários</button>
+        <button class="nav-btn" id="btnExport">📄 Exportar CSV</button>
+        
+        <div style="flex:1"></div>
+        
+        <div class="scan-list-container">
+          <small style="color:var(--muted); display:block; margin-bottom:5px">Últimas Leituras</small>
+          <div id="miniScanList"></div>
         </div>
+        
+        <button class="nav-btn" style="color:var(--danger); margin-top:10px" id="btnLogout">Sair</button>
       </div>
     </div>
 
     <div class="main">
-      <div class="card camera-wrap" id="cameraContainer" style="display:none">
-        <video id="videoElement" playsinline></video>
-        <canvas id="overlay"></canvas>
-
-        <div class="scan-target" aria-hidden="true">
-          <div class="scan-line" aria-hidden="true"></div>
+      
+      <div id="cameraView" class="camera-container">
+        <video id="videoElement" playsinline muted autoplay></video>
+        
+        <div class="scan-overlay">
+          <div class="scan-line"></div>
         </div>
 
-        <div class="scanner-controls" id="scannerControls" style="display:none">
-          <select id="topDeviceSelect" title="Escolha a câmera"></select>
-          <button id="topTorch" title="Flash">🔦</button>
-          <button id="topStop" title="Parar">⏹</button>
+        <div class="camera-controls">
+          <select id="cameraSelect" class="hidden" style="width:auto; height:40px; background:rgba(0,0,0,0.6); border:none;"></select>
+          <button class="ctrl-btn" id="btnTorch" title="Flash">⚡</button>
+          <button class="ctrl-btn" id="btnCloseCamera" style="background:var(--danger)">✕</button>
         </div>
       </div>
 
-      <div id="contentArea" class="card">
-        <h2>Bem-vindo ao PegazusLog</h2>
-        <p>Bem-vindo, selecione uma opção</p>
+      <div id="contentArea">
+        <div style="text-align:center; margin-top:20vh; opacity:0.5">
+          <h2>Bem-vindo</h2>
+          <p>Faça login para acessar o sistema.</p>
+        </div>
       </div>
 
-      <div class="back-area">
-        <button class="btn-back" id="btnBack" style="display:none">🔙 Voltar</button>
-      </div>
     </div>
   </div>
 
-  <!-- app.js (coloque o conteúdo do arquivo app.js abaixo ou referencie externamente) -->
   <script src="app.js" defer></script>
 </body>
 </html>
