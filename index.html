@@ -101,6 +101,19 @@
       width: 100%;
     }
     .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; }
+    
+    /* Novo estilo para sub-botões de exportação */
+    .export-options {
+        display: none; /* Inicia oculto */
+        flex-direction: column;
+        gap: 5px;
+        margin: 5px 0 10px 15px;
+    }
+    .export-options button {
+        padding: 8px 10px;
+        background: rgba(255,255,255,0.1);
+        font-size: 13px;
+    }
 
     /* Área Principal */
     .main {
@@ -223,6 +236,18 @@
       transition: opacity 0.3s;
       pointer-events: none;
     }
+    
+    /* Estilos para o formulário de usuários (Admin/Gestor) */
+    .user-form-card {
+        background: rgba(255,255,255,0.05);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    .user-form-card input, .user-form-card select {
+        background: rgba(0,0,0,0.4);
+        border: none;
+    }
 
     /* Mobile Responsividade */
     @media (max-width: 768px) {
@@ -284,8 +309,15 @@
         <div style="height:10px"></div>
         <button class="nav-btn" id="btnDashboard">📦 Entregas</button>
         <button class="nav-btn" id="btnMap">📍 Mapa</button>
-        <button class="nav-btn" id="btnUsers">👥 Usuários</button>
+        <button class="nav-btn" id="btnRoutes">🗺️ Gerar Rotas</button> <button class="nav-btn" id="btnUsers">👥 Usuários</button>
         <button class="nav-btn" id="btnExport">📄 Exportar CSV</button>
+        
+        <div id="exportOptions" class="export-options">
+            <button id="btnExportDaily">Diário</button>
+            <button id="btnExportWeekly">Semanal</button>
+            <button id="btnExportMonthly">Mensal</button>
+            <button id="btnExportAll">Tudo</button>
+        </div>
         
         <div style="flex:1"></div>
         
