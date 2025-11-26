@@ -7,15 +7,14 @@
 
   <!-- jsQR (QR reader) -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-
   <!-- Leaflet (mapa) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
   <style>
     :root{
-      --bg:#0f1724;
-      --panel:#0b1220;
+      --bg:#071022;
+      --panel:rgba(10,14,20,0.6);
       --accent:#00b4d8;
       --success:#00c853;
       --muted:#9aa4b2;
@@ -23,143 +22,174 @@
     }
     html,body{height:100%;margin:0;background:linear-gradient(180deg,#071022 0%,#071827 100%);color:#e6eef6}
     .app {
-      display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:18px; height:100vh;
+      display:grid; grid-template-columns: 280px 1fr; gap:16px; padding:18px; height:100vh;
       box-sizing:border-box;
     }
     /* sidebar */
     .sidebar {
-      background:rgba(10,14,20,0.6); border-radius:12px; padding:14px; overflow:auto;
+      background:var(--panel); border-radius:12px; padding:14px; overflow:auto;
       box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-      display:none; /* só aparece após login */
+      min-height: calc(100vh - 36px);
     }
     .logo { font-weight:700; font-size:18px; color:var(--accent); margin-bottom:10px }
     .user-info{ font-size:13px; color:var(--muted); margin-bottom:12px}
-    .nav { display:flex; flex-direction:column; gap:8px; margin-bottom:10px }
-    .nav button { background:transparent; border:1px solid rgba(255,255,255,0.04); color:#dbeafe; padding:8px 10px; border-radius:8px; text-align:left; cursor:pointer; }
+    .nav { display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
+    .nav button { background:transparent; border:1px solid rgba(255,255,255,0.04); color:#dbeafe; padding:10px 12px; border-radius:8px; text-align:left; cursor:pointer; }
     .nav button.primary { background:var(--accent); color:#042028; border:none; font-weight:600; }
-    .small { font-size:13px; color:var(--muted) }
 
     /* main area */
-    .main {
-      display:flex; flex-direction:column; gap:12px; height:100%;
-    }
+    .main { display:flex; flex-direction:column; gap:12px; height:100%; }
     .card { background: rgba(7,12,20,0.5); border-radius:12px; padding:12px; box-shadow: 0 6px 14px rgba(0,0,0,0.3); }
-    #contentArea { overflow:auto; flex:1; }
+    #contentArea { overflow:auto; flex:1; display:flex; flex-direction:column; justify-content:flex-start; }
 
     /* login */
-    #loginPage {
-      max-width:380px; margin:auto; padding:26px;
-      background:var(--panel); border-radius:12px;
-      text-align:center; box-shadow:0 6px 14px rgba(0,0,0,0.4)
-    }
-    #loginPage input {
-      width:100%; padding:12px; margin-top:10px;
-      border-radius:8px; border:1px solid #223;
-      background:#0f1724; color:#fff;
-    }
-    #loginPage button {
-      width:100%; padding:12px; margin-top:16px;
-      background:var(--accent); border:0; border-radius:8px;
-      color:#012; cursor:pointer; font-weight:600;
-    }
+    #loginContainer { display:flex; flex-direction:column; gap:8px; align-items:stretch; }
+    #loginContainer input { padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
+    #loginContainer button { padding:10px; border-radius:8px; border:none; background:var(--accent); color:#012; font-weight:600; cursor:pointer; }
 
     /* camera area */
-    .camera-wrap {
-      position:relative; width:100%; height:60vh;
-      border-radius:10px; overflow:hidden; background:#000;
-      display:none; align-items:center; justify-content:center;
-    }
-    video#videoElement { width:100%; height:100%; object-fit:cover; display:block; transform:scaleX(-1); }
+    .camera-wrap { position:relative; width:100%; height:calc(60vh); border-radius:10px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
+    video#videoElement { width:100%; height:100%; object-fit:cover; display:block; transform:scaleX(-1); } /* mirror */
     canvas#overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
 
-    /* scanning line */
+    /* scanning square 10cm x 10cm centered */
+    .scan-target {
+      position:absolute;
+      width:10cm;
+      height:10cm;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius:8px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6), inset 0 0 24px rgba(0,0,0,0.2);
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:none;
+      transform:translate(-50%,-50%);
+      left:50%; top:50%;
+    }
     .scan-line {
-      position:absolute; left:0; right:0; height:2px;
-      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.7),transparent);
-      animation:sweep 2s linear infinite;
+      width:90%; height:3px; background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0) 100%);
+      animation: sweep 2s linear infinite;
+      mix-blend-mode:screen;
     }
-    @keyframes sweep {
-      0% { top:22%; }
-      50% { top:78%; }
-      100% { top:22%; }
-    }
+    @keyframes sweep { 0% { transform:translateY(-42%); } 50% { transform:translateY(0%); } 100% { transform:translateY(42%); } }
 
-    #qrFeedback {
-      position:fixed; left:50%; top:15px; transform:translateX(-50%);
-      padding:10px 14px; background:rgba(0,0,0,0.8);
-      border-radius:10px; color:#fff; font-weight:700;
-      display:none; z-index:10000;
+    /* scanner controls floating top-right */
+    .scanner-controls {
+      position:absolute; right:12px; top:12px; background:rgba(0,0,0,0.45); padding:8px; border-radius:10px; display:flex; gap:8px; z-index:40;
+      backdrop-filter: blur(6px);
     }
+    .scanner-controls select, .scanner-controls button { padding:8px 10px; border-radius:8px; border:none; cursor:pointer; background:rgba(255,255,255,0.03); color:inherit; }
 
+    /* scan-list */
+    #scansList { max-height:220px; overflow:auto; display:block; margin-top:8px; }
+    .item { padding:8px; border-radius:8px; margin-bottom:6px; background:rgba(255,255,255,0.02); display:flex; gap:8px; align-items:center; justify-content:space-between; }
+    .badge { background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:6px; font-weight:600; color:var(--muted); font-size:12px; }
+
+    /* feedback and sync */
+    #qrFeedback { display:none; position:fixed; left:50%; transform:translateX(-50%); top:18px; padding:10px 14px; border-radius:10px; color:white; z-index:9999; font-weight:600; box-shadow: 0 8px 22px rgba(0,0,0,0.5); }
+    .sync-indicator { display:inline-flex; gap:8px; align-items:center; font-size:13px; color:var(--muted); }
+    .sync-dot { width:10px;height:10px;border-radius:50%;background:var(--muted); }
+    .sync-dot.syncing { background:orange; animation: pulse 1s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+    /* back button fixed bottom right of content area */
+    .back-area { margin-top:12px; display:flex; justify-content:center; }
+    .btn-back { padding:10px 14px; border-radius:8px; background:rgba(255,255,255,0.03); border:none; color:inherit; cursor:pointer; }
+
+    /* responsive */
+    @media (max-width:900px){
+      .app{ grid-template-columns: 1fr; padding:12px; }
+      .sidebar{ order:2; height:auto; display:flex; }
+      .main{ order:1; }
+      .camera-wrap { height:52vh }
+      video#videoElement{ transform:none; } /* don't mirror on small */
+      .scan-target { width:8.5cm; height:8.5cm; } /* slightly smaller on mobile */
+      .scanner-controls { right:8px; top:8px; }
+    }
   </style>
 </head>
 <body>
+  <div id="qrFeedback">OK</div>
 
-<div id="qrFeedback"></div>
+  <div class="app">
+    <div class="sidebar card" id="sidebar" style="display:none">
+      <div class="logo">PegazusLog — Scanner A</div>
 
-<!-- LOGIN PAGE -->
-<div id="loginPage">
-  <h2>PegazusLog</h2>
-  <input id="loginUser" placeholder="Usuário" value="thon">
-  <input id="loginPass" placeholder="Senha" type="password">
-  <button id="loginBtn">Entrar</button>
-  <div id="loginError" style="color:#ff6b6b;margin-top:8px"></div>
-</div>
+      <div id="loginContainer">
+        <div class="small">Acesse a aplicação</div>
+        <input id="loginUser" placeholder="usuário" value="thon" />
+        <input id="loginPass" placeholder="senha" type="password" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="loginBtn">Entrar</button>
+          <button id="btnSair" style="display:none">Sair</button>
+        </div>
+        <div id="feedbackMessage" class="small" style="height:18px;color:#ffb3b3;margin-top:6px"></div>
+      </div>
 
-<!-- APP REAL -->
-<div class="app" id="appContainer" style="display:none">
+      <div style="height:10px"></div>
+      <div class="user-info" id="userInfo">Usuário: —</div>
 
-  <!-- SIDEBAR -->
-  <div class="sidebar card" id="sidebar">
-    <div class="logo">PegazusLog</div>
-    <div class="user-info" id="userInfo">Usuário: —</div>
+      <div class="nav">
+        <button id="btnCamera" class="primary">Abrir Scanner</button>
+        <button id="btnEntregas">Entregas</button>
+        <button id="btnMapa">Mapa</button>
+        <button id="btnUsers">Usuários</button>
+        <button id="btnGenerateCSV">Gerar CSV</button>
+        <button id="btnGerarRota">Gerar Rota</button>
+      </div>
 
-    <div class="nav">
-      <button id="btnCamera" class="primary">📷 Abrir Scanner</button>
-      <button id="btnEntregas">📦 Entregas</button>
-      <button id="btnMapa">📍 Mapa</button>
-      <button id="btnUsers">👥 Usuários</button>
-      <button id="btnGenerateCSV">📄 Gerar CSV</button>
-      <button id="btnGerarRota">🗺️ Gerar Rota</button>
-      <button id="btnSync">🔄 Sincronizar</button>
+      <div style="height:12px"></div>
+      <div>
+        <div class="small">Câmera</div>
+        <select id="deviceSelect" style="width:100%;padding:8px;border-radius:8px;margin-top:6px"></select>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="torchButton">🔦 Flash</button>
+          <button id="stopButton" style="display:none">⏹ Parar</button>
+        </div>
+      </div>
+
+      <hr style="border:none;height:1px;background:rgba(255,255,255,0.03);margin:12px 0">
+
+      <div class="small">Leituras recentes</div>
+      <div id="scansList"></div>
+
+      <div style="height:12px"></div>
+      <div style="display:flex;gap:8px">
+        <button id="exportBtn">Exportar CSV</button>
+        <button id="clearBtn">Limpar</button>
+        <div style="flex:1;text-align:right">
+          <span class="sync-indicator" id="syncIndicator"><span class="sync-dot" id="syncDot"></span><small id="syncText">offline</small></span>
+        </div>
+      </div>
     </div>
 
-    <div class="small">Dispositivos de Câmera</div>
-    <select id="deviceSelect" style="width:100%;padding:8px;border-radius:8px;margin-top:6px"></select>
+    <div class="main">
+      <div class="card camera-wrap" id="cameraContainer" style="display:none">
+        <video id="videoElement" playsinline></video>
+        <canvas id="overlay"></canvas>
 
-    <div style="display:flex;gap:6px;margin-top:8px">
-      <button id="torchButton">Flash</button>
-      <button id="stopButton" style="display:none">Parar</button>
+        <div class="scan-target" aria-hidden="true">
+          <div class="scan-line" aria-hidden="true"></div>
+        </div>
+
+        <div class="scanner-controls" id="scannerControls" style="display:none">
+          <select id="topDeviceSelect" title="Escolha a câmera"></select>
+          <button id="topTorch" title="Flash">🔦</button>
+          <button id="topStop" title="Parar">⏹</button>
+        </div>
+      </div>
+
+      <div id="contentArea" class="card">
+        <h2>Bem-vindo ao PegazusLog</h2>
+        <p>Bem-vindo, selecione uma opção</p>
+      </div>
+
+      <div class="back-area">
+        <button class="btn-back" id="btnBack" style="display:none">🔙 Voltar</button>
+      </div>
     </div>
-
-    <hr style="border:none;height:1px;background:#123;margin:12px 0">
-
-    <div class="small">Leituras</div>
-    <div id="scansList"></div>
-
-    <div style="display:flex;gap:8px;margin-top:14px">
-      <button id="exportBtn">Exportar</button>
-      <button id="clearBtn">Limpar</button>
-    </div>
-
   </div>
 
-  <!-- MAIN CONTENT -->
-  <div class="main">
-    <div class="card camera-wrap" id="cameraContainer">
-      <video id="videoElement" playsinline></video>
-      <canvas id="overlay"></canvas>
-      <div class="scan-line"></div>
-    </div>
-
-    <div id="contentArea" class="card">
-      <h2>Bem-vindo ao PegazusLog</h2>
-      <p>Clique em <strong>Abrir Scanner</strong> para iniciar.</p>
-    </div>
-  </div>
-
-</div>
-
-<script src="app.js"></script>
+  <!-- app.js (coloque o conteúdo do arquivo app.js abaixo ou referencie externamente) -->
+  <script src="app.js" defer></script>
 </body>
 </html>
