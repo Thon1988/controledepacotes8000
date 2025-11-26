@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Configurações e Estado --- */
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
-    const DEFAULT_USERS = [{ id: 'u1', username: 'thon', password: '123', role: 'admin' }];
+    const DEFAULT_USERS = [{ id: 'u1', username: 'thon', password: '882010', role: 'admin' }];
     const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; // Exemplo: SP
     
     let currentUser = null;
@@ -348,3 +348,4 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
     }
 });
+
