@@ -1,566 +1,710 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { 
-  Camera, 
-  Upload, 
-  X, 
-  SwitchCamera, 
-  Zap,
-  Loader2
-} from 'lucide-react';
-import { toast } from 'sonner';
+// =========================================================
+//                  CONFIGURAÇÃO E UTILIDADES
+// =========================================================
 
-// Load jsQR from CDN
-const loadJsQR = () => {
-  return new Promise((resolve, reject) => {
-    if (window.jsQR) {
-      resolve(window.jsQR);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
-    script.onload = () => resolve(window.jsQR);
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
+// Função de utilidade para simular um ID único
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2);
+
+// Dados de Usuários (Simulação de um "banco de dados")
+const usersDB = {
+    'thon': { pass: '123', isAdmin: true, name: 'Thon (Admin)' },
+    'joao': { pass: '456', isAdmin: false, name: 'João (Motorista)' },
+    'maria': { pass: '789', isAdmin: false, name: 'Maria (Motorista)' }
 };
 
-export default function QRScanner({ onScan, isProcessing }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const overlayRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const streamRef = useRef(null);
-  const rafRef = useRef(null);
-  const lastScanRef = useRef({ code: '', time: 0 });
-  
-  const [isScanning, setIsScanning] = useState(false);
-  const [error, setError] = useState(null);
-  const [devices, setDevices] = useState([]);
-  const [currentDeviceId, setCurrentDeviceId] = useState(null);
-  const [torchOn, setTorchOn] = useState(false);
-  const [hasTorch, setHasTorch] = useState(false);
-  const [jsQRLoaded, setJsQRLoaded] = useState(false);
-  const [isCameraStarting, setIsCameraStarting] = useState(false);
+// Dados Simples de Entregas (Simulação)
+let deliveries = [];
 
-  const SCAN_DELAY = 1000; // Delay entre leituras do mesmo código (1 segundo)
+// Estado da Aplicação
+let appState = {
+    isAuthenticated: false,
+    currentUser: null,
+    currentView: 'dashboard',
+    stream: null, // Stream de vídeo da câmera
+    rafId: null, // Request Animation Frame ID para o loop do scanner
+    lastScan: { code: '', time: 0 },
+    SCAN_DELAY: 1500, // 1.5 segundo de delay
+    hasTorch: false,
+    torchOn: false,
+    videoDevices: [],
+    currentDeviceId: null
+};
 
-  // Beep sound for successful scan
-  const beep = useCallback((freq = 1200, duration = 100, vol = 0.1) => {
+// Mapeamento de Elementos DOM
+const elements = {
+    loginSection: document.getElementById('loginSection'),
+    appContainer: document.querySelector('.app'),
+    loginUser: document.getElementById('loginUser'),
+    loginPass: document.getElementById('loginPass'),
+    btnLogin: document.getElementById('btnLogin'),
+    loginError: document.getElementById('loginError'),
+    displayUser: document.getElementById('displayUser'),
+    sidebar: document.getElementById('sidebar'),
+    mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+
+    contentArea: document.getElementById('contentArea'),
+    feedbackMsg: document.getElementById('feedbackMsg'),
+
+    // Menu Buttons
+    btnScanMode: document.getElementById('btnScanMode'),
+    btnDashboard: document.getElementById('btnDashboard'),
+    btnMap: document.getElementById('btnMap'),
+    btnRoutes: document.getElementById('btnRoutes'),
+    btnExport: document.getElementById('btnExport'),
+    exportOptions: document.getElementById('exportOptions'),
+    btnExportDaily: document.getElementById('btnExportDaily'),
+    btnExportWeekly: document.getElementById('btnExportWeekly'),
+    btnExportMonthly: document.getElementById('btnExportMonthly'),
+    btnExportAll: document.getElementById('btnExportAll'),
+    userFilterSelect: document.getElementById('userFilterSelect'),
+    adminMenuOptions: document.getElementById('adminMenuOptions'),
+    btnUsers: document.getElementById('btnUsers'),
+    btnLogout: document.getElementById('btnLogout'),
+    
+    // Camera Elements
+    cameraView: document.getElementById('cameraView'),
+    videoElement: document.getElementById('videoElement'),
+    canvasElement: document.getElementById('canvasElement'), // Adicionado
+    scanOverlay: document.querySelector('.scan-overlay'),
+    scanLine: document.querySelector('.scan-line'),
+    btnTorch: document.getElementById('btnTorch'),
+    cameraSelect: document.getElementById('cameraSelect'),
+    btnBackCamera: document.getElementById('btnBackCamera')
+};
+
+// Mapa
+let leafletMap = null;
+
+// =========================================================
+//                  GERENCIAMENTO DE VISUALIZAÇÃO/LAYOUT
+// =========================================================
+
+/** Alterna a visibilidade da sidebar em mobile. */
+window.toggleSidebar = function() {
+    elements.sidebar.classList.toggle('active');
+};
+
+/** Renderiza uma visualização na área de conteúdo principal. */
+function renderView(viewName, data = null) {
+    if (elements.sidebar.classList.contains('active')) {
+        toggleSidebar(); // Fecha a sidebar no mobile após a seleção
+    }
+    appState.currentView = viewName;
+    elements.contentArea.innerHTML = '';
+    
+    // Remove a classe 'active' de todos os botões de navegação
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.style.background = 'transparent';
+        btn.style.color = 'var(--muted)';
+    });
+
+    let activeBtn = document.getElementById(`btn${capitalize(viewName)}`);
+    if (activeBtn) {
+        activeBtn.style.background = 'rgba(56, 189, 248, 0.2)';
+        activeBtn.style.color = 'var(--accent)';
+    }
+
+    // Lógica para fechar a câmera se estiver aberta
+    if (elements.cameraView.classList.contains('active')) {
+        stopCamera();
+    }
+    elements.cameraView.classList.add('hidden');
+    elements.appContainer.classList.remove('hidden');
+
+    switch (viewName) {
+        case 'dashboard':
+            renderDashboard();
+            break;
+        case 'map':
+            renderMap();
+            break;
+        case 'routes':
+            renderRoutes();
+            break;
+        case 'users':
+            if (appState.currentUser.isAdmin) renderUsers();
+            break;
+        default:
+            elements.contentArea.innerHTML = '<h2>Página Não Encontrada</h2>';
+    }
+}
+
+/** Exibe um feedback (toast) temporário na tela. */
+function showFeedback(message, type = 'success') {
+    elements.feedbackMsg.textContent = message;
+    elements.feedbackMsg.style.background = type === 'success' ? 'var(--success)' : 'var(--danger)';
+    elements.feedbackMsg.classList.remove('hidden');
+    elements.feedbackMsg.style.display = 'block';
+
+    setTimeout(() => {
+        elements.feedbackMsg.classList.add('hidden');
+        elements.feedbackMsg.style.display = 'none';
+    }, 4000);
+}
+
+// =========================================================
+//                  AUTENTICAÇÃO E INICIALIZAÇÃO
+// =========================================================
+
+/** Lógica de login. */
+function handleLogin() {
+    const user = elements.loginUser.value.toLowerCase().trim();
+    const pass = elements.loginPass.value;
+
+    const userData = usersDB[user];
+
+    if (userData && userData.pass === pass) {
+        appState.isAuthenticated = true;
+        appState.currentUser = { 
+            username: user, 
+            name: userData.name, 
+            isAdmin: userData.isAdmin 
+        };
+        elements.loginError.textContent = '';
+        initializeApp();
+    } else {
+        elements.loginError.textContent = 'Usuário ou senha inválidos.';
+    }
+}
+
+/** Lógica de logout. */
+function handleLogout() {
+    stopCamera();
+    appState.isAuthenticated = false;
+    appState.currentUser = null;
+    elements.appContainer.classList.add('hidden');
+    elements.mobileMenuBtn.classList.add('hidden');
+    elements.loginSection.style.display = 'flex';
+    elements.loginPass.value = '';
+}
+
+/** Inicializa a interface após o login. */
+function initializeApp() {
+    elements.loginSection.style.display = 'none';
+    elements.appContainer.classList.remove('hidden');
+    elements.mobileMenuBtn.classList.remove('hidden');
+    elements.displayUser.textContent = appState.currentUser.name;
+
+    // Configura menu de Administrador
+    if (appState.currentUser.isAdmin) {
+        elements.adminMenuOptions.classList.remove('hidden');
+        elements.userFilterSelect.classList.remove('hidden');
+        
+        // Popula o filtro de usuários
+        const allUsers = Object.keys(usersDB);
+        elements.userFilterSelect.innerHTML = `<option value="all">Todos os Motoristas</option>`;
+        allUsers.forEach(user => {
+            if (!usersDB[user].isAdmin) {
+                 elements.userFilterSelect.innerHTML += `<option value="${user}">${usersDB[user].name}</option>`;
+            }
+        });
+    } else {
+        elements.adminMenuOptions.classList.add('hidden');
+        elements.userFilterSelect.classList.add('hidden');
+    }
+
+    renderView('dashboard');
+}
+
+// =========================================================
+//                  CÂMERA E SCANNER QR CODE
+// =========================================================
+
+/** Beep sound for successful scan */
+function beep(freq = 1200, duration = 100, vol = 0.1) {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.frequency.value = freq;
-      gain.gain.value = vol;
-      osc.start();
-      setTimeout(() => { 
-        osc.stop(); 
-        audioCtx.close(); 
-      }, duration);
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = freq;
+        gain.gain.value = vol;
+        osc.start();
+        setTimeout(() => { 
+            osc.stop(); 
+            audioCtx.close(); 
+        }, duration);
     } catch (e) {}
-  }, []);
+}
 
-  // Load jsQR on mount
-  useEffect(() => {
-    loadJsQR()
-      .then(() => setJsQRLoaded(true))
-      .catch(() => setError('Erro ao carregar biblioteca de QR Code'));
-  }, []);
-
-  // Enumerate video devices
-  const enumerateDevices = useCallback(async () => {
+/** Encontra todos os dispositivos de vídeo disponíveis. */
+async function enumerateDevices() {
     try {
-      // Solicitar permissão para garantir que as labels dos dispositivos sejam populadas
-      await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      
-      const devs = await navigator.mediaDevices.enumerateDevices();
-      const videoDevs = devs.filter(d => d.kind === 'videoinput');
-      setDevices(videoDevs);
-      return videoDevs;
+        // Pede permissão para garantir que as labels estejam disponíveis
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); 
+        
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        appState.videoDevices = devs.filter(d => d.kind === 'videoinput');
+        
+        // Popula o <select> de câmeras
+        elements.cameraSelect.innerHTML = appState.videoDevices.map(
+            (d, i) => `<option value="${d.deviceId}">${d.label || `Câmera ${i + 1}`}</option>`
+        ).join('');
+
+        if (appState.videoDevices.length > 0) {
+             elements.cameraSelect.classList.remove('hidden');
+             // Tenta selecionar a câmera traseira (environment) automaticamente
+             const backCamera = appState.videoDevices.find(d => 
+                d.label.toLowerCase().includes('back') || 
+                d.label.toLowerCase().includes('environment') || 
+                d.label.toLowerCase().includes('traseira')
+             );
+             appState.currentDeviceId = backCamera ? backCamera.deviceId : appState.videoDevices[0].deviceId;
+             elements.cameraSelect.value = appState.currentDeviceId;
+        } else {
+             elements.cameraSelect.classList.add('hidden');
+        }
+
     } catch (e) {
-      console.error("Erro ao enumerar dispositivos: ", e);
-      return [];
+        console.error("Erro ao enumerar dispositivos: ", e);
     }
-  }, []);
+}
 
-  // Draw scan area overlay (Adaptado para renderização do React)
-  const drawOverlay = useCallback((qrLocation = null) => {
-    const overlay = overlayRef.current;
-    const video = videoRef.current;
-    if (!overlay || !video) return;
+/** Inicia o stream da câmera e o loop de escaneamento. */
+async function startCamera(deviceId = appState.currentDeviceId) {
+    stopCamera(); // Garante que qualquer stream anterior seja parado
+
+    elements.appContainer.classList.add('hidden');
+    elements.cameraView.classList.remove('hidden');
+
+    try {
+        const isMobile = window.innerWidth <= 768;
+        
+        let constraints = {
+            video: deviceId 
+                ? { deviceId: { exact: deviceId } }
+                : { 
+                    facingMode: isMobile ? 'environment' : 'user', 
+                    width: { ideal: 1280 }, 
+                    height: { ideal: 720 } 
+                  },
+            audio: false
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        appState.stream = stream;
+
+        elements.videoElement.srcObject = stream;
+        elements.videoElement.setAttribute('playsinline', 'true');
+        await elements.videoElement.play();
+
+        // Verifica o Flash/Torch
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+            try {
+                const caps = track.getCapabilities();
+                appState.hasTorch = caps && caps.torch;
+                elements.btnTorch.classList.toggle('hidden', !appState.hasTorch);
+            } catch (e) {
+                appState.hasTorch = false;
+                elements.btnTorch.classList.add('hidden');
+            }
+        }
+        
+        appState.currentDeviceId = deviceId;
+        elements.cameraSelect.value = deviceId;
+
+        appState.rafId = requestAnimationFrame(scanLoop);
+
+    } catch (err) {
+        console.error('Camera error:', err);
+        showFeedback('Erro ao iniciar câmera: ' + err.name, 'danger');
+        elements.cameraView.classList.add('hidden');
+        elements.appContainer.classList.remove('hidden');
+    }
+}
+
+/** Para o stream da câmera e o loop de escaneamento. */
+function stopCamera() {
+    if (appState.rafId) {
+        cancelAnimationFrame(appState.rafId);
+        appState.rafId = null;
+    }
+    if (appState.stream) {
+        appState.stream.getTracks().forEach(track => track.stop());
+        appState.stream = null;
+    }
+    elements.videoElement.srcObject = null;
+    appState.torchOn = false;
+    elements.btnTorch.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+    appState.lastScan = { code: '', time: 0 };
+}
+
+/** Loop principal de escaneamento (chamado via requestAnimationFrame). */
+function scanLoop() {
+    const video = elements.videoElement;
+    const canvas = elements.canvasElement;
     
-    // Usa as dimensões de renderização do elemento de vídeo na tela
-    const w = video.clientWidth;
-    const h = video.clientHeight;
-
-    // Configura o canvas do overlay para corresponder ao vídeo
-    overlay.width = w;
-    overlay.height = h;
-
-    const ctx = overlay.getContext('2d');
-    ctx.clearRect(0, 0, w, h);
-
-    // Draw semi-transparent overlay outside scan area
-    const boxSize = Math.min(w, h) * 0.65;
-    const x = (w - boxSize) / 2;
-    const y = (h - boxSize) / 2;
-
-    // Darken areas outside scan box
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(0, 0, w, y);
-    ctx.fillRect(0, y + boxSize, w, h - y - boxSize);
-    ctx.fillRect(0, y, x, boxSize);
-    ctx.fillRect(x + boxSize, y, w - x - boxSize, boxSize);
-
-    // Draw scan box border and corners
-    ctx.strokeStyle = 'rgba(139, 92, 246, 0.8)';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x, y, boxSize, boxSize);
-
-    // Draw corner markers
-    const cornerLen = 30;
-    ctx.strokeStyle = '#8b5cf6';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    // Top-left
-    ctx.beginPath();
-    ctx.moveTo(x, y + cornerLen);
-    ctx.lineTo(x, y);
-    ctx.lineTo(x + cornerLen, y);
-    ctx.stroke();
-    // Top-right
-    ctx.beginPath();
-    ctx.moveTo(x + boxSize - cornerLen, y);
-    ctx.lineTo(x + boxSize, y);
-    ctx.lineTo(x + boxSize, y + cornerLen);
-    ctx.stroke();
-    // Bottom-left
-    ctx.beginPath();
-    ctx.moveTo(x, y + boxSize - cornerLen);
-    ctx.lineTo(x, y + boxSize);
-    ctx.lineTo(x + cornerLen, y + boxSize);
-    ctx.stroke();
-    // Bottom-right
-    ctx.beginPath();
-    ctx.moveTo(x + boxSize - cornerLen, y + boxSize);
-    ctx.lineTo(x + boxSize, y + boxSize);
-    ctx.lineTo(x + boxSize, y + boxSize - cornerLen);
-    ctx.stroke();
-
-    // Draw QR code bounding box if detected (green highlight)
-    if (qrLocation) {
-      ctx.strokeStyle = '#22c55e';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(qrLocation.topLeftCorner.x, qrLocation.topLeftCorner.y);
-      ctx.lineTo(qrLocation.topRightCorner.x, qrLocation.topRightCorner.y);
-      ctx.lineTo(qrLocation.bottomRightCorner.x, qrLocation.bottomRightCorner.y);
-      ctx.lineTo(qrLocation.bottomLeftCorner.x, qrLocation.bottomLeftCorner.y);
-      ctx.closePath();
-      ctx.stroke();
-    }
-  }, []);
-
-  // Scan loop using jsQR
-  const scanLoop = useCallback(() => {
-    if (!isScanning || !jsQRLoaded || !window.jsQR) {
-      rafRef.current = requestAnimationFrame(scanLoop);
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    
-    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) {
-      drawOverlay(null); 
-      rafRef.current = requestAnimationFrame(scanLoop);
-      return;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        appState.rafId = requestAnimationFrame(scanLoop);
+        return;
     }
 
     const ctx = canvas.getContext('2d');
-    const vw = video.videoWidth; // Resolução real do vídeo
+    const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const videoRect = video.getBoundingClientRect(); // Dimensões do elemento na tela
 
-    // Configura o canvas escondido
+    if (!vw || !vh) {
+        appState.rafId = requestAnimationFrame(scanLoop);
+        return;
+    }
+
+    // Oculta o canvas, mas usa suas dimensões
     canvas.width = vw;
     canvas.height = vh;
     ctx.drawImage(video, 0, 0, vw, vh);
 
-    // --- Lógica de Escaneamento: Área de 90% Centralizada ---
-    const scanSize = Math.min(vw, vh) * 0.9;
-    const sx = (vw - scanSize) / 2;
-    const sy = (vh - scanSize) / 2;
-    const imageData = ctx.getImageData(sx, sy, scanSize, scanSize);
+    // Scan center 90% area for better QR detection
+    const size = Math.min(vw, vh) * 0.9;
+    const sx = (vw - size) / 2;
+    const sy = (vh - size) / 2;
+    const imageData = ctx.getImageData(sx, sy, size, size);
 
+    // jsQR é carregado no index.html (defer)
     const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'attemptBoth'
+        inversionAttempts: 'attemptBoth'
     });
-    // --- Fim da Lógica de Escaneamento ---
 
     if (code && code.data) {
-      const scaleX = videoRect.width / vw;
-      const scaleY = videoRect.height / vh;
-
-      // Mapeia coordenadas do QR (lidas na ImageData centralizada) para as coordenadas de tela
-      const mapCorner = (pt) => ({
-        x: Math.round((pt.x + sx) * scaleX),
-        y: Math.round((pt.y + sy) * scaleY)
-      });
-
-      const mappedLocation = code.location ? {
-        topLeftCorner: mapCorner(code.location.topLeftCorner),
-        topRightCorner: mapCorner(code.location.topRightCorner),
-        bottomLeftCorner: mapCorner(code.location.bottomLeftCorner),
-        bottomRightCorner: mapCorner(code.location.bottomRightCorner)
-      } : null;
-
-      drawOverlay(mappedLocation);
-
-      const now = Date.now();
-      const qrData = code.data.trim();
-
-      // Prevenção de duplicatas com delay de 1 segundo
-      if (qrData !== lastScanRef.current.code || (now - lastScanRef.current.time) >= SCAN_DELAY) {
-        lastScanRef.current = { code: qrData, time: now };
-
-        // Feedback sonoro e vibratório
-        beep();
-        if (navigator.vibrate) navigator.vibrate(80);
-        toast.success(`Código detectado: ${qrData.substring(0, 15)}...`);
-
-        // Process the QR data
-        handleQRDetected(qrData);
-      }
+        handleQRDetected(code.data.trim());
+        // Desenha a linha verde na área de scan
+        elements.scanLine.style.background = 'var(--success)'; 
     } else {
-      drawOverlay(null);
+        // Volta a linha para a cor de acento
+        elements.scanLine.style.background = 'var(--accent)'; 
     }
 
-    rafRef.current = requestAnimationFrame(scanLoop);
-  }, [isScanning, jsQRLoaded, beep, drawOverlay]);
+    appState.rafId = requestAnimationFrame(scanLoop);
+}
 
-  // Handle QR code detection - extract data and send to parent
-  const handleQRDetected = async (rawData) => {
-    if (isProcessing) return; 
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-
-    // Redraw final frame onto the hidden canvas for capture
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-
-    canvas.toBlob(async (blob) => {
-      if (blob) {
-        const file = new File([blob], 'qr_capture.jpg', { type: 'image/jpeg' });
-        // Pass both the raw QR data and the image to parent
-        onScan(file, rawData);
-      }
-    }, 'image/jpeg', 0.95);
-  };
-
-  // Start camera
-  const startCamera = useCallback(async (deviceId = null) => {
-    if (!jsQRLoaded || isCameraStarting) return;
-    setIsCameraStarting(true);
-
-    // Stop existing stream first
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-
-    try {
-      setError(null);
-
-      const deviceIdToUse = deviceId || currentDeviceId;
-      
-      const isMobile = window.innerWidth <= 768;
-      let constraints = {
-        video: deviceIdToUse 
-          ? { deviceId: { exact: deviceIdToUse } }
-          : { 
-              // Seleção automática: Prioriza a câmera traseira no mobile
-              facingMode: isMobile ? 'environment' : 'user', 
-              width: { ideal: 1280 }, 
-              height: { ideal: 720 } 
-            },
-        audio: false
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        await videoRef.current.play();
-      }
-
-      // Check torch capability
-      const track = stream.getVideoTracks()[0];
-      if (track) {
-        try {
-          const caps = track.getCapabilities();
-          setHasTorch(caps && caps.torch);
-        } catch (e) {
-          setHasTorch(false);
-        }
-      }
-
-      // Auto-seleção de câmera traseira (Executa apenas na primeira chamada)
-      if (!deviceId && devices.length === 0) {
-        const devs = await enumerateDevices();
-        
-        if (devs.length > 1) {
-          const backCamera = devs.find(d => 
-            d.label.toLowerCase().includes('back') || 
-            d.label.toLowerCase().includes('environment') || 
-            d.label.toLowerCase().includes('traseira')
-          );
-          
-          if (backCamera && backCamera.deviceId !== deviceIdToUse) {
-            // Reinicia com a câmera traseira
-            setCurrentDeviceId(backCamera.deviceId);
-            setIsCameraStarting(false);
-            return;
-          }
-        }
-        if(devs.length > 0) setCurrentDeviceId(devs[0].deviceId);
-      }
-
-      setIsScanning(true);
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-      rafRef.current = requestAnimationFrame(scanLoop);
-
-    } catch (err) {
-      console.error('Camera error:', err);
-      setError('Erro ao acessar câmera: ' + err.message + '. Verifique as permissões do navegador.');
-      stopCamera();
-    } finally {
-      setIsCameraStarting(false);
-    }
-  }, [jsQRLoaded, isCameraStarting, currentDeviceId, enumerateDevices, devices.length, scanLoop]);
-
-  // Stop camera
-  const stopCamera = useCallback(() => {
-    setIsScanning(false);
+/** Processa o QR Code detectado. */
+function handleQRDetected(qrData) {
+    const now = Date.now();
     
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+    // Prevenção de duplicatas com delay
+    if (qrData === appState.lastScan.code && (now - appState.lastScan.time) < appState.SCAN_DELAY) {
+        return;
     }
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+    // Prepara o feedback
+    beep(1000, 80);
+    if (navigator.vibrate) navigator.vibrate(80);
+    showFeedback(`📦 Etiqueta: ${qrData.substring(0, 25)}...`, 'success');
+
+    appState.lastScan = { code: qrData, time: now };
+    
+    // --- LÓGICA DE NEGÓCIO: SALVAR ENTREGA ---
+    saveDelivery(qrData);
+
+    // Simula a captura de foto (opcional: para processamento de AI)
+    // captureFrameAndSend(qrData); 
+}
+
+/** Salva a entrega na lista simulada. */
+function saveDelivery(qrData) {
+    const newDelivery = {
+        id: generateId(),
+        code: qrData,
+        timestamp: new Date().toISOString(),
+        user: appState.currentUser.username,
+        userName: appState.currentUser.name,
+        status: 'Scanned',
+        location: { lat: -23.5505, lng: -46.6333 } // Simula localização de SP
+    };
+    deliveries.unshift(newDelivery); // Adiciona no início
+    
+    // Atualiza a dashboard se estiver aberta
+    if (appState.currentView === 'dashboard') {
+        renderDashboard();
     }
+}
 
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.srcObject = null;
-    }
+/** Alterna o flash/torch. */
+async function toggleTorch() {
+    if (!appState.stream || !appState.hasTorch) return;
 
-    setTorchOn(false);
-    lastScanRef.current = { code: '', time: 0 };
-  }, []);
-
-  // Switch camera
-  const switchCamera = useCallback(async () => {
-    if (devices.length < 2) return;
-
-    const currentIndex = devices.findIndex(d => d.deviceId === currentDeviceId);
-    const nextIndex = (currentIndex + 1) % devices.length;
-    const nextDevice = devices[nextIndex];
-
-    stopCamera();
-    setCurrentDeviceId(nextDevice.deviceId);
-  }, [devices, currentDeviceId, stopCamera]);
-
-  // Toggle torch/flash
-  const toggleTorch = useCallback(async () => {
-    if (!streamRef.current || !hasTorch) return;
-
-    const track = streamRef.current.getVideoTracks()[0];
+    const track = appState.stream.getVideoTracks()[0];
     if (!track) return;
 
     try {
-      await track.applyConstraints({
-        advanced: [{ torch: !torchOn }]
-      });
-      setTorchOn(!torchOn);
+        const newTorchState = !appState.torchOn;
+        await track.applyConstraints({
+            advanced: [{ torch: newTorchState }]
+        });
+        appState.torchOn = newTorchState;
+        elements.btnTorch.style.backgroundColor = newTorchState ? 'var(--accent)' : 'rgba(255, 255, 255, 0.2)';
     } catch (e) {
-      console.warn('Torch toggle failed:', e);
+        console.warn('Torch toggle failed:', e);
+        showFeedback('Falha ao ligar/desligar o flash.', 'danger');
     }
-  }, [hasTorch, torchOn]);
-
-  // Handle file upload
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onScan(file, null); 
-    }
-    e.target.value = '';
-  };
-
-  // Efeito para reiniciar a câmera se o currentDeviceId mudar (após a troca ou auto-seleção)
-  useEffect(() => {
-    if (currentDeviceId && isScanning) {
-      startCamera(currentDeviceId);
-    }
-  }, [currentDeviceId, isScanning, startCamera]); 
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => stopCamera();
-  }, [stopCamera]);
-
-  return (
-    <Card className="overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-      <div className="p-6">
-        <div className="relative aspect-[4/3] max-w-lg mx-auto rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800">
-          {(isScanning || isCameraStarting) ? (
-            <>
-              {/* CORREÇÃO CRÍTICA: Usar a prop 'ref' */}
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-                onLoadedData={() => {
-                   drawOverlay(null); 
-                }}
-              />
-              {/* CORREÇÃO CRÍTICA: Usar a prop 'ref' */}
-              <canvas 
-                ref={overlayRef}
-                className="absolute inset-0 w-full h-full pointer-events-none"
-              />
-
-              {/* Scanning indicator */}
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-white text-xs font-medium">Escaneando...</span>
-              </div>
-
-              {/* Controls */}
-              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
-                {devices.length > 1 && (
-                  <Button
-                    onClick={switchCamera}
-                    size="icon"
-                    variant="secondary"
-                    className="rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 border-0 h-12 w-12"
-                    disabled={isProcessing}
-                  >
-                    <SwitchCamera className="w-5 h-5 text-white" />
-                  </Button>
-                )}
-
-                {hasTorch && (
-                  <Button
-                    onClick={toggleTorch}
-                    size="icon"
-                    variant="secondary"
-                    className={`rounded-full backdrop-blur-sm border-0 h-12 w-12 ${
-                      torchOn ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-white/20 hover:bg-white/30'
-                    }`}
-                    title="Flash"
-                    disabled={isProcessing}
-                  >
-                    <Zap className={`w-5 h-5 text-white`} />
-                  </Button>
-                )}
-
-                <Button
-                  onClick={stopCamera}
-                  size="icon"
-                  variant="secondary"
-                  className="rounded-full bg-red-500/80 backdrop-blur-sm hover:bg-red-600 border-0 h-12 w-12"
-                  disabled={isProcessing}
-                >
-                  <X className="w-5 h-5 text-white" />
-                </Button>
-              </div>
-
-              {(isProcessing || isCameraStarting) && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-violet-400 animate-spin" />
-                    <span className="text-white font-medium">{isCameraStarting ? 'Abrindo Câmera...' : 'Processando...'}</span>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-8">
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
-                <Camera className="w-12 h-12 text-white" />
-              </div>
-              <div className="text-center">
-                <h3 className="text-white font-semibold text-lg mb-2">Scanner de QR Code</h3>
-                <p className="text-slate-400 text-sm">
-                  Escaneie etiquetas Shopee e Mercado Livre
-                </p>
-                <p className="text-slate-500 text-xs mt-2">
-                  Leitura automática em tempo real
-                </p>
-              </div>
-              {error && (
-                <p className="text-red-400 text-sm text-center">{error}</p>
-              )}
-              {!jsQRLoaded && (
-                <div className="flex items-center gap-2 text-slate-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Carregando biblioteca...</span>
-                </div>
-              )}
-              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
-                <Button
-                  onClick={() => startCamera()}
-                  disabled={!jsQRLoaded || isProcessing}
-                  className="flex-1 bg-violet-500 hover:bg-violet-600 rounded-xl h-12"
-                >
-                  <Camera className="w-5 h-5 mr-2" />
-                  Abrir Câmera
-                </Button>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="outline"
-                  className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800 rounded-xl h-12"
-                  disabled={isProcessing}
-                >
-                  <Upload className="w-5 h-5 mr-2" />
-                  Upload
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Hidden canvases */}
-        {/* CORREÇÃO CRÍTICA: Usar a prop 'ref' */}
-        <canvas ref={canvasRef} className="hidden" />
-        <input
-          /* CORREÇÃO CRÍTICA: Usar a prop 'ref' */
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-      </div>
-    </Card>
-  );
 }
+
+// =========================================================
+//                  GERENCIAMENTO DE CONTEÚDO
+// =========================================================
+
+/** Renderiza a visualização principal de Entregas. */
+function renderDashboard() {
+    let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; color:var(--content-text-dark)">
+            <h2>📦 Entregas Recentes</h2>
+            <span style="font-size:14px; color:var(--muted)">Últimas ${deliveries.length} leituras</span>
+        </div>
+        <div id="deliveriesList" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:15px;">
+    `;
+
+    if (deliveries.length === 0) {
+        html += `<div style="grid-column:1/-1; text-align:center; padding:50px; color:var(--muted)">Nenhuma entrega escaneada ainda.</div>`;
+    } else {
+        deliveries.forEach(d => {
+            html += `
+                <div class="user-form-card" style="border-left: 4px solid var(--accent); padding: 15px;">
+                    <div style="font-size:12px; color:var(--muted)">Motorista: ${d.userName}</div>
+                    <strong style="display:block; margin-bottom:5px; font-size:16px; color:var(--content-text-dark)">${d.code.substring(0, 30)}...</strong>
+                    <div style="font-size:14px; color:var(--muted)">Status: <span style="color:var(--success)">${d.status}</span></div>
+                    <div style="font-size:14px; color:var(--muted)">Data: ${new Date(d.timestamp).toLocaleString('pt-BR')}</div>
+                </div>
+            `;
+        });
+    }
+
+    html += `</div>`;
+    elements.contentArea.innerHTML = html;
+}
+
+/** Renderiza a visualização do Mapa. */
+function renderMap() {
+    elements.contentArea.innerHTML = `
+        <h2 style="color:var(--content-text-dark); margin-bottom:15px">🗺️ Rastreamento de Entregas</h2>
+        <div id="mapContainer" style="height: 600px; width: 100%; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></div>
+    `;
+
+    // Inicializa ou atualiza o mapa
+    if (leafletMap) {
+        leafletMap.remove();
+    }
+    
+    // Coordenada central (se houver entregas, usa a primeira, senão usa SP)
+    const center = deliveries.length > 0 
+        ? [deliveries[0].location.lat, deliveries[0].location.lng] 
+        : [-23.5505, -46.6333]; 
+
+    leafletMap = L.map('mapContainer').setView(center, 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(leafletMap);
+    
+    deliveries.forEach(d => {
+        L.marker([d.location.lat, d.location.lng])
+            .addTo(leafletMap)
+            .bindPopup(`<b>${d.code.substring(0, 15)}...</b><br>Motorista: ${d.userName}`);
+    });
+}
+
+/** Renderiza a visualização de Geração de Rotas (Mockup). */
+function renderRoutes() {
+    elements.contentArea.innerHTML = `
+        <h2 style="color:var(--content-text-dark); margin-bottom:15px">🧭 Gerar Rotas Otimizadas</h2>
+        <div class="user-form-card">
+            <p style="color:var(--content-text-dark); margin-bottom:15px">Funcionalidade de Otimização de Rotas (A ser implementada).</p>
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--content-text-dark)">Ponto de Partida</label>
+            <input type="text" placeholder="Endereço ou Coordenadas" class="main-input" style="margin-bottom:15px">
+            
+            <label style="display:block; margin-bottom:5px; font-size:14px; color:var(--content-text-dark)">Entregas a Otimizar</label>
+            <select style="margin-bottom:15px">
+                <option>Entregas de Hoje (${deliveries.length})</option>
+                <option>Entregas do Motorista A</option>
+            </select>
+            
+            <button class="btn-primary" style="width:100%">Calcular Melhor Rota</button>
+        </div>
+    `;
+}
+
+/** Renderiza o CRUD de Usuários (Admin). */
+function renderUsers() {
+    let html = `
+        <h2 style="color:var(--content-text-dark); margin-bottom:15px">👥 Gerenciamento de Usuários</h2>
+        <div id="addUserForm" class="user-form-card" style="margin-bottom: 25px;">
+            <h3 style="margin-top:0; color:var(--content-text-dark)">+ Adicionar Novo Usuário</h3>
+            <input type="text" id="newUsername" placeholder="Usuário (login)" class="main-input">
+            <input type="text" id="newName" placeholder="Nome Completo" class="main-input">
+            <input type="password" id="newPassword" placeholder="Senha" class="main-input">
+            <select id="newIsAdmin" class="main-input">
+                <option value="false">Motorista</option>
+                <option value="true">Administrador</option>
+            </select>
+            <button class="btn-primary" id="btnSaveUser" style="width:100%; margin-top:10px;">Salvar Usuário</button>
+        </div>
+        <div id="usersList">
+            ${renderUsersList()}
+        </div>
+    `;
+    elements.contentArea.innerHTML = html;
+    
+    // Adiciona evento ao botão Salvar
+    document.getElementById('btnSaveUser').onclick = handleSaveUser;
+    
+    // Adiciona eventos aos botões de edição/exclusão após a renderização
+    document.querySelectorAll('.edit-user-btn').forEach(btn => btn.onclick = handleEditUser);
+    document.querySelectorAll('.delete-user-btn').forEach(btn => btn.onclick = handleDeleteUser);
+}
+
+/** Helper para renderizar a lista de usuários. */
+function renderUsersList() {
+    let listHtml = '';
+    for (const username in usersDB) {
+        const user = usersDB[username];
+        listHtml += `
+            <div class="user-form-card" data-username="${username}" style="display:flex; justify-content:space-between; align-items:center; padding: 15px;">
+                <div>
+                    <strong style="display:block; font-size:16px; color:var(--content-text-dark)">${user.name}</strong>
+                    <div style="font-size:14px; color:var(--muted)">Login: ${username} | Tipo: ${user.isAdmin ? 'Admin' : 'Motorista'}</div>
+                </div>
+                <div>
+                    <button class="edit-user-btn" data-username="${username}" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:8px 12px; margin-right:5px">✏️ Editar</button>
+                    <button class="delete-user-btn" data-username="${username}" style="background:rgba(239, 68, 68, 0.2); color:var(--danger); padding:8px 12px;">🗑️ Excluir</button>
+                </div>
+            </div>
+        `;
+    }
+    return listHtml;
+}
+
+/** Lógica para salvar/atualizar usuário. */
+function handleSaveUser() {
+    const username = document.getElementById('newUsername').value.trim().toLowerCase();
+    const name = document.getElementById('newName').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const isAdmin = document.getElementById('newIsAdmin').value === 'true';
+    
+    if (!username || !name || !password) {
+        showFeedback('Preencha todos os campos.', 'danger');
+        return;
+    }
+
+    if (usersDB[username]) {
+        showFeedback('Usuário de login já existe.', 'danger');
+        return;
+    }
+
+    usersDB[username] = { pass: password, isAdmin: isAdmin, name: name };
+    showFeedback(`Usuário ${name} adicionado com sucesso!`);
+    
+    // Limpa o formulário e re-renderiza a lista
+    document.getElementById('newUsername').value = '';
+    document.getElementById('newName').value = '';
+    document.getElementById('newPassword').value = '';
+    document.getElementById('usersList').innerHTML = renderUsersList();
+}
+
+/** Lógica para excluir usuário. */
+function handleDeleteUser(event) {
+    const usernameToDelete = event.currentTarget.dataset.username;
+    
+    if (usernameToDelete === appState.currentUser.username) {
+        showFeedback('Você não pode excluir seu próprio usuário.', 'danger');
+        return;
+    }
+    
+    if (confirm(`Tem certeza que deseja excluir o usuário ${usersDB[usernameToDelete].name}?`)) {
+        delete usersDB[usernameToDelete];
+        showFeedback(`Usuário ${usernameToDelete} excluído.`);
+        document.getElementById('usersList').innerHTML = renderUsersList();
+    }
+}
+
+/** Lógica de Exportação (Simulação de CSV). */
+function handleExport() {
+    elements.exportOptions.style.display = elements.exportOptions.style.display === 'flex' ? 'none' : 'flex';
+}
+
+function createCSV(data, filename) {
+    if (data.length === 0) {
+        showFeedback('Nenhum dado para exportar.', 'danger');
+        return;
+    }
+    
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(obj => Object.values(obj).map(v => `"${v}"`).join(',')).join('\n');
+    
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + '\n' + rows);
+    
+    const link = document.createElement('a');
+    link.setAttribute('href', csvContent);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showFeedback(`Exportação ${filename} concluída!`, 'success');
+}
+
+function handleExportFilter(period) {
+    let filteredData = deliveries;
+    const now = new Date();
+    
+    if (period === 'daily') {
+        filteredData = deliveries.filter(d => {
+            const deliveryDate = new Date(d.timestamp);
+            return deliveryDate.toDateString() === now.toDateString();
+        });
+    } else if (period === 'weekly') {
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+        filteredData = deliveries.filter(d => new Date(d.timestamp) >= startOfWeek);
+    } else if (period === 'monthly') {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        filteredData = deliveries.filter(d => new Date(d.timestamp) >= startOfMonth);
+    }
+    
+    createCSV(filteredData, `pegazus_entregas_${period}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`);
+}
+
+
+// =========================================================
+//                  EVENT LISTENERS
+// =========================================================
+
+// Função auxiliar para capitalizar a primeira letra
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Inicializa os dispositivos da câmera (precisa de permissão do usuário)
+    await enumerateDevices(); 
+
+    // 2. Eventos de Autenticação
+    elements.btnLogin.addEventListener('click', handleLogin);
+    elements.loginPass.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleLogin();
+    });
+    elements.btnLogout.addEventListener('click', handleLogout);
+
+    // 3. Eventos de Navegação
+    elements.btnDashboard.addEventListener('click', () => renderView('dashboard'));
+    elements.btnMap.addEventListener('click', () => renderView('map'));
+    elements.btnRoutes.addEventListener('click', () => renderView('routes'));
+    elements.btnUsers.addEventListener('click', () => renderView('users'));
+    elements.btnScanMode.addEventListener('click', startCamera);
+    elements.btnBackCamera.addEventListener('click', () => renderView('dashboard'));
+
+    // 4. Eventos do Scanner
+    elements.btnTorch.addEventListener('click', toggleTorch);
+    elements.cameraSelect.addEventListener('change', (e) => {
+        appState.currentDeviceId = e.target.value;
+        startCamera(appState.currentDeviceId);
+    });
+
+    // 5. Eventos de Exportação
+    elements.btnExport.addEventListener('click', handleExport);
+    elements.btnExportDaily.addEventListener('click', () => handleExportFilter('daily'));
+    elements.btnExportWeekly.addEventListener('click', () => handleExportFilter('weekly'));
+    elements.btnExportMonthly.addEventListener('click', () => handleExportFilter('monthly'));
+    elements.btnExportAll.addEventListener('click', () => handleExportFilter('all'));
+});
+
+// Garante que o estado inicial esteja correto (apenas login visível)
+elements.appContainer.classList.add('hidden');
+elements.cameraView.classList.add('hidden');
+elements.loginSection.style.display = 'flex';
