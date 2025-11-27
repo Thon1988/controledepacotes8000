@@ -1,6 +1,3 @@
-// O código JavaScript (app.js) foi atualizado apenas nas funções de login/logout
-// para gerenciar a visibilidade dos novos elementos de layout.
-
 document.addEventListener('DOMContentLoaded', () => {
     
     /* --- Configurações e Estado --- */
@@ -31,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'), // Adicionado
+        appContainer: document.querySelector('.app'),
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -41,11 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
+        userFilterSelect: document.getElementById('userFilterSelect'), // NOVO
     };
 
     /* --- Inicialização e Storage --- */
     function loadUsers() {
-        // ... (Lógica de carregamento de usuários mantida) ...
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
         if(!raw) {
             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
@@ -67,10 +64,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveUsers() {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     }
+    
+    /* NOVO: Popula o seletor de usuários */
+    function populateUserFilter() {
+        const isManager = currentUser.role === 'admin' || currentUser.role === 'gestor';
+
+        if (isManager) {
+            let options = '<option value="all">Todos os Usuários</option>';
+            users.forEach(u => {
+                options += `<option value="${u.username}">${u.username} (${u.role})</option>`;
+            });
+            dom.userFilterSelect.innerHTML = options;
+            dom.userFilterSelect.classList.remove('hidden');
+        } else {
+            dom.userFilterSelect.classList.add('hidden');
+        }
+    }
 
     /* --- Geolocalização (Localização do Usuário) --- */
     function startGeolocation() {
-        // ... (Lógica de Geolocation mantida) ...
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(
                 (position) => {
@@ -101,18 +113,19 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             
-            // NOVO: Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden'); 
             
             if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
             
+            // Administradores e Gestores veem o menu de Usuários
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
             } else {
                 dom.adminMenuOptions.classList.add('hidden');
             }
 
+            populateUserFilter(); // NOVO: Popula o filtro
             renderDashboard();
             document.getElementById('loginError').textContent = '';
             startGeolocation();
@@ -125,7 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = null;
         stopScanner();
         
-        // NOVO: Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
         dom.loginSection.classList.remove('hidden'); 
 
@@ -135,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Navegação e Eventos --- */
     function showContent() {
-        // ... (Lógica showContent mantida) ...
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
         
@@ -149,6 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
+            // Se o menu de exportação for fechado, zera o filtro de usuário
+            dom.userFilterSelect.value = 'all';
             dom.exportOptions.style.display = 'none'; 
         }
         dom.feedback.style.opacity = '0'; 
@@ -158,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
         
-        dom.appContainer.style.display = 'none'; // Esconde o grid app
+        dom.appContainer.style.display = 'none';
         
         if(window.innerWidth > 768) {
             dom.sidebar.classList.add('hidden'); 
@@ -193,9 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner --- */
+    /* --- Lógica do Scanner (Mantida) --- */
     async function startScanner(deviceId = null) {
-        // ... (Lógica do scanner mantida, incluindo corte de 90%) ...
+        // ... (startScanner e tick mantidos) ...
         if (isScanning && !deviceId) return;
         stopScanner(); 
         
@@ -238,7 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopScanner() {
-        // ... (Lógica stopScanner mantida) ...
         isScanning = false;
         if (videoStream) {
             videoStream.getTracks().forEach(t => t.stop());
@@ -258,7 +270,6 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = h;
             ctx.drawImage(dom.video, 0, 0, w, w); 
             
-            // Lógica de corte para varrer uma área maior (mantida em 90%)
             const size = Math.min(w, h) * 0.9; 
 
             const sx = (w - size) / 2;
@@ -277,7 +288,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleScan(data) {
-        // ... (Lógica handleScan mantida) ...
         const now = Date.now();
         if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
         
@@ -295,9 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
     }
 
-    /* --- Parsers e Helpers --- */
+    /* --- Parsers e Helpers (Mantido) --- */
     function parsePayload(raw, lat, lon) {
-        // ... (Lógica parsePayload mantida) ...
         let id = raw;
         let type = 'Genérico';
         if (raw.includes('shopee')) { type = 'Shopee'; }
@@ -318,7 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function beep() {
-        // ... (Lógica beep mantida) ...
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = audioCtx.createOscillator();
@@ -333,7 +341,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showFeedback(text) {
-        // ... (Lógica showFeedback mantida) ...
         dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
         dom.feedback.style.opacity = '1';
         setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
@@ -344,7 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
-        // ... (Lógica btnTorch mantida) ...
         if(videoTrack) {
             try {
                 const caps = videoTrack.getCapabilities();
@@ -358,10 +364,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /* --- Views (Renderização) --- */
-    
+    /* --- Views (Renderização Mantida) --- */
     function renderDashboard() {
-        // ... (Lógica renderDashboard mantida) ...
         showContent();
         
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
@@ -388,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderRoutes() {
-        // ... (Lógica renderRoutes mantida) ...
+        // ... (renderRoutes mantido) ...
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
@@ -442,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMap() {
-        // ... (Lógica renderMap mantida) ...
+        // ... (renderMap e updateMapLocation mantido) ...
         showContent();
         mapInstance = null;
         dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
@@ -467,7 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateMapLocation() {
-        // ... (Lógica updateMapLocation mantida) ...
         if (!mapInstance || !userLocation) return;
 
         const currentLocEl = document.getElementById('currentLoc');
@@ -491,9 +494,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
+    /* --- Gerenciamento de Usuários (Mantido) --- */
     function renderUsers() {
-        // ... (Lógica renderUsers mantida) ...
+        // ... (renderUsers, editUser, saveUser, deleteUser mantidos) ...
         showContent();
         
         let userListHtml = `
@@ -536,7 +539,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
-        // ... (Lógica editUser mantida) ...
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
@@ -569,7 +571,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.saveUser = (userId) => {
-        // ... (Lógica saveUser mantida) ...
         const username = document.getElementById('formUsername').value.trim();
         const password = document.getElementById('formPassword').value.trim();
         const role = document.getElementById('formRole').value;
@@ -608,7 +609,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.deleteUser = (userId) => {
-        // ... (Lógica deleteUser mantida) ...
         if (userId === currentUser.id) {
             alert('Você não pode excluir seu próprio perfil enquanto estiver logado.');
             return;
@@ -621,29 +621,45 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
-    /* --- Exportação CSV com Filtros de Data --- */
+    /* --- Exportação CSV com Filtros de Data e Usuário --- */
     function generateCSV(filter) {
-        // ... (Lógica generateCSV mantida) ...
-        let filteredRecords = [];
+        let filteredRecords = scanRecords;
+        let selectedUser = dom.userFilterSelect.value;
+        const isManager = currentUser.role === 'admin' || currentUser.role === 'gestor';
+        
+        // 1. FILTRO POR USUÁRIO
+        if (!isManager) {
+            // Colaborador: exporta apenas seus próprios registros
+            filteredRecords = filteredRecords.filter(r => r.user === currentUser.username);
+            selectedUser = currentUser.username; // Sobrescreve para usar no nome do arquivo
+        } else if (selectedUser && selectedUser !== 'all') {
+            // Admin/Gestor com filtro selecionado
+            filteredRecords = filteredRecords.filter(r => r.user === selectedUser);
+        }
+        // Se for admin/gestor e selectedUser for 'all', todos os registros (filteredRecords = scanRecords) são mantidos.
+
+
+        // 2. FILTRO POR TEMPO
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         if (filter === 'daily') {
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= today);
+            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= today);
         } else if (filter === 'weekly') {
             const oneWeekAgo = new Date(today);
             oneWeekAgo.setDate(today.getDate() - 7);
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneWeekAgo);
+            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= oneWeekAgo);
         } else if (filter === 'monthly') {
             const oneMonthAgo = new Date(today);
             oneMonthAgo.setMonth(today.getMonth() - 1);
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
-        } else {
-            filteredRecords = scanRecords; // 'all'
-        }
+            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= oneMonthAgo);
+        } 
+        // 'all' não aplica filtro de tempo.
 
-        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
+
+        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter} e usuário ${selectedUser}.`);
         
+        // 3. Geração do CSV
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
@@ -652,7 +668,8 @@ document.addEventListener('DOMContentLoaded', () => {
             csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
         });
         
-        const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
+        const usernameTag = selectedUser && selectedUser !== 'all' ? `_${selectedUser}` : '';
+        const filename = `relatorio_pegazus_${filter}${usernameTag}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
         const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
