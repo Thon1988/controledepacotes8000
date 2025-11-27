@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
-        userFilterSelect: document.getElementById('userFilterSelect'), // NOVO
+        userFilterSelect: document.getElementById('userFilterSelect'),
     };
 
     /* --- Inicialização e Storage --- */
@@ -79,9 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             dom.userFilterSelect.classList.add('hidden');
         }
+        // Garante que o filtro volte a 'all' quando reaberto
+        dom.userFilterSelect.value = 'all'; 
     }
 
-    /* --- Geolocalização (Localização do Usuário) --- */
+    /* --- Geolocalização (Localização do Usuário Mantida) --- */
     function startGeolocation() {
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(
@@ -118,14 +120,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
             
-            // Administradores e Gestores veem o menu de Usuários
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
             } else {
                 dom.adminMenuOptions.classList.add('hidden');
             }
 
-            populateUserFilter(); // NOVO: Popula o filtro
+            //populateUserFilter(); // Removido daqui, vai para o clique do botão Exportar CSV
             renderDashboard();
             document.getElementById('loginError').textContent = '';
             startGeolocation();
@@ -160,8 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
-            // Se o menu de exportação for fechado, zera o filtro de usuário
-            dom.userFilterSelect.value = 'all';
             dom.exportOptions.style.display = 'none'; 
         }
         dom.feedback.style.opacity = '0'; 
@@ -192,6 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
 
     document.getElementById('btnExport').addEventListener('click', () => {
+        // NOVO: Popula o filtro e exibe as opções ao clicar em Exportar CSV
+        if (dom.exportOptions.style.display !== 'flex') {
+            populateUserFilter(); 
+        }
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
 
@@ -392,7 +395,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderRoutes() {
-        // ... (renderRoutes mantido) ...
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
@@ -446,7 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMap() {
-        // ... (renderMap e updateMapLocation mantido) ...
         showContent();
         mapInstance = null;
         dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
@@ -496,7 +497,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Gerenciamento de Usuários (Mantido) --- */
     function renderUsers() {
-        // ... (renderUsers, editUser, saveUser, deleteUser mantidos) ...
         showContent();
         
         let userListHtml = `
@@ -631,12 +631,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isManager) {
             // Colaborador: exporta apenas seus próprios registros
             filteredRecords = filteredRecords.filter(r => r.user === currentUser.username);
-            selectedUser = currentUser.username; // Sobrescreve para usar no nome do arquivo
+            selectedUser = currentUser.username; // Usa o nome do colaborador para o nome do arquivo
         } else if (selectedUser && selectedUser !== 'all') {
             // Admin/Gestor com filtro selecionado
             filteredRecords = filteredRecords.filter(r => r.user === selectedUser);
         }
-        // Se for admin/gestor e selectedUser for 'all', todos os registros (filteredRecords = scanRecords) são mantidos.
+        // Se for admin/gestor e selectedUser for 'all', todos os registros são mantidos.
 
 
         // 2. FILTRO POR TEMPO
@@ -657,7 +657,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 'all' não aplica filtro de tempo.
 
 
-        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter} e usuário ${selectedUser}.`);
+        if(!filteredRecords.length) {
+             const userDisplay = selectedUser === 'all' ? 'todos os usuários' : selectedUser;
+             return alert(`Nenhum dado encontrado para o filtro de tempo "${filter}" e usuário "${userDisplay}".`);
+        }
         
         // 3. Geração do CSV
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
