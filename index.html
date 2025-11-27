@@ -34,7 +34,6 @@
     /* Layout Principal - PC */
     .app {
       display: grid;
-      /* Sidebar aumentado em 40%: 280px * 1.4 = 392px */
       grid-template-columns: 392px 1fr;
       gap: 16px;
       padding: 16px;
@@ -45,10 +44,10 @@
     .sidebar {
       background: var(--panel);
       border-radius: 16px;
-      padding: 24px; /* Aumentado um pouco */
+      padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 18px; /* Aumentado */
+      gap: 18px;
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255,255,255,0.05);
       overflow-y: auto;
@@ -56,7 +55,7 @@
     }
 
     .logo {
-      font-size: 24px; /* Aumentado */
+      font-size: 24px;
       font-weight: 800;
       color: var(--accent);
       letter-spacing: -0.5px;
@@ -69,18 +68,18 @@
     /* Inputs e Botões */
     input, select {
       width: 100%;
-      padding: 14px; /* Aumentado */
-      border-radius: 10px; /* Aumentado */
+      padding: 14px;
+      border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.1);
       background: rgba(0,0,0,0.3);
       color: white;
-      margin-bottom: 10px; /* Aumentado */
-      font-size: 16px; /* Aumentado */
+      margin-bottom: 10px;
+      font-size: 16px;
     }
     
     button {
-      padding: 14px; /* Aumentado em 40% */
-      border-radius: 10px; /* Aumentado */
+      padding: 14px;
+      border-radius: 10px;
       border: none;
       cursor: pointer;
       font-weight: 600;
@@ -88,8 +87,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px; /* Aumentado */
-      font-size: 16px; /* Aumentado */
+      gap: 8px;
+      font-size: 16px;
     }
 
     .btn-primary { background: var(--accent); color: #0f172a; }
@@ -99,7 +98,7 @@
       background: transparent;
       color: var(--muted);
       justify-content: flex-start;
-      padding: 12px; /* Aumentado */
+      padding: 12px;
       width: 100%;
     }
     .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; }
@@ -108,13 +107,13 @@
     .export-options {
         display: none; 
         flex-direction: column;
-        gap: 6px; /* Aumentado */
-        margin: 6px 0 12px 20px; /* Aumentado */
+        gap: 6px;
+        margin: 6px 0 12px 20px;
     }
     .export-options button {
-        padding: 10px 15px; /* Aumentado */
+        padding: 10px 15px;
         background: rgba(255,255,255,0.1);
-        font-size: 14px; /* Aumentado */
+        font-size: 14px;
     }
 
     /* Área Principal */
@@ -130,14 +129,14 @@
 
     /* Container da Câmera (Simulação de Nova Janela) */
     .camera-container {
-      position: fixed; /* Fixado para cobrir a tela inteira (Simulação de nova tela) */
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
       background: #000;
       display: none; 
-      z-index: 99; /* Alto z-index para sobrepor tudo */
+      z-index: 99;
       flex-direction: column;
       align-items: center;
       justify-content: center;
@@ -147,8 +146,8 @@
         position: relative;
         width: 100%;
         height: 100%;
-        max-width: 1000px; /* Limita o tamanho do vídeo para PC */
-        max-height: calc(100vh - 80px); /* Deixa espaço para o botão voltar */
+        max-width: 1000px;
+        max-height: calc(100vh - 80px);
         overflow: hidden;
     }
 
@@ -174,15 +173,15 @@
     }
 
 
-    /* Overlay de Scanner (Mira) */
+    /* Overlay de Scanner (Mira) - AUMENTADO EM 50% (350px * 1.5 = 525px) */
     .scan-overlay {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 350px; /* Aumentado em 40% (250 * 1.4 = 350) */
-      height: 350px;
-      border: 3px solid rgba(255, 255, 255, 0.5); /* Borda mais grossa */
+      width: 525px; /* NOVO TAMANHO */
+      height: 525px; /* NOVO TAMANHO */
+      border: 3px solid rgba(255, 255, 255, 0.5);
       border-radius: 15px;
       box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6); 
       pointer-events: none;
@@ -190,11 +189,11 @@
     
     .scan-line {
       width: 100%;
-      height: 3px; /* Aumentado */
+      height: 3px;
       background: var(--success);
       position: absolute;
       animation: scanAnim 2s infinite linear;
-      box-shadow: 0 0 6px var(--success); /* Sombra mais forte */
+      box-shadow: 0 0 6px var(--success);
     }
 
     @keyframes scanAnim {
@@ -207,37 +206,37 @@
     /* Controles Flutuantes da Câmera */
     .camera-controls {
       position: absolute;
-      top: 25px; /* Aumentado */
+      top: 25px;
       right: 25px;
       display: flex;
-      gap: 12px; /* Aumentado */
+      gap: 12px;
       z-index: 10;
     }
     
     .ctrl-btn {
       background: rgba(0,0,0,0.6);
       color: white;
-      width: 48px; /* Aumentado */
+      width: 48px;
       height: 48px;
       border-radius: 50%;
       padding: 0;
-      font-size: 20px; /* Aumentado */
+      font-size: 20px;
     }
 
     /* Lista de Scans */
     .scan-list-container {
       margin-top: auto;
-      max-height: 250px; /* Aumentado */
+      max-height: 250px;
       overflow-y: auto;
     }
     
     .scan-item {
       background: rgba(255,255,255,0.05);
-      padding: 10px 15px; /* Aumentado */
+      padding: 10px 15px;
       border-radius: 8px;
       margin-bottom: 8px;
-      font-size: 14px; /* Aumentado */
-      border-left: 4px solid var(--accent); /* Borda mais grossa */
+      font-size: 14px;
+      border-left: 4px solid var(--accent);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -252,32 +251,29 @@
 
     /* Feedback Visual */
     #feedbackMsg {
-      /* Estilo mantido */
       z-index: 1000;
     }
     
     /* Estilos para o formulário de usuários (Admin/Gestor) */
     .user-form-card {
         background: rgba(255,255,255,0.05);
-        padding: 20px; /* Aumentado */
+        padding: 20px;
         border-radius: 10px;
         margin-bottom: 12px;
     }
 
     /* --- MOBILE RESPONSIVIDADE (Sobrescreve estilos de PC) --- */
     @media (max-width: 768px) {
-      /* Reverte o layout grid para coluna única */
       .app { grid-template-columns: 1fr; padding: 0; gap: 0; }
       
-      /* Sidebar padrão de menu mobile */
       .sidebar { 
         position: fixed; 
         z-index: 50; 
-        width: 85%; /* Um pouco maior que antes */
+        width: 85%;
         height: 100%; 
         left: -100%;
         border-radius: 0;
-        padding: 20px; /* Menor padding no mobile */
+        padding: 20px;
       }
       .sidebar.active { left: 0; }
       .main { border-radius: 0; }
@@ -295,10 +291,9 @@
         font-size: 18px;
       }
       
-      /* Reduz o tamanho da mira no mobile */
+      /* Reduz o tamanho da mira no mobile para que caiba na tela */
       .scan-overlay { width: 250px; height: 250px; }
 
-      /* Ajusta a visualização da câmera para ocupar toda a tela sem limitação de largura */
       .camera-container {
         position: fixed;
         top: 0;
