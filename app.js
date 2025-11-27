@@ -1,680 +1,566 @@
-document.addEventListener('DOMContentLoaded', () => {
-    
-    /* --- Configurações e Estado (Mantido) --- */
-    const STORAGE_KEY_USERS = 'pegazus_users_v4';
-    const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
-    const DEFAULT_USERS = [
-        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
-        { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
-        { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ]; 
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
-    
-    let currentUser = null;
-    let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-    let users = loadUsers();
-    
-    let videoStream = null;
-    let isScanning = false;
-    let videoTrack = null;
-    const SCAN_DELAY = 1000;
-    let lastScanCode = '';
-    let lastScanTime = 0;
-    let userLocation = null;
-    let mapInstance = null;
-    let locationMarker = null;
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { 
+  Camera, 
+  Upload, 
+  X, 
+  SwitchCamera, 
+  Zap,
+  Loader2
+} from 'lucide-react';
+import { toast } from 'sonner';
 
-    /* --- Referências DOM (Mantido) --- */
-    const dom = {
-        loginSection: document.getElementById('loginSection'),
-        menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'),
-        contentArea: document.getElementById('contentArea'),
-        cameraView: document.getElementById('cameraView'),
-        video: document.getElementById('videoElement'),
-        sidebar: document.getElementById('sidebar'),
-        mobileMenuBtn: document.getElementById('mobileMenuBtn'),
-        feedback: document.getElementById('feedbackMsg'),
-        cameraSelect: document.getElementById('cameraSelect'),
-        exportOptions: document.getElementById('exportOptions'),
-        adminMenuOptions: document.getElementById('adminMenuOptions'),
-        userFilterSelect: document.getElementById('userFilterSelect'),
-    };
-
-    /* --- Inicialização e Storage (Mantido) --- */
-    function loadUsers() {
-        const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        if(!raw) {
-            localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
-            return DEFAULT_USERS;
-        }
-        const existingUsers = JSON.parse(raw);
-        const thonExists = existingUsers.some(u => u.username === 'thon');
-
-        if (!thonExists) {
-            existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
-        } else {
-            const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
-            existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
-            existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
-        }
-        return existingUsers;
+// Load jsQR from CDN
+const loadJsQR = () => {
+  return new Promise((resolve, reject) => {
+    if (window.jsQR) {
+      resolve(window.jsQR);
+      return;
     }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    script.onload = () => resolve(window.jsQR);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+};
+
+export default function QRScanner({ onScan, isProcessing }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+  const lastScanRef = useRef({ code: '', time: 0 });
+  
+  const [isScanning, setIsScanning] = useState(false);
+  const [error, setError] = useState(null);
+  const [devices, setDevices] = useState([]);
+  const [currentDeviceId, setCurrentDeviceId] = useState(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [jsQRLoaded, setJsQRLoaded] = useState(false);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+
+  const SCAN_DELAY = 1000; // Delay entre leituras do mesmo código (1 segundo)
+
+  // Beep sound for successful scan
+  const beep = useCallback((freq = 1200, duration = 100, vol = 0.1) => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = freq;
+      gain.gain.value = vol;
+      osc.start();
+      setTimeout(() => { 
+        osc.stop(); 
+        audioCtx.close(); 
+      }, duration);
+    } catch (e) {}
+  }, []);
+
+  // Load jsQR on mount
+  useEffect(() => {
+    loadJsQR()
+      .then(() => setJsQRLoaded(true))
+      .catch(() => setError('Erro ao carregar biblioteca de QR Code'));
+  }, []);
+
+  // Enumerate video devices
+  const enumerateDevices = useCallback(async () => {
+    try {
+      // Solicitar permissão para garantir que as labels dos dispositivos sejam populadas
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const videoDevs = devs.filter(d => d.kind === 'videoinput');
+      setDevices(videoDevs);
+      return videoDevs;
+    } catch (e) {
+      console.error("Erro ao enumerar dispositivos: ", e);
+      return [];
+    }
+  }, []);
+
+  // Draw scan area overlay (Adaptado para renderização do React)
+  const drawOverlay = useCallback((qrLocation = null) => {
+    const overlay = overlayRef.current;
+    const video = videoRef.current;
+    if (!overlay || !video) return;
     
-    function saveUsers() {
-        localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    // Usa as dimensões de renderização do elemento de vídeo na tela
+    const w = video.clientWidth;
+    const h = video.clientHeight;
+
+    // Configura o canvas do overlay para corresponder ao vídeo
+    overlay.width = w;
+    overlay.height = h;
+
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+
+    // Draw semi-transparent overlay outside scan area
+    const boxSize = Math.min(w, h) * 0.65;
+    const x = (w - boxSize) / 2;
+    const y = (h - boxSize) / 2;
+
+    // Darken areas outside scan box
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, w, y);
+    ctx.fillRect(0, y + boxSize, w, h - y - boxSize);
+    ctx.fillRect(0, y, x, boxSize);
+    ctx.fillRect(x + boxSize, y, w - x - boxSize, boxSize);
+
+    // Draw scan box border and corners
+    ctx.strokeStyle = 'rgba(139, 92, 246, 0.8)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, boxSize, boxSize);
+
+    // Draw corner markers
+    const cornerLen = 30;
+    ctx.strokeStyle = '#8b5cf6';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    // Top-left
+    ctx.beginPath();
+    ctx.moveTo(x, y + cornerLen);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + cornerLen, y);
+    ctx.stroke();
+    // Top-right
+    ctx.beginPath();
+    ctx.moveTo(x + boxSize - cornerLen, y);
+    ctx.lineTo(x + boxSize, y);
+    ctx.lineTo(x + boxSize, y + cornerLen);
+    ctx.stroke();
+    // Bottom-left
+    ctx.beginPath();
+    ctx.moveTo(x, y + boxSize - cornerLen);
+    ctx.lineTo(x, y + boxSize);
+    ctx.lineTo(x + cornerLen, y + boxSize);
+    ctx.stroke();
+    // Bottom-right
+    ctx.beginPath();
+    ctx.moveTo(x + boxSize - cornerLen, y + boxSize);
+    ctx.lineTo(x + boxSize, y + boxSize);
+    ctx.lineTo(x + boxSize, y + boxSize - cornerLen);
+    ctx.stroke();
+
+    // Draw QR code bounding box if detected (green highlight)
+    if (qrLocation) {
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(qrLocation.topLeftCorner.x, qrLocation.topLeftCorner.y);
+      ctx.lineTo(qrLocation.topRightCorner.x, qrLocation.topRightCorner.y);
+      ctx.lineTo(qrLocation.bottomRightCorner.x, qrLocation.bottomRightCorner.y);
+      ctx.lineTo(qrLocation.bottomLeftCorner.x, qrLocation.bottomLeftCorner.y);
+      ctx.closePath();
+      ctx.stroke();
     }
+  }, []);
+
+  // Scan loop using jsQR
+  const scanLoop = useCallback(() => {
+    if (!isScanning || !jsQRLoaded || !window.jsQR) {
+      rafRef.current = requestAnimationFrame(scanLoop);
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
     
-    function populateUserFilter() {
-        const isManager = currentUser.role === 'admin' || currentUser.role === 'gestor';
-
-        if (isManager) {
-            let options = '<option value="all">Todos os Usuários</option>';
-            users.forEach(u => {
-                options += `<option value="${u.username}">${u.username} (${u.role})</option>`;
-            });
-            dom.userFilterSelect.innerHTML = options;
-            dom.userFilterSelect.classList.remove('hidden');
-        } else {
-            dom.userFilterSelect.classList.add('hidden');
-        }
-        dom.userFilterSelect.value = 'all'; 
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) {
+      drawOverlay(null); 
+      rafRef.current = requestAnimationFrame(scanLoop);
+      return;
     }
 
-    /* --- Geolocalização (Mantido) --- */
-    function startGeolocation() {
-        if ("geolocation" in navigator) {
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    userLocation = {
-                        lat: position.coords.latitude,
-                        lon: position.coords.longitude
-                    };
-                    if (mapInstance) updateMapLocation();
-                },
-                (error) => {
-                    console.warn('Geolocation error:', error.message);
-                    userLocation = null;
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
-        } else {
-            console.warn("Geolocation não está disponível no navegador.");
-        }
-    }
+    const ctx = canvas.getContext('2d');
+    const vw = video.videoWidth; // Resolução real do vídeo
+    const vh = video.videoHeight;
+    const videoRect = video.getBoundingClientRect(); // Dimensões do elemento na tela
 
-    /* --- Sistema de Login --- */
-    document.getElementById('btnLogin').addEventListener('click', () => {
-        const u = document.getElementById('loginUser').value.trim();
-        const p = document.getElementById('loginPass').value.trim();
-        const user = users.find(x => x.username === u && x.password === p);
-        
-        if (user) {
-            currentUser = user;
-            document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
-            
-            dom.loginSection.classList.add('hidden');
-            dom.appContainer.classList.remove('hidden'); 
-            
-            // NOVO: Exibe o botão de menu mobile
-            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
-            
-            if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-                dom.adminMenuOptions.classList.remove('hidden');
-            } else {
-                dom.adminMenuOptions.classList.add('hidden');
-            }
+    // Configura o canvas escondido
+    canvas.width = vw;
+    canvas.height = vh;
+    ctx.drawImage(video, 0, 0, vw, vh);
 
-            renderDashboard();
-            document.getElementById('loginError').textContent = '';
-            startGeolocation();
-        } else {
-            document.getElementById('loginError').textContent = 'Credenciais inválidas';
-        }
+    // --- Lógica de Escaneamento: Área de 90% Centralizada ---
+    const scanSize = Math.min(vw, vh) * 0.9;
+    const sx = (vw - scanSize) / 2;
+    const sy = (vh - scanSize) / 2;
+    const imageData = ctx.getImageData(sx, sy, scanSize, scanSize);
+
+    const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'attemptBoth'
     });
+    // --- Fim da Lógica de Escaneamento ---
 
-    document.getElementById('btnLogout').addEventListener('click', () => {
-        currentUser = null;
-        stopScanner();
-        
-        dom.appContainer.classList.add('hidden');
-        dom.loginSection.classList.remove('hidden'); 
+    if (code && code.data) {
+      const scaleX = videoRect.width / vw;
+      const scaleY = videoRect.height / vh;
 
-        dom.mobileMenuBtn.classList.add('hidden');
-        dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
-    });
+      // Mapeia coordenadas do QR (lidas na ImageData centralizada) para as coordenadas de tela
+      const mapCorner = (pt) => ({
+        x: Math.round((pt.x + sx) * scaleX),
+        y: Math.round((pt.y + sy) * scaleY)
+      });
 
-    /* --- Navegação e Eventos --- */
-    function showContent() {
-        // NOVO: Controla a exibição dos containers principais
-        dom.cameraView.style.display = 'none';
-        dom.appContainer.classList.remove('hidden');
-        dom.appContainer.style.display = 'grid'; // Retorna ao layout GRID
+      const mappedLocation = code.location ? {
+        topLeftCorner: mapCorner(code.location.topLeftCorner),
+        topRightCorner: mapCorner(code.location.topRightCorner),
+        bottomLeftCorner: mapCorner(code.location.bottomLeftCorner),
+        bottomRightCorner: mapCorner(code.location.bottomRightCorner)
+      } : null;
 
-        // Garante que o menu esteja fechado no mobile ao mudar de página
-        if (window.innerWidth <= 768) { 
-            dom.sidebar.classList.remove('active'); 
-        }
+      drawOverlay(mappedLocation);
 
-        // Garante que o menu de exportação esteja fechado ao sair da tela
-        if (dom.exportOptions.style.display === 'flex') {
-            dom.exportOptions.style.display = 'none'; 
-        }
-        dom.feedback.style.opacity = '0'; 
-    }
+      const now = Date.now();
+      const qrData = code.data.trim();
 
-    document.getElementById('btnScanMode').addEventListener('click', () => {
-        // Oculta o container principal
-        dom.appContainer.classList.add('hidden');
-        
-        // Exibe a câmera (que é fixed e z-index alto)
-        dom.cameraView.style.display = 'flex'; 
-        
-        // Fecha o menu lateral no mobile
-        if(window.innerWidth <= 768) {
-            dom.sidebar.classList.remove('active');
-        }
-        startScanner();
-    });
+      // Prevenção de duplicatas com delay de 1 segundo
+      if (qrData !== lastScanRef.current.code || (now - lastScanRef.current.time) >= SCAN_DELAY) {
+        lastScanRef.current = { code: qrData, time: now };
 
-    window.renderDashboard = () => {
-        showContent();
-        renderDashboard();
-    }
-    
-    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
-    document.getElementById('btnUsers').addEventListener('click', renderUsers);
-    document.getElementById('btnMap').addEventListener('click', renderMap);
-    document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
-
-    document.getElementById('btnExport').addEventListener('click', () => {
-        if (dom.exportOptions.style.display !== 'flex') {
-            populateUserFilter(); 
-        }
-        dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
-    });
-
-    document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
-    document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
-    document.getElementById('btnExportMonthly').addEventListener('click', () => generateCSV('monthly'));
-    document.getElementById('btnExportAll').addEventListener('click', () => generateCSV('all'));
-
-    dom.cameraSelect.addEventListener('change', (e) => {
-        if(isScanning) startScanner(e.target.value);
-    });
-
-    window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
-
-    /* --- Lógica do Scanner (Melhorada para Mobile) --- */
-    async function startScanner(deviceId = null) {
-        if (isScanning && !deviceId) return;
-        stopScanner(); 
-        
-        const isMobile = window.innerWidth <= 768;
-        
-        // CORREÇÃO CRUCIAL: Prioriza a câmera traseira ('environment') no mobile
-        const constraints = {
-            video: deviceId 
-                ? { deviceId: { exact: deviceId } } 
-                : { 
-                    facingMode: isMobile ? 'environment' : 'user', 
-                    width: { ideal: 1280 }, 
-                    height: { ideal: 720 } 
-                }
-        };
-
-        try {
-            videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-            dom.video.srcObject = videoStream;
-            dom.video.setAttribute('playsinline', true);
-            await dom.video.play();
-            isScanning = true;
-            videoTrack = videoStream.getVideoTracks()[0];
-            
-            // Lógica de seleção de câmera (Mantida)
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoDevices = devices.filter(d => d.kind === 'videoinput');
-            if (videoDevices.length > 1) {
-                dom.cameraSelect.innerHTML = '';
-                videoDevices.forEach(d => {
-                    const opt = document.createElement('option');
-                    opt.value = d.deviceId;
-                    opt.text = d.label || `Câmera ${dom.cameraSelect.length + 1}`;
-                    // Tenta selecionar o 'environment' como padrão
-                    opt.selected = d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment') || d.label.toLowerCase().includes('traseira');
-                    dom.cameraSelect.appendChild(opt);
-                });
-                dom.cameraSelect.classList.remove('hidden');
-                if(deviceId) dom.cameraSelect.value = deviceId;
-            }
-
-            requestAnimationFrame(tick);
-        } catch (err) {
-            console.error(err);
-            // Mensagem mais clara para o usuário
-            alert('Erro ao iniciar câmera. Verifique permissões ou se o dispositivo tem câmera traseira: ' + err.message);
-            window.renderDashboard(); 
-        }
-    }
-
-    function stopScanner() {
-        isScanning = false;
-        if (videoStream) {
-            videoStream.getTracks().forEach(t => t.stop());
-            videoStream = null;
-        }
-        dom.video.srcObject = null;
-    }
-
-    function tick() {
-        // ... (tick e handleScan mantidos) ...
-        if (!isScanning) return;
-        if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const w = dom.video.videoWidth;
-            const h = dom.video.videoHeight;
-            canvas.width = w;
-            canvas.height = h;
-            ctx.drawImage(dom.video, 0, 0, w, w); 
-            
-            const size = Math.min(w, h) * 0.9; 
-
-            const sx = (w - size) / 2;
-            const sy = (h - size) / 2;
-            const imageData = ctx.getImageData(sx, sy, size, size);
-            
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "attemptBoth",
-            });
-
-            if (code && code.data) {
-                handleScan(code.data);
-            }
-        }
-        requestAnimationFrame(tick);
-    }
-
-    function handleScan(data) {
-        const now = Date.now();
-        if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
-        
-        lastScanCode = data;
-        lastScanTime = now;
-
+        // Feedback sonoro e vibratório
         beep();
-        showFeedback(data); 
+        if (navigator.vibrate) navigator.vibrate(80);
+        toast.success(`Código detectado: ${qrData.substring(0, 15)}...`);
 
-        const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
-        const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
-
-        const record = parsePayload(data, scanLat, scanLon);
-        scanRecords.unshift(record);
-        localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
-    }
-    // ... (parsers, beep, showFeedback, Torch mantidos) ...
-    function parsePayload(raw, lat, lon) {
-        let id = raw;
-        let type = 'Genérico';
-        if (raw.includes('shopee')) { type = 'Shopee'; }
-        else if (raw.includes('mercadoli')) { type = 'Mercado Livre'; }
-        
-        const numMatch = raw.match(/(\d{8,})/);
-        if (numMatch) id = numMatch[1];
-
-        return {
-            id: id,
-            raw: raw,
-            type: type,
-            user: currentUser.username,
-            date: new Date().toISOString(),
-            lat: lat,
-            lon: lon
-        };
+        // Process the QR data
+        handleQRDetected(qrData);
+      }
+    } else {
+      drawOverlay(null);
     }
 
-    function beep() {
+    rafRef.current = requestAnimationFrame(scanLoop);
+  }, [isScanning, jsQRLoaded, beep, drawOverlay]);
+
+  // Handle QR code detection - extract data and send to parent
+  const handleQRDetected = async (rawData) => {
+    if (isProcessing) return; 
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    // Redraw final frame onto the hidden canvas for capture
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        const file = new File([blob], 'qr_capture.jpg', { type: 'image/jpeg' });
+        // Pass both the raw QR data and the image to parent
+        onScan(file, rawData);
+      }
+    }, 'image/jpeg', 0.95);
+  };
+
+  // Start camera
+  const startCamera = useCallback(async (deviceId = null) => {
+    if (!jsQRLoaded || isCameraStarting) return;
+    setIsCameraStarting(true);
+
+    // Stop existing stream first
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+
+    try {
+      setError(null);
+
+      const deviceIdToUse = deviceId || currentDeviceId;
+      
+      const isMobile = window.innerWidth <= 768;
+      let constraints = {
+        video: deviceIdToUse 
+          ? { deviceId: { exact: deviceIdToUse } }
+          : { 
+              // Seleção automática: Prioriza a câmera traseira no mobile
+              facingMode: isMobile ? 'environment' : 'user', 
+              width: { ideal: 1280 }, 
+              height: { ideal: 720 } 
+            },
+        audio: false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
+      }
+
+      // Check torch capability
+      const track = stream.getVideoTracks()[0];
+      if (track) {
         try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.frequency.value = 1200;
-            gain.gain.value = 0.1;
-            osc.start();
-            setTimeout(() => { osc.stop(); audioCtx.close(); }, 100);
-        } catch(e){}
-    }
-
-    function showFeedback(text) {
-        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
-        dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
-        
-        const overlay = document.querySelector('.scan-overlay');
-        overlay.style.borderColor = 'var(--success)';
-        setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
-    }
-
-    document.getElementById('btnTorch').addEventListener('click', async () => {
-        if(videoTrack) {
-            try {
-                const caps = videoTrack.getCapabilities();
-                if(caps.torch) {
-                    const settings = videoTrack.getSettings();
-                    await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
-                } else {
-                    alert('Flash não suportado neste dispositivo/navegador');
-                }
-            } catch(e) { console.log(e); }
+          const caps = track.getCapabilities();
+          setHasTorch(caps && caps.torch);
+        } catch (e) {
+          setHasTorch(false);
         }
-    });
+      }
 
-    /* --- Views (Renderização Mantida) --- */
-    function renderDashboard() {
-        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-            dom.adminMenuOptions.classList.remove('hidden');
-        } else {
-            dom.adminMenuOptions.classList.add('hidden');
-        }
+      // Auto-seleção de câmera traseira (Executa apenas na primeira chamada)
+      if (!deviceId && devices.length === 0) {
+        const devs = await enumerateDevices();
         
-        const html = `
-            <h2>📦 Entregas Realizadas</h2>
-            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
-            <div style="display:grid; gap:10px; margin-top:20px;">
-                ${scanRecords.map(r => `
-                    <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid var(--accent)">
-                        <div style="font-weight:bold; font-size:16px">${r.id}</div>
-                        <div style="font-size:12px; color:#6b7280;">
-                            ${r.type} • ${new Date(r.date).toLocaleString()} • User: ${r.user}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-        dom.contentArea.innerHTML = html;
-    }
-
-    function renderRoutes() {
-        showContent();
-        const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
-        
-        if (deliveryPoints.length < 2) {
-            dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
+        if (devs.length > 1) {
+          const backCamera = devs.find(d => 
+            d.label.toLowerCase().includes('back') || 
+            d.label.toLowerCase().includes('environment') || 
+            d.label.toLowerCase().includes('traseira')
+          );
+          
+          if (backCamera && backCamera.deviceId !== deviceIdToUse) {
+            // Reinicia com a câmera traseira
+            setCurrentDeviceId(backCamera.deviceId);
+            setIsCameraStarting(false);
             return;
+          }
         }
+        if(devs.length > 0) setCurrentDeviceId(devs[0].deviceId);
+      }
 
-        const simplifiedRoute = deliveryPoints
-            .slice(0, 10) 
-            .sort(() => Math.random() - 0.5); 
+      setIsScanning(true);
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = requestAnimationFrame(scanLoop);
 
-        const routeMapHtml = `
-            <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
-            <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
-            <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
-            <div style="margin-top:10px">
-                ${simplifiedRoute.map((p, index) => 
-                    `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
-                        ${index + 1}. ${p.id} 
-                        (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
-                    </div>`
-                ).join('')}
-            </div>
-        `;
-        dom.contentArea.innerHTML = routeMapHtml;
-
-        setTimeout(() => {
-            const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
-
-            const routePoints = simplifiedRoute.map((p, index) => {
-                const marker = L.marker([p.lat, p.lon]).addTo(map)
-                    .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
-                
-                marker.setIcon(L.divIcon({
-                    className: 'custom-div-icon',
-                    html: `<div style="background:var(--accent); color:#000; border-radius:50%; width:24px; height:24px; text-align:center; font-weight:bold; line-height:24px;">${index + 1}</div>`,
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
-                }));
-                return [p.lat, p.lon];
-            });
-            
-            if (routePoints.length > 1) {
-                L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
-                map.fitBounds(L.polyline(routePoints).getBounds());
-            }
-
-        }, 100);
+    } catch (err) {
+      console.error('Camera error:', err);
+      setError('Erro ao acessar câmera: ' + err.message + '. Verifique as permissões do navegador.');
+      stopCamera();
+    } finally {
+      setIsCameraStarting(false);
     }
+  }, [jsQRLoaded, isCameraStarting, currentDeviceId, enumerateDevices, devices.length, scanLoop]);
 
-    function renderMap() {
-        showContent();
-        mapInstance = null;
-        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
-        
-        setTimeout(() => {
-            const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
-            const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
-
-            mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OSM'
-            }).addTo(mapInstance);
-
-            scanRecords.forEach(r => {
-                L.marker([r.lat, r.lon]).addTo(mapInstance)
-                    .bindPopup(`<b>${r.id}</b><br>${r.type}`);
-            });
-
-            updateMapLocation();
-
-        }, 100);
-    }
+  // Stop camera
+  const stopCamera = useCallback(() => {
+    setIsScanning(false);
     
-    function updateMapLocation() {
-        if (!mapInstance || !userLocation) return;
-
-        const currentLocEl = document.getElementById('currentLoc');
-        if (currentLocEl) {
-            currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
-        }
-
-        if (locationMarker) {
-            locationMarker.setLatLng([userLocation.lat, userLocation.lon]);
-        } else {
-            locationMarker = L.marker([userLocation.lat, userLocation.lon], {
-                icon: L.divIcon({
-                    className: 'current-location-marker',
-                    html: '<div style="background:var(--danger); border:3px solid white; border-radius:50%; width:18px; height:18px;"></div>',
-                    iconSize: [18, 18],
-                    iconAnchor: [9, 9]
-                })
-            }).addTo(mapInstance)
-            .bindPopup("Sua Localização Atual");
-        }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
 
-    function renderUsers() {
-        showContent();
-        
-        let userListHtml = `
-            <h2>👥 Gerenciamento de Usuários</h2>
-            <div style="margin-bottom: 20px;">
-                <button class="btn-primary" onclick="window.editUser(null)">+ Novo Usuário</button>
-            </div>
-            <div id="userListContainer">
-        `;
-        
-        const filteredUsers = users.filter(u => {
-            if (currentUser.role === 'admin') return true;
-            if (currentUser.role === 'gestor') {
-                return u.creatorId === currentUser.id || u.id === currentUser.id;
-            }
-            return u.id === currentUser.id;
-        });
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
 
-        filteredUsers.forEach(u => {
-            const canEdit = currentUser.role === 'admin' || currentUser.id === u.id || (currentUser.role === 'gestor' && u.role === 'colaborador' && u.creatorId === currentUser.id);
-            const canDelete = currentUser.role === 'admin' && currentUser.id !== u.id;
-            
-            userListHtml += `
-                <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <strong>${u.username}</strong> 
-                        <span style="color:var(--accent); font-size:12px">(${u.role})</span>
-                    </div>
-                    <div>
-                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:5px 10px; margin-right:5px; font-size:14px; box-shadow:none;">Editar</button>` : ''}
-                        ${canDelete ? `<button onclick="window.deleteUser('${u.id}')" style="background:rgba(239, 68, 68, 0.2); color:var(--danger); padding:5px 10px; font-size:14px; box-shadow:none;">Excluir</button>` : ''}
-                    </div>
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+
+    setTorchOn(false);
+    lastScanRef.current = { code: '', time: 0 };
+  }, []);
+
+  // Switch camera
+  const switchCamera = useCallback(async () => {
+    if (devices.length < 2) return;
+
+    const currentIndex = devices.findIndex(d => d.deviceId === currentDeviceId);
+    const nextIndex = (currentIndex + 1) % devices.length;
+    const nextDevice = devices[nextIndex];
+
+    stopCamera();
+    setCurrentDeviceId(nextDevice.deviceId);
+  }, [devices, currentDeviceId, stopCamera]);
+
+  // Toggle torch/flash
+  const toggleTorch = useCallback(async () => {
+    if (!streamRef.current || !hasTorch) return;
+
+    const track = streamRef.current.getVideoTracks()[0];
+    if (!track) return;
+
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn }]
+      });
+      setTorchOn(!torchOn);
+    } catch (e) {
+      console.warn('Torch toggle failed:', e);
+    }
+  }, [hasTorch, torchOn]);
+
+  // Handle file upload
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onScan(file, null); 
+    }
+    e.target.value = '';
+  };
+
+  // Efeito para reiniciar a câmera se o currentDeviceId mudar (após a troca ou auto-seleção)
+  useEffect(() => {
+    if (currentDeviceId && isScanning) {
+      startCamera(currentDeviceId);
+    }
+  }, [currentDeviceId, isScanning, startCamera]); 
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopCamera();
+  }, [stopCamera]);
+
+  return (
+    <Card className="overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+      <div className="p-6">
+        <div className="relative aspect-[4/3] max-w-lg mx-auto rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800">
+          {(isScanning || isCameraStarting) ? (
+            <>
+              {/* CORREÇÃO CRÍTICA: Usar a prop 'ref' */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                onLoadedData={() => {
+                   drawOverlay(null); 
+                }}
+              />
+              {/* CORREÇÃO CRÍTICA: Usar a prop 'ref' */}
+              <canvas 
+                ref={overlayRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              />
+
+              {/* Scanning indicator */}
+              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-white text-xs font-medium">Escaneando...</span>
+              </div>
+
+              {/* Controls */}
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
+                {devices.length > 1 && (
+                  <Button
+                    onClick={switchCamera}
+                    size="icon"
+                    variant="secondary"
+                    className="rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 border-0 h-12 w-12"
+                    disabled={isProcessing}
+                  >
+                    <SwitchCamera className="w-5 h-5 text-white" />
+                  </Button>
+                )}
+
+                {hasTorch && (
+                  <Button
+                    onClick={toggleTorch}
+                    size="icon"
+                    variant="secondary"
+                    className={`rounded-full backdrop-blur-sm border-0 h-12 w-12 ${
+                      torchOn ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-white/20 hover:bg-white/30'
+                    }`}
+                    title="Flash"
+                    disabled={isProcessing}
+                  >
+                    <Zap className={`w-5 h-5 text-white`} />
+                  </Button>
+                )}
+
+                <Button
+                  onClick={stopCamera}
+                  size="icon"
+                  variant="secondary"
+                  className="rounded-full bg-red-500/80 backdrop-blur-sm hover:bg-red-600 border-0 h-12 w-12"
+                  disabled={isProcessing}
+                >
+                  <X className="w-5 h-5 text-white" />
+                </Button>
+              </div>
+
+              {(isProcessing || isCameraStarting) && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-10 h-10 text-violet-400 animate-spin" />
+                    <span className="text-white font-medium">{isCameraStarting ? 'Abrindo Câmera...' : 'Processando...'}</span>
+                  </div>
                 </div>
-            `;
-        });
-        
-        userListHtml += `</div><div id="userFormArea"></div>`;
-        dom.contentArea.innerHTML = userListHtml;
-    }
-
-    // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
-    window.editUser = (userId) => {
-        const userToEdit = userId ? users.find(u => u.id === userId) : null;
-        
-        if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
-            alert('Você não tem permissão para editar este usuário.');
-            return;
-        }
-
-        const isAdmin = currentUser.role === 'admin';
-        const isSelf = userToEdit && userToEdit.id === currentUser.id;
-        
-        let formHtml = `
-            <div class="user-form-card" style="border:1px solid var(--accent)">
-                <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
-                <input type="text" id="formUsername" placeholder="Usuário" value="${userToEdit ? userToEdit.username : ''}" ${userToEdit ? 'readonly' : ''} style="margin-bottom:8px;">
-                <input type="password" id="formPassword" placeholder="Nova Senha (deixe em branco para manter)" value="">
-                <select id="formRole" style="margin-bottom:8px;" ${isAdmin ? '' : 'disabled'}>
-                    <option value="colaborador" ${userToEdit && userToEdit.role === 'colaborador' ? 'selected' : ''}>Colaborador</option>
-                    <option value="gestor" ${userToEdit && userToEdit.role === 'gestor' ? 'selected' : ''} ${!isAdmin ? 'hidden' : ''}>Gestor</option>
-                    <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''} ${!isAdmin ? 'hidden' : ''}>Administrador</option>
-                </select>
-                <div style="display:flex;gap:8px;margin-top:10px">
-                    <button class="btn-primary" onclick="window.saveUser('${userId || ''}')" style="flex:1">Salvar</button>
-                    <button onclick="renderUsers()" style="background:#e5e7eb; color:var(--content-text-dark); box-shadow:none;">Cancelar</button>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-8">
+              <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <Camera className="w-12 h-12 text-white" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-white font-semibold text-lg mb-2">Scanner de QR Code</h3>
+                <p className="text-slate-400 text-sm">
+                  Escaneie etiquetas Shopee e Mercado Livre
+                </p>
+                <p className="text-slate-500 text-xs mt-2">
+                  Leitura automática em tempo real
+                </p>
+              </div>
+              {error && (
+                <p className="text-red-400 text-sm text-center">{error}</p>
+              )}
+              {!jsQRLoaded && (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Carregando biblioteca...</span>
                 </div>
-                ${!isAdmin && !isSelf ? `<p style="color:var(--danger); font-size:12px; margin-top:10px;">Apenas Admins podem alterar o Nível de Acesso.</p>` : ''}
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                <Button
+                  onClick={() => startCamera()}
+                  disabled={!jsQRLoaded || isProcessing}
+                  className="flex-1 bg-violet-500 hover:bg-violet-600 rounded-xl h-12"
+                >
+                  <Camera className="w-5 h-5 mr-2" />
+                  Abrir Câmera
+                </Button>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="outline"
+                  className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800 rounded-xl h-12"
+                  disabled={isProcessing}
+                >
+                  <Upload className="w-5 h-5 mr-2" />
+                  Upload
+                </Button>
+              </div>
             </div>
-        `;
-        document.getElementById('userFormArea').innerHTML = formHtml;
-        document.getElementById('userFormArea').scrollIntoView({ behavior: 'smooth' });
-    };
+          )}
+        </div>
 
-    window.saveUser = (userId) => {
-        const username = document.getElementById('formUsername').value.trim();
-        const password = document.getElementById('formPassword').value.trim();
-        const role = document.getElementById('formRole').value;
-        const isNew = !userId;
-
-        if (!username) { alert('Usuário é obrigatório.'); return; }
-        if (isNew && !password) { alert('Senha é obrigatória para novo usuário.'); return; }
-
-        let userIndex = -1;
-        if (userId) userIndex = users.findIndex(u => u.id === userId);
-
-        if (isNew && users.some(u => u.username === username)) {
-            alert('Nome de usuário já existe.');
-            return;
-        }
-        
-        let updatedUser;
-        if (isNew) {
-            updatedUser = {
-                id: 'u' + Date.now(),
-                username,
-                password,
-                role: currentUser.role === 'colaborador' ? 'colaborador' : role, 
-                creatorId: currentUser.id
-            };
-            users.push(updatedUser);
-        } else {
-            updatedUser = users[userIndex];
-            if (password) updatedUser.password = password;
-            if (currentUser.role === 'admin') updatedUser.role = role; 
-        }
-
-        saveUsers();
-        document.getElementById('userFormArea').innerHTML = '';
-        renderUsers();
-    };
-
-    window.deleteUser = (userId) => {
-        if (userId === currentUser.id) {
-            alert('Você não pode excluir seu próprio perfil enquanto estiver logado.');
-            return;
-        }
-        if (confirm('Tem certeza que deseja excluir este usuário?')) {
-            users = users.filter(u => u.id !== userId);
-            saveUsers();
-            renderUsers();
-        }
-    };
-
-
-    /* --- Exportação CSV (Mantido) --- */
-    function generateCSV(filter) {
-        let filteredRecords = scanRecords;
-        let selectedUser = dom.userFilterSelect.value;
-        const isManager = currentUser.role === 'admin' || currentUser.role === 'gestor';
-        
-        // 1. FILTRO POR USUÁRIO
-        if (!isManager) {
-            filteredRecords = filteredRecords.filter(r => r.user === currentUser.username);
-            selectedUser = currentUser.username;
-        } else if (selectedUser && selectedUser !== 'all') {
-            filteredRecords = filteredRecords.filter(r => r.user === selectedUser);
-        }
-
-        // 2. FILTRO POR TEMPO
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        if (filter === 'daily') {
-            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= today);
-        } else if (filter === 'weekly') {
-            const oneWeekAgo = new Date(today);
-            oneWeekAgo.setDate(today.getDate() - 7);
-            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= oneWeekAgo);
-        } else if (filter === 'monthly') {
-            const oneMonthAgo = new Date(today);
-            oneMonthAgo.setMonth(today.getMonth() - 1);
-            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= oneMonthAgo);
-        } 
-
-
-        if(!filteredRecords.length) {
-             const userDisplay = selectedUser === 'all' ? 'todos os usuários' : selectedUser;
-             return alert(`Nenhum dado encontrado para o filtro de tempo "${filter}" e usuário "${userDisplay}".`);
-        }
-        
-        // 3. Geração do CSV
-        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
-        filteredRecords.forEach(r => {
-            const scanDate = new Date(r.date);
-            const dateStr = scanDate.toLocaleDateString('pt-BR');
-            const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
-        });
-        
-        const usernameTag = selectedUser && selectedUser !== 'all' ? `_${selectedUser}` : '';
-        const filename = `relatorio_pegazus_${filter}${usernameTag}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
-        const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-
-        dom.exportOptions.style.display = 'none';
-    }
-});
+        {/* Hidden canvases */}
+        {/* CORREÇÃO CRÍTICA: Usar a prop 'ref' */}
+        <canvas ref={canvasRef} className="hidden" />
+        <input
+          /* CORREÇÃO CRÍTICA: Usar a prop 'ref' */
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+      </div>
+    </Card>
+  );
+}
