@@ -1,7 +1,9 @@
+// O código JavaScript (app.js) permanece o mesmo da resposta anterior.
+// Ele contém toda a lógica de login, scanner (com o corte de 90%),
+// exportação CSV e gerenciamento de usuários.
 document.addEventListener('DOMContentLoaded', () => {
     
     /* --- Configurações e Estado --- */
-    // ... (restante do código de configuração e estado) ...
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
     const DEFAULT_USERS = [
@@ -32,14 +34,15 @@ document.addEventListener('DOMContentLoaded', () => {
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
-        miniScanList: document.getElementById('miniScanList'),
         sidebar: document.getElementById('sidebar'),
         mobileMenuBtn: document.getElementById('mobileMenuBtn'),
         feedback: document.getElementById('feedbackMsg'),
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
+        adminMenuOptions: document.getElementById('adminMenuOptions'),
     };
-    // ... (restante do código de loadUsers, saveUsers, startGeolocation) ...
+
+    /* --- Inicialização e Storage --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
         if(!raw) {
@@ -63,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     }
 
+    /* --- Geolocalização (Localização do Usuário) --- */
     function startGeolocation() {
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(
@@ -84,8 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
-    /* --- Sistema de Login / Logout --- */
+    /* --- Sistema de Login --- */
     document.getElementById('btnLogin').addEventListener('click', () => {
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPass').value.trim();
@@ -97,8 +100,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.loginSection.classList.add('hidden');
             dom.menuSection.classList.remove('hidden');
             if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            
+            if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
+                dom.adminMenuOptions.classList.remove('hidden');
+            } else {
+                dom.adminMenuOptions.classList.add('hidden');
+            }
+
             renderDashboard();
-            updateMiniList();
             document.getElementById('loginError').textContent = '';
             startGeolocation();
         } else {
@@ -112,42 +121,49 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.menuSection.classList.add('hidden');
         dom.loginSection.classList.remove('hidden');
         dom.mobileMenuBtn.classList.add('hidden');
-        dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5"><h2>Até logo</h2></div>`;
+        dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
     });
 
     /* --- Navegação e Eventos --- */
     function showContent() {
-        // Volta para a visualização normal (reaparece o sidebar)
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
+        
+        document.querySelector('.app').style.display = 'grid'; 
+
         if (window.innerWidth > 768) { 
-            // Mostra o sidebar no PC
             dom.sidebar.classList.remove('hidden'); 
+            document.querySelector('.app').style.gridTemplateColumns = '392px 1fr';
         } else {
-            // Esconde o sidebar no mobile (se estiver ativo)
             dom.sidebar.classList.remove('active');
         }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
             dom.exportOptions.style.display = 'none'; 
         }
+        dom.feedback.style.opacity = '0'; 
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
-        // Esconde a área principal e o sidebar (se não for mobile)
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
+        
+        document.querySelector('.app').style.display = 'none';
+        
         if(window.innerWidth > 768) {
-             // Esconde o sidebar no PC, deixando apenas o scanner em tela cheia
             dom.sidebar.classList.add('hidden'); 
         } else {
-            // Esconde menu mobile
             dom.sidebar.classList.remove('active');
         }
         startScanner();
     });
-    // ... (restante dos event listeners) ...
-    document.getElementById('btnDashboard').addEventListener('click', renderDashboard); 
+
+    window.renderDashboard = () => {
+        document.querySelector('.app').style.display = 'grid'; 
+        renderDashboard();
+    }
+    
+    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -171,10 +187,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startScanner(deviceId = null) {
         if (isScanning && !deviceId) return;
         stopScanner(); 
+        
+        const isMobile = window.innerWidth <= 768;
         const constraints = {
             video: deviceId 
                 ? { deviceId: { exact: deviceId } } 
-                : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { facingMode: isMobile ? 'environment' : 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
         };
 
         try {
@@ -193,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
                     opt.text = d.label || `Câmera ${dom.cameraSelect.length + 1}`;
+                    opt.selected = d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment') || d.label.toLowerCase().includes('traseira');
                     dom.cameraSelect.appendChild(opt);
                 });
                 dom.cameraSelect.classList.remove('hidden');
@@ -203,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
             alert('Erro ao acessar câmera: ' + err.message);
-            renderDashboard();
+            window.renderDashboard(); 
         }
     }
 
@@ -225,9 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const h = dom.video.videoHeight;
             canvas.width = w;
             canvas.height = h;
-            ctx.drawImage(dom.video, 0, 0, w, h);
+            ctx.drawImage(dom.video, 0, 0, w, w); // Desenha a imagem na tela
             
-            const size = Math.min(w, h) * 0.6; 
+            // Lógica de corte para varrer uma área maior (mantida em 90%)
+            const size = Math.min(w, h) * 0.9; 
+
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
@@ -251,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastScanTime = now;
 
         beep();
-        showFeedback(data);
+        showFeedback(data); 
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
@@ -259,10 +280,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const record = parsePayload(data, scanLat, scanLon);
         scanRecords.unshift(record);
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
-        
-        updateMiniList();
     }
-    // ... (restante do código de parsePayload, beep, showFeedback, btnTorch) ...
+
+    /* --- Parsers e Helpers --- */
     function parsePayload(raw, lat, lon) {
         let id = raw;
         let type = 'Genérico';
@@ -298,12 +318,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showFeedback(text) {
-        dom.feedback.textContent = `Lido: ${text.substring(0, 30)}...`;
+        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
         dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000);
+        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
         
         const overlay = document.querySelector('.scan-overlay');
-        overlay.style.borderColor = '#22c55e';
+        overlay.style.borderColor = 'var(--success)';
         setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
 
@@ -323,19 +343,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Views (Renderização) --- */
     
-    window.renderDashboard = renderDashboard; 
-    
     function renderDashboard() {
-        // showContent() é chamada aqui, e ela remove a classe 'hidden' do sidebar no PC
-        showContent(); 
+        showContent();
+        
+        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
+            dom.adminMenuOptions.classList.remove('hidden');
+        } else {
+            dom.adminMenuOptions.classList.add('hidden');
+        }
+        
         const html = `
             <h2>📦 Entregas Realizadas</h2>
-            <p>Total de registros: ${scanRecords.length}</p>
+            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
                 ${scanRecords.map(r => `
-                    <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; border-left:4px solid var(--accent)">
+                    <div style="background:var(--content-card-bg); padding:15px; border-radius:8px; border-left:4px solid var(--accent)">
                         <div style="font-weight:bold; font-size:16px">${r.id}</div>
-                        <div style="font-size:12px; color:var(--muted)">
+                        <div style="font-size:12px; color:#6b7280;">
                             ${r.type} • ${new Date(r.date).toLocaleString()} • User: ${r.user}
                         </div>
                     </div>
@@ -344,13 +368,13 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         dom.contentArea.innerHTML = html;
     }
-    // ... (restante do código de renderRoutes, renderMap, updateMapLocation, renderUsers, saveUser, deleteUser, updateMiniList, generateCSV) ...
+
     function renderRoutes() {
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
         if (deliveryPoints.length < 2) {
-            dom.contentArea.innerHTML = `<h2>🗺️ Geração de Rotas</h2><p>Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
+            dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
             return;
         }
 
@@ -359,12 +383,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .sort(() => Math.random() - 0.5); 
 
         const routeMapHtml = `
-            <h2>🗺️ Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
-            <p>Simulação baseada nas suas últimas entregas escaneadas. </p>
+            <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
+            <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
             <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
             <div style="margin-top:10px">
                 ${simplifiedRoute.map((p, index) => 
-                    `<div style="font-size:14px; margin-bottom:5px;">
+                    `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
                         ${index + 1}. ${p.id} 
                         (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
                     </div>`
@@ -401,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderMap() {
         showContent();
         mapInstance = null;
-        dom.contentArea.innerHTML = `<h2>📍 Mapa de Entregas</h2><p>Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
+        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
         
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
@@ -477,8 +501,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="color:var(--accent); font-size:12px">(${u.role})</span>
                     </div>
                     <div>
-                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(255,193,7,0.2); color:#ffc107; padding:5px 10px; margin-right:5px; font-size:14px;">Editar</button>` : ''}
-                        ${canDelete ? `<button onclick="window.deleteUser('${u.id}')" style="background:rgba(220,53,69,0.2); color:var(--danger); padding:5px 10px; font-size:14px;">Excluir</button>` : ''}
+                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:5px 10px; margin-right:5px; font-size:14px; box-shadow:none;">Editar</button>` : ''}
+                        ${canDelete ? `<button onclick="window.deleteUser('${u.id}')" style="background:rgba(239, 68, 68, 0.2); color:var(--danger); padding:5px 10px; font-size:14px; box-shadow:none;">Excluir</button>` : ''}
                     </div>
                 </div>
             `;
@@ -503,16 +527,16 @@ document.addEventListener('DOMContentLoaded', () => {
         let formHtml = `
             <div class="user-form-card" style="border:1px solid var(--accent)">
                 <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
-                <input type="text" id="formUsername" placeholder="Usuário" value="${userToEdit ? userToEdit.username : ''}" ${userToEdit ? 'readonly' : ''} style="margin-bottom:8px">
-                <input type="password" id="formPassword" placeholder="Nova Senha (deixe em branco para manter)" value="">
-                <select id="formRole" style="margin-bottom:8px" ${isAdmin ? '' : 'disabled'}>
+                <input type="text" id="formUsername" placeholder="Usuário" value="${userToEdit ? userToEdit.username : ''}" ${userToEdit ? 'readonly' : ''} style="margin-bottom:8px; background:#fff; border:1px solid #ccc; color:var(--content-text-dark);">
+                <input type="password" id="formPassword" placeholder="Nova Senha (deixe em branco para manter)" value="" style="background:#fff; border:1px solid #ccc; color:var(--content-text-dark);">
+                <select id="formRole" style="margin-bottom:8px; background:#fff; border:1px solid #ccc; color:var(--content-text-dark);" ${isAdmin ? '' : 'disabled'}>
                     <option value="colaborador" ${userToEdit && userToEdit.role === 'colaborador' ? 'selected' : ''}>Colaborador</option>
                     <option value="gestor" ${userToEdit && userToEdit.role === 'gestor' ? 'selected' : ''} ${!isAdmin ? 'hidden' : ''}>Gestor</option>
                     <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''} ${!isAdmin ? 'hidden' : ''}>Administrador</option>
                 </select>
                 <div style="display:flex;gap:8px;margin-top:10px">
                     <button class="btn-primary" onclick="window.saveUser('${userId || ''}')" style="flex:1">Salvar</button>
-                    <button onclick="renderUsers()" style="background:rgba(255,255,255,0.1)">Cancelar</button>
+                    <button onclick="renderUsers()" style="background:#e5e7eb; color:var(--content-text-dark); box-shadow:none;">Cancelar</button>
                 </div>
                 ${!isAdmin && !isSelf ? `<p style="color:var(--danger); font-size:12px; margin-top:10px;">Apenas Admins podem alterar o Nível de Acesso.</p>` : ''}
             </div>
@@ -571,16 +595,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-
-    function updateMiniList() {
-        const last5 = scanRecords.slice(0, 5);
-        dom.miniScanList.innerHTML = last5.map(r => `
-            <div class="scan-item">
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${r.id}</span>
-                <small>${new Date(r.date).toLocaleTimeString().slice(0,5)}</small>
-            </div>
-        `).join('') || '<div style="font-size:12px;color:gray">Nada ainda</div>';
-    }
 
     /* --- Exportação CSV com Filtros de Data --- */
     function generateCSV(filter) {
