@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    /* --- Configurações e Estado --- */
+    /* --- Configurações e Estado (Mantido) --- */
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
     const DEFAULT_USERS = [
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let mapInstance = null;
     let locationMarker = null;
 
-    /* --- Referências DOM --- */
+    /* --- Referências DOM (Mantido) --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         userFilterSelect: document.getElementById('userFilterSelect'),
     };
 
-    /* --- Inicialização e Storage --- */
+    /* --- Inicialização e Storage (Mantido) --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
         if(!raw) {
@@ -65,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     }
     
-    /* NOVO: Popula o seletor de usuários */
     function populateUserFilter() {
         const isManager = currentUser.role === 'admin' || currentUser.role === 'gestor';
 
@@ -79,11 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             dom.userFilterSelect.classList.add('hidden');
         }
-        // Garante que o filtro volte a 'all' quando reaberto
         dom.userFilterSelect.value = 'all'; 
     }
 
-    /* --- Geolocalização (Localização do Usuário Mantida) --- */
+    /* --- Geolocalização (Mantido) --- */
     function startGeolocation() {
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(
@@ -118,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden'); 
             
+            // NOVO: Exibe o botão de menu mobile
             if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
             
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
@@ -126,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 dom.adminMenuOptions.classList.add('hidden');
             }
 
-            //populateUserFilter(); // Removido daqui, vai para o clique do botão Exportar CSV
             renderDashboard();
             document.getElementById('loginError').textContent = '';
             startGeolocation();
@@ -148,18 +146,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Navegação e Eventos --- */
     function showContent() {
+        // NOVO: Controla a exibição dos containers principais
         dom.cameraView.style.display = 'none';
-        dom.contentArea.style.display = 'block';
-        
-        dom.appContainer.style.display = 'grid'; 
+        dom.appContainer.classList.remove('hidden');
+        dom.appContainer.style.display = 'grid'; // Retorna ao layout GRID
 
-        if (window.innerWidth > 768) { 
-            dom.sidebar.classList.remove('hidden'); 
-            dom.appContainer.style.gridTemplateColumns = '392px 1fr';
-        } else {
-            dom.sidebar.classList.remove('active');
+        // Garante que o menu esteja fechado no mobile ao mudar de página
+        if (window.innerWidth <= 768) { 
+            dom.sidebar.classList.remove('active'); 
         }
-        stopScanner();
+
+        // Garante que o menu de exportação esteja fechado ao sair da tela
         if (dom.exportOptions.style.display === 'flex') {
             dom.exportOptions.style.display = 'none'; 
         }
@@ -167,21 +164,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
-        dom.contentArea.style.display = 'none';
+        // Oculta o container principal
+        dom.appContainer.classList.add('hidden');
+        
+        // Exibe a câmera (que é fixed e z-index alto)
         dom.cameraView.style.display = 'flex'; 
         
-        dom.appContainer.style.display = 'none';
-        
-        if(window.innerWidth > 768) {
-            dom.sidebar.classList.add('hidden'); 
-        } else {
+        // Fecha o menu lateral no mobile
+        if(window.innerWidth <= 768) {
             dom.sidebar.classList.remove('active');
         }
         startScanner();
     });
 
     window.renderDashboard = () => {
-        dom.appContainer.style.display = 'grid'; 
+        showContent();
         renderDashboard();
     }
     
@@ -191,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
 
     document.getElementById('btnExport').addEventListener('click', () => {
-        // NOVO: Popula o filtro e exibe as opções ao clicar em Exportar CSV
         if (dom.exportOptions.style.display !== 'flex') {
             populateUserFilter(); 
         }
@@ -209,17 +205,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner (Mantida) --- */
+    /* --- Lógica do Scanner (Melhorada para Mobile) --- */
     async function startScanner(deviceId = null) {
-        // ... (startScanner e tick mantidos) ...
         if (isScanning && !deviceId) return;
         stopScanner(); 
         
         const isMobile = window.innerWidth <= 768;
+        
+        // CORREÇÃO CRUCIAL: Prioriza a câmera traseira ('environment') no mobile
         const constraints = {
             video: deviceId 
                 ? { deviceId: { exact: deviceId } } 
-                : { facingMode: isMobile ? 'environment' : 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { 
+                    facingMode: isMobile ? 'environment' : 'user', 
+                    width: { ideal: 1280 }, 
+                    height: { ideal: 720 } 
+                }
         };
 
         try {
@@ -230,6 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
+            // Lógica de seleção de câmera (Mantida)
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
             if (videoDevices.length > 1) {
@@ -238,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
                     opt.text = d.label || `Câmera ${dom.cameraSelect.length + 1}`;
+                    // Tenta selecionar o 'environment' como padrão
                     opt.selected = d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment') || d.label.toLowerCase().includes('traseira');
                     dom.cameraSelect.appendChild(opt);
                 });
@@ -248,7 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
             requestAnimationFrame(tick);
         } catch (err) {
             console.error(err);
-            alert('Erro ao acessar câmera: ' + err.message);
+            // Mensagem mais clara para o usuário
+            alert('Erro ao iniciar câmera. Verifique permissões ou se o dispositivo tem câmera traseira: ' + err.message);
             window.renderDashboard(); 
         }
     }
@@ -263,6 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function tick() {
+        // ... (tick e handleScan mantidos) ...
         if (!isScanning) return;
         if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
             const canvas = document.createElement('canvas');
@@ -307,8 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scanRecords.unshift(record);
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
     }
-
-    /* --- Parsers e Helpers (Mantido) --- */
+    // ... (parsers, beep, showFeedback, Torch mantidos) ...
     function parsePayload(raw, lat, lon) {
         let id = raw;
         let type = 'Genérico';
@@ -369,8 +373,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Views (Renderização Mantida) --- */
     function renderDashboard() {
-        showContent();
-        
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             dom.adminMenuOptions.classList.remove('hidden');
         } else {
@@ -494,8 +496,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
-    /* --- Gerenciamento de Usuários (Mantido) --- */
     function renderUsers() {
         showContent();
         
@@ -621,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
-    /* --- Exportação CSV com Filtros de Data e Usuário --- */
+    /* --- Exportação CSV (Mantido) --- */
     function generateCSV(filter) {
         let filteredRecords = scanRecords;
         let selectedUser = dom.userFilterSelect.value;
@@ -629,15 +629,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 1. FILTRO POR USUÁRIO
         if (!isManager) {
-            // Colaborador: exporta apenas seus próprios registros
             filteredRecords = filteredRecords.filter(r => r.user === currentUser.username);
-            selectedUser = currentUser.username; // Usa o nome do colaborador para o nome do arquivo
+            selectedUser = currentUser.username;
         } else if (selectedUser && selectedUser !== 'all') {
-            // Admin/Gestor com filtro selecionado
             filteredRecords = filteredRecords.filter(r => r.user === selectedUser);
         }
-        // Se for admin/gestor e selectedUser for 'all', todos os registros são mantidos.
-
 
         // 2. FILTRO POR TEMPO
         const today = new Date();
@@ -654,7 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
             oneMonthAgo.setMonth(today.getMonth() - 1);
             filteredRecords = filteredRecords.filter(r => new Date(r.date) >= oneMonthAgo);
         } 
-        // 'all' não aplica filtro de tempo.
 
 
         if(!filteredRecords.length) {
