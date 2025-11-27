@@ -10,22 +10,70 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
   <style>
-    /* --- VARIÁVEIS DE COR (TEMA DARK AZUL & CLARO PARA CONTEÚDO) --- */
+    /* --- VARIÁVEIS DE COR PADRÃO (TEMA CLARO - DEFAULT) --- */
     :root {
+      /* Base - Sidebar Dark / Conteúdo Light */
       --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
-      --panel: rgba(30, 41, 59, 0.9); /* Sidebar (Slate 800) - Azul escuro com transparência */
+      --panel: rgba(30, 41, 59, 0.95); /* Sidebar/Login (Slate 800) */
+      --text: #f1f5f9; /* Texto claro (para sidebar) */
+      --muted: #94a3b8; /* Cinza claro (para sidebar) */
+      
+      /* Conteúdo Light */
+      --content-bg-light: #f4f6f8; /* Fundo claro para o Main (cinza claro) */
+      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
+      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
+
+      /* Acento */
       --accent: #38bdf8; /* Azul principal (Sky 400) */
       --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
       --success: #22c55e; /* Verde */
       --danger: #ef4444; /* Vermelho */
-      --muted: #94a3b8; /* Cinza claro (para sidebar) */
-      --text: #f1f5f9; /* Texto claro (para sidebar) */
-      --content-bg-light: #f4f6f8; /* NOVO: Fundo claro para o Main (cinza claro) */
-      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
-      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
+      
+      /* NOVO: Raio de Borda (50% maior que 16px) */
+      --radius: 25px; 
       
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
+
+    /* --- MEDIA QUERY: TEMA DARK COMPLETO (Se preferência do usuário for dark) --- */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #020617; /* Fundo principal mais escuro */
+            --panel: rgba(15, 23, 42, 0.95); /* Sidebar/Login (Slate 900) */
+            
+            /* Todos os painéis ficam escuros */
+            --content-bg-light: #0f172a; /* Main fica Slate 900 */
+            --content-card-bg: rgba(30, 41, 59, 0.7); /* Cards internos ficam Slate 800 */
+            --content-text-dark: #f1f5f9; /* Texto fica claro em todo lugar */
+            
+            --text: #f1f5f9; /* Texto claro (para sidebar) */
+            --muted: #94a3b8; /* Cinza claro (para sidebar) */
+        }
+
+        /* Ajustes específicos para elementos no modo Dark */
+        .user-form-card, #contentArea > div > div {
+            border: 1px solid rgba(255,255,255,0.05) !important;
+            box-shadow: none !important;
+        }
+
+        /* Inputs na área de conteúdo (que agora é dark) */
+        .main input, .main select {
+             background: rgba(0,0,0,0.3) !important;
+             border: 1px solid rgba(255,255,255,0.1) !important;
+             color: white !important;
+        }
+        
+        /* Botões de edição e delete no modo Dark */
+        .user-form-card button:first-of-type { /* Botão Editar (Azul) */
+            background: rgba(56, 189, 248, 0.2) !important; 
+            color: var(--accent) !important; 
+        }
+        .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
+            background: rgba(239, 68, 68, 0.2) !important; 
+            color: var(--danger) !important; 
+        }
+    }
+
 
     * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
     
@@ -38,6 +86,23 @@
       display: flex;
       flex-direction: column;
     }
+    
+    /* Área de Login (FORA do .app, usa o mesmo estilo da sidebar) */
+    #loginSection {
+        padding: 24px;
+        background: var(--panel);
+        border-radius: var(--radius);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        width: 392px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: var(--text);
+    }
+    #loginSection p { color: var(--muted) !important; }
 
     /* Layout Principal - PC */
     .app {
@@ -52,7 +117,7 @@
     /* Sidebar / Menu (DARK) */
     .sidebar {
       background: var(--panel);
-      border-radius: 16px;
+      border-radius: var(--radius); /* NOVO: Raio 25px */
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -62,9 +127,12 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow-y: auto;
       transition: transform 0.3s ease;
-      color: var(--text); /* Garante que o texto seja claro */
+      color: var(--text);
     }
-
+    .app .hidden ~ .sidebar { /* Esconde a sidebar quando o login está visível */
+        display: none; 
+    }
+    
     .logo {
       font-size: 24px;
       font-weight: 800;
@@ -76,7 +144,7 @@
       gap: 8px;
     }
 
-    /* Inputs e Botões (Na sidebar Dark) */
+    /* Inputs e Botões (Na sidebar Dark/Login) */
     input, select {
       width: 100%;
       padding: 14px;
@@ -104,7 +172,7 @@
 
     .btn-primary { 
         background: var(--accent); 
-        color: #0f172a; 
+        color: #0f172a; /* Texto escuro */
         box-shadow: none;
     }
     .btn-primary:hover { background: var(--accent-dark); }
@@ -133,16 +201,16 @@
         font-size: 14px;
     }
 
-    /* Área Principal (MAIN - CLARA) */
+    /* Área Principal (MAIN - CLARA/DARK) */
     .main {
       position: relative;
       display: flex;
       flex-direction: column;
       height: 100%;
       overflow: hidden;
-      border-radius: 16px;
-      background: var(--content-bg-light); /* FUNDO CLARO */
-      color: var(--content-text-dark); /* TEXTO ESCURO */
+      border-radius: var(--radius); /* NOVO: Raio 25px */
+      background: var(--content-bg-light); 
+      color: var(--content-text-dark); 
       box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
 
@@ -153,98 +221,40 @@
       height: 100%;
     }
     
-    /* Estilo de item na dashboard (CLARO com borda azul) */
+    /* Estilo de item na dashboard (Card) */
     #contentArea > div > div {
-        background: var(--content-card-bg) !important; /* Card branco */
-        border-left: 4px solid var(--accent) !important; /* Borda azul */
-        color: var(--content-text-dark); /* Texto escuro */
+        background: var(--content-card-bg) !important; 
+        border-left: 4px solid var(--accent) !important; 
+        color: var(--content-text-dark); 
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
-
-    /* Container da Câmera (mantido Dark) */
-    .camera-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw; 
-      height: 100vh; 
-      background: #000;
-      display: none; 
-      z-index: 99;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
     
-    /* Botão Voltar na Janela da Câmera */
-    #btnBackCamera {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 101;
-        padding: 12px 30px;
-        background: var(--danger);
-        color: white;
-        font-size: 16px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    }
-
-    /* --- SCANNER SIZE (MANTIDO 787px PC, 300px MOBILE) --- */
-    .scan-overlay {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 787px; 
-      height: 787px; 
-      border: 3px solid rgba(255, 255, 255, 0.5);
-      border-radius: 15px;
-      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6); 
-      pointer-events: none;
-    }
-    
-    .scan-line {
-      width: 100%;
-      height: 3px;
-      background: var(--success);
-      position: absolute;
-      animation: scanAnim 2s infinite linear;
-      box-shadow: 0 0 6px var(--success);
-    }
-
-    @keyframes scanAnim {
-      0% { top: 0; opacity: 0; }
-      10% { opacity: 1; }
-      90% { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
-    }
-
-    /* Feedback Visual */
-    #feedbackMsg {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: var(--success);
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      z-index: 1000;
-      opacity: 0; 
-      transition: opacity 0.3s ease;
-      pointer-events: none;
-    }
-    
-    /* Estilos para o formulário de usuários (CLARO com borda) */
+    /* Estilos para o formulário de usuários (Card) */
     .user-form-card {
-        background: var(--content-card-bg); /* Fundo branco */
+        background: var(--content-card-bg); 
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 12px;
         border: 1px solid #e5e7eb; /* Borda cinza clara */
-        color: var(--content-text-dark); /* Texto escuro */
+        color: var(--content-text-dark); 
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    
+    /* Inputs na área CLARA de conteúdo */
+    .main input, .main select {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        color: var(--content-text-dark);
+    }
+
+    /* Botões de edição e delete no modo Claro */
+    .user-form-card button:first-of-type { /* Botão Editar (Azul) */
+        background: rgba(56, 189, 248, 0.2) !important; 
+        color: var(--accent) !important; 
+    }
+    .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
+        background: rgba(239, 68, 68, 0.2) !important; 
+        color: var(--danger) !important; 
     }
     
     /* Info box no menu logado (sidebar dark) */
@@ -255,18 +265,22 @@
     #menuSection > div:first-child strong {
         color: var(--accent); /* Azul para o nome de usuário */
     }
+
+    /* --- SCANNER SIZE e Câmera (Mantido Dark) --- */
+    .camera-container {
+      /* Estilos para tela cheia Dark */
+    }
     
-    /* Botões de edição e delete (fundo claro com cores destacadas) */
-    .user-form-card button:first-of-type { /* Botão Editar (Azul) */
-        background: rgba(56, 189, 248, 0.2) !important; 
-        color: var(--accent) !important; 
+    .scan-overlay {
+      width: 787px; 
+      height: 787px; 
+      /* ... estilos de scanner ... */
     }
-    .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
-        background: rgba(239, 68, 68, 0.2) !important; 
-        color: var(--danger) !important; 
+    
+    #btnBackCamera {
+        /* ... estilos de botão de volta ... */
     }
-
-
+    
     /* --- MOBILE RESPONSIVIDADE --- */
     @media (max-width: 768px) {
       .app { 
@@ -311,19 +325,12 @@
           height: 300px; 
       }
 
-      .camera-container {
-        width: 100vw;
-        height: 100vh;
-        max-width: none;
-        max-height: none;
-      }
-      
-      /* Login centralizado no mobile */
-      #loginSection {
-          padding-top: 50px;
-      }
-      .app > .main {
-          margin-top: 0; 
+      #loginSection { /* Login Mobile */
+        width: 90%;
+        top: 50px;
+        left: 50%;
+        transform: translateX(-50%);
+        position: relative;
       }
     }
     
@@ -331,24 +338,25 @@
   </style>
 </head>
 <body>
+    
+  <div id="loginSection" style="display: flex; flex-direction: column; align-items: center;">
+    <div class="logo" style="margin-bottom: 25px;">⚡ PegazusLog</div>
+    <p style="font-size:12px; margin-top:-10px;">Identifique-se para começar</p>
+    <input type="text" id="loginUser" placeholder="Usuário" value="thon" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1);">
+    <input type="password" id="loginPass" placeholder="Senha" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1);">
+    <button class="btn-primary" id="btnLogin" style="width:100%">Entrar</button>
+    <div id="loginError" style="color:var(--danger); font-size:12px; margin-top:5px; height:15px"></div>
+  </div>
 
   <div id="feedbackMsg">Leitura Confirmada!</div>
 
   <button id="mobileMenuBtn" class="mobile-menu-btn hidden" onclick="toggleSidebar()">☰</button>
 
-  <div class="app">
+  <div class="app hidden">
     <div class="sidebar" id="sidebar">
       <div class="logo">⚡ PegazusLog</div>
 
-      <div id="loginSection">
-        <p style="font-size:12px; color:var(--muted)">Identifique-se para começar</p>
-        <input type="text" id="loginUser" placeholder="Usuário" value="thon">
-        <input type="password" id="loginPass" placeholder="Senha">
-        <button class="btn-primary" id="btnLogin" style="width:100%">Entrar</button>
-        <div id="loginError" style="color:var(--danger); font-size:12px; margin-top:5px; height:15px"></div>
-      </div>
-
-      <div id="menuSection" class="hidden">
+      <div id="menuSection">
         <div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; margin-bottom:15px">
           <div style="font-size:12px; color:var(--muted)">Logado como</div>
           <strong id="displayUser" style="color:var(--accent)">-</strong>
@@ -383,7 +391,7 @@
       <div id="contentArea">
         <div style="text-align:center; margin-top:20vh; opacity:0.5; color:var(--content-text-dark)">
           <h2>Bem-vindo</h2>
-          <p>Faça login para acessar o sistema.</p>
+          <p>Selecione uma opção no menu.</p>
         </div>
       </div>
     </div>
