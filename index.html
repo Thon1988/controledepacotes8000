@@ -117,7 +117,7 @@
     /* Sidebar / Menu (DARK) */
     .sidebar {
       background: var(--panel);
-      border-radius: var(--radius); /* NOVO: Raio 25px */
+      border-radius: var(--radius); /* Raio 25px */
       padding: 24px;
       display: flex;
       flex-direction: column;
@@ -129,7 +129,7 @@
       transition: transform 0.3s ease;
       color: var(--text);
     }
-    .app .hidden ~ .sidebar { /* Esconde a sidebar quando o login está visível */
+    .app .hidden ~ .sidebar { 
         display: none; 
     }
     
@@ -201,14 +201,14 @@
         font-size: 14px;
     }
 
-    /* Área Principal (MAIN - CLARA/DARK) */
+    /* Área Principal (MAIN) */
     .main {
       position: relative;
       display: flex;
       flex-direction: column;
       height: 100%;
       overflow: hidden;
-      border-radius: var(--radius); /* NOVO: Raio 25px */
+      border-radius: var(--radius); /* Raio 25px */
       background: var(--content-bg-light); 
       color: var(--content-text-dark); 
       box-shadow: 0 4px 12px rgba(0,0,0,0.05);
@@ -235,7 +235,7 @@
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 12px;
-        border: 1px solid #e5e7eb; /* Borda cinza clara */
+        border: 1px solid #e5e7eb; 
         color: var(--content-text-dark); 
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
@@ -248,11 +248,11 @@
     }
 
     /* Botões de edição e delete no modo Claro */
-    .user-form-card button:first-of-type { /* Botão Editar (Azul) */
+    .user-form-card button:first-of-type { 
         background: rgba(56, 189, 248, 0.2) !important; 
         color: var(--accent) !important; 
     }
-    .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
+    .user-form-card button:nth-of-type(2) { 
         background: rgba(239, 68, 68, 0.2) !important; 
         color: var(--danger) !important; 
     }
@@ -263,7 +263,7 @@
         color: var(--text); 
     }
     #menuSection > div:first-child strong {
-        color: var(--accent); /* Azul para o nome de usuário */
+        color: var(--accent); 
     }
 
     /* --- SCANNER SIZE e Câmera (Mantido Dark) --- */
@@ -368,16 +368,19 @@
         <button class="nav-btn" id="btnMap">🗺️ Mapa</button>
         <button class="nav-btn" id="btnRoutes">🧭 Gerar Rotas</button>
         
-        <div id="adminMenuOptions" class="hidden">
-            <button class="nav-btn" id="btnUsers">👥 Usuários</button>
-            <button class="nav-btn" id="btnExport">📄 Exportar CSV</button>
-        </div>
+        <button class="nav-btn" id="btnExport">📄 Exportar CSV</button>
         
         <div id="exportOptions" class="export-options">
             <button id="btnExportDaily">Diário</button>
             <button id="btnExportWeekly">Semanal</button>
             <button id="btnExportMonthly">Mensal</button>
             <button id="btnExportAll">Tudo</button>
+
+            <select id="userFilterSelect" class="hidden" style="width:100%; margin-top:10px; padding:10px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1); color:white; font-size:14px;"></select>
+        </div>
+        
+        <div id="adminMenuOptions" class="hidden">
+            <button class="nav-btn" id="btnUsers">👥 Usuários</button>
         </div>
         
         <div style="flex:1"></div>
