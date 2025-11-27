@@ -120,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Navegação e Eventos --- */
     function showContent() {
-        // Garante que o container da câmera esteja escondido
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
         if(window.innerWidth <= 768) dom.sidebar.classList.remove('active');
@@ -131,27 +130,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
-        // Ao clicar, mostra o container da câmera em tela cheia (simulando nova janela)
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
         if(window.innerWidth <= 768) dom.sidebar.classList.remove('active');
         startScanner();
     });
 
-    document.getElementById('btnDashboard').addEventListener('click', renderDashboard);
+    // O botão Entregas (btnDashboard) chama renderDashboard()
+    document.getElementById('btnDashboard').addEventListener('click', renderDashboard); 
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
-    // document.getElementById('btnCloseCamera').addEventListener('click', renderDashboard); // Botão removido/substituído
 
-    // Botões de navegação chamam showContent internamente e renderizam o conteúdo
-
-    // Toggle para opções de Exportação CSV
     document.getElementById('btnExport').addEventListener('click', () => {
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
 
-    // Eventos de Exportação
     document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
     document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
     document.getElementById('btnExportMonthly').addEventListener('click', () => generateCSV('monthly'));
@@ -223,7 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = h;
             ctx.drawImage(dom.video, 0, 0, w, h);
             
-            const size = Math.min(w, h) * 0.6;
+            // Otimização: Cortar 60% da área central para foco no QR/código.
+            // O CSS (525px) controla o visual, mas a área de leitura no JS permanece centrada.
+            const size = Math.min(w, h) * 0.6; 
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
@@ -257,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
         
         updateMiniList();
+        // Nota: O Dashboard será atualizado na próxima vez que o usuário navegar para ele.
     }
 
     /* --- Parsers e Helpers --- */
@@ -323,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Deixa a função renderDashboard global para o botão Voltar (btnBackCamera)
     window.renderDashboard = renderDashboard; 
     
+    // Função que carrega os dados escaneados na tela "Entregas"
     function renderDashboard() {
         showContent();
         const html = `
