@@ -10,16 +10,19 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
   <style>
-    /* --- VARIÁVEIS DE COR (TEMA DARK AZUL - REVERTIDO) --- */
+    /* --- VARIÁVEIS DE COR (TEMA DARK AZUL & CLARO PARA CONTEÚDO) --- */
     :root {
-      --bg: #0f172a; /* Fundo principal (Slate 900) */
-      --panel: rgba(30, 41, 59, 0.7); /* Fundo dos painéis com transparência (Slate 800) */
+      --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
+      --panel: rgba(30, 41, 59, 0.9); /* Sidebar (Slate 800) - Azul escuro com transparência */
       --accent: #38bdf8; /* Azul principal (Sky 400) */
-      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro */
+      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
       --success: #22c55e; /* Verde */
       --danger: #ef4444; /* Vermelho */
-      --muted: #94a3b8; /* Cinza claro para textos secundários */
-      --text: #f1f5f9; /* Texto principal claro */
+      --muted: #94a3b8; /* Cinza claro (para sidebar) */
+      --text: #f1f5f9; /* Texto claro (para sidebar) */
+      --content-bg-light: #f4f6f8; /* NOVO: Fundo claro para o Main (cinza claro) */
+      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
+      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
       
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
@@ -28,7 +31,7 @@
     
     body {
       margin: 0;
-      background: linear-gradient(180deg, var(--bg) 0%, #020617 100%); /* Gradiente Dark */
+      background: linear-gradient(180deg, var(--bg) 0%, #020617 100%); 
       color: var(--text);
       height: 100vh;
       overflow: hidden;
@@ -46,7 +49,7 @@
       width: 100vw;
     }
 
-    /* Sidebar / Menu */
+    /* Sidebar / Menu (DARK) */
     .sidebar {
       background: var(--panel);
       border-radius: 16px;
@@ -56,8 +59,10 @@
       gap: 18px;
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       overflow-y: auto;
       transition: transform 0.3s ease;
+      color: var(--text); /* Garante que o texto seja claro */
     }
 
     .logo {
@@ -71,13 +76,13 @@
       gap: 8px;
     }
 
-    /* Inputs e Botões */
+    /* Inputs e Botões (Na sidebar Dark) */
     input, select {
       width: 100%;
       padding: 14px;
       border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.1);
-      background: rgba(0,0,0,0.3); /* Fundo escuro para inputs */
+      background: rgba(0,0,0,0.3);
       color: white;
       margin-bottom: 10px;
       font-size: 16px;
@@ -99,7 +104,7 @@
 
     .btn-primary { 
         background: var(--accent); 
-        color: #0f172a; /* Texto escuro no botão principal */
+        color: #0f172a; 
         box-shadow: none;
     }
     .btn-primary:hover { background: var(--accent-dark); }
@@ -112,9 +117,9 @@
       padding: 12px;
       width: 100%;
     }
-    .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; } /* Hover escuro */
+    .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; } 
     
-    /* Novo estilo para sub-botões de exportação */
+    /* Sub-botões de exportação (Dark) */
     .export-options {
         display: none; 
         flex-direction: column;
@@ -123,12 +128,12 @@
     }
     .export-options button {
         padding: 10px 15px;
-        background: rgba(255,255,255,0.1); /* Fundo escuro */
+        background: rgba(255,255,255,0.1); 
         color: white;
         font-size: 14px;
     }
 
-    /* Área Principal */
+    /* Área Principal (MAIN - CLARA) */
     .main {
       position: relative;
       display: flex;
@@ -136,11 +141,27 @@
       height: 100%;
       overflow: hidden;
       border-radius: 16px;
-      background: rgba(0,0,0,0.2); /* Fundo escuro/transparente para o main */
-      box-shadow: none;
+      background: var(--content-bg-light); /* FUNDO CLARO */
+      color: var(--content-text-dark); /* TEXTO ESCURO */
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
 
-    /* Container da Câmera (Simulação de Nova Janela) */
+    /* Conteúdo (Dashboard, Mapas, etc) */
+    #contentArea {
+      padding: 24px;
+      overflow-y: auto;
+      height: 100%;
+    }
+    
+    /* Estilo de item na dashboard (CLARO com borda azul) */
+    #contentArea > div > div {
+        background: var(--content-card-bg) !important; /* Card branco */
+        border-left: 4px solid var(--accent) !important; /* Borda azul */
+        color: var(--content-text-dark); /* Texto escuro */
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    /* Container da Câmera (mantido Dark) */
     .camera-container {
       position: fixed;
       top: 0;
@@ -153,21 +174,6 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-    }
-    
-    .camera-video-wrapper {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        max-width: 1000px; 
-        max-height: calc(100vh);
-        overflow: hidden;
-    }
-
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
     }
     
     /* Botão Voltar na Janela da Câmera */
@@ -185,7 +191,7 @@
         box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     }
 
-    /* --- SCANNER SIZE (MANTIDO 787px) --- */
+    /* --- SCANNER SIZE (MANTIDO 787px PC, 300px MOBILE) --- */
     .scan-overlay {
       position: absolute;
       top: 50%;
@@ -215,33 +221,6 @@
       100% { top: 100%; opacity: 0; }
     }
 
-    /* Controles Flutuantes da Câmera */
-    .camera-controls {
-      position: absolute;
-      top: 25px;
-      right: 25px;
-      display: flex;
-      gap: 12px;
-      z-index: 10;
-    }
-    
-    .ctrl-btn {
-      background: rgba(0,0,0,0.6);
-      color: white;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      padding: 0;
-      font-size: 20px;
-    }
-
-    /* Conteúdo (Dashboard, Mapas, etc) */
-    #contentArea {
-      padding: 24px;
-      overflow-y: auto;
-      height: 100%;
-    }
-
     /* Feedback Visual */
     #feedbackMsg {
       position: fixed;
@@ -257,35 +236,38 @@
       pointer-events: none;
     }
     
-    /* Estilos para o formulário de usuários (ajustado para o novo fundo) */
+    /* Estilos para o formulário de usuários (CLARO com borda) */
     .user-form-card {
-        background: rgba(255,255,255,0.05); /* Escuro */
+        background: var(--content-card-bg); /* Fundo branco */
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 12px;
-        border: 1px solid rgba(255,255,255,0.05);
+        border: 1px solid #e5e7eb; /* Borda cinza clara */
+        color: var(--content-text-dark); /* Texto escuro */
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
     
-    /* Estilo de item na dashboard para o tema dark */
-    #contentArea > div > div {
-        background: rgba(255,255,255,0.05) !important;
-        border-left: 4px solid var(--accent) !important;
-        color: var(--text);
-    }
-    
-    /* Info box no menu logado */
+    /* Info box no menu logado (sidebar dark) */
     #menuSection > div:first-child {
         background: rgba(255,255,255,0.1) !important;
+        color: var(--text); 
+    }
+    #menuSection > div:first-child strong {
+        color: var(--accent); /* Azul para o nome de usuário */
     }
     
-    /* Botões de edição e delete no tema dark */
-    .user-form-card button:first-of-type { /* Botão Editar */
-        background: rgba(56, 189, 248, 0.2) !important;
-        color: var(--accent) !important;
+    /* Botões de edição e delete (fundo claro com cores destacadas) */
+    .user-form-card button:first-of-type { /* Botão Editar (Azul) */
+        background: rgba(56, 189, 248, 0.2) !important; 
+        color: var(--accent) !important; 
+    }
+    .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
+        background: rgba(239, 68, 68, 0.2) !important; 
+        color: var(--danger) !important; 
     }
 
 
-    /* --- MOBILE RESPONSIVIDADE (Sobrescreve estilos de PC) --- */
+    /* --- MOBILE RESPONSIVIDADE --- */
     @media (max-width: 768px) {
       .app { 
         grid-template-columns: 1fr; 
@@ -316,10 +298,11 @@
         left: 16px;
         z-index: 20;
         background: var(--accent); 
-        color: #0f172a; /* Texto escuro no botão principal */
+        color: #0f172a; 
         padding: 10px;
         border-radius: 8px;
         font-size: 18px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }
       
       /* O quadrado do scanner é reduzido no mobile para caber */
@@ -374,8 +357,8 @@
         <button class="btn-primary" id="btnScanMode">📷 Abrir Scanner</button>
         <div style="height:10px"></div>
         <button class="nav-btn" id="btnDashboard">📦 Entregas</button>
-        <button class="nav-btn" id="btnMap">📍 Mapa</button>
-        <button class="nav-btn" id="btnRoutes">🗺️ Gerar Rotas</button>
+        <button class="nav-btn" id="btnMap">🗺️ Mapa</button>
+        <button class="nav-btn" id="btnRoutes">🧭 Gerar Rotas</button>
         
         <div id="adminMenuOptions" class="hidden">
             <button class="nav-btn" id="btnUsers">👥 Usuários</button>
@@ -398,7 +381,7 @@
     <div class="main">
       
       <div id="contentArea">
-        <div style="text-align:center; margin-top:20vh; opacity:0.5">
+        <div style="text-align:center; margin-top:20vh; opacity:0.5; color:var(--content-text-dark)">
           <h2>Bem-vindo</h2>
           <p>Faça login para acessar o sistema.</p>
         </div>
