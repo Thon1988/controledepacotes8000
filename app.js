@@ -1,21 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
     
     /* --- Configurações e Estado --- */
+    // ... (restante do código de configuração e estado) ...
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
-    // CREDENCIAIS ATUALIZADAS: thon com senha 882010 (admin)
     const DEFAULT_USERS = [
         { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
     ]; 
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; // Exemplo: SP
+    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
     
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
     let users = loadUsers();
     
-    // Variáveis do Scanner
     let videoStream = null;
     let isScanning = false;
     let videoTrack = null;
@@ -40,8 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
     };
-
-    /* --- Inicialização e Storage --- */
+    // ... (restante do código de loadUsers, saveUsers, startGeolocation) ...
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
         if(!raw) {
@@ -55,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
             existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
         } else {
             const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
-            // Força a senha e role do admin na inicialização
             existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
             existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
         }
@@ -66,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     }
 
-    /* --- Geolocalização (Localização do Usuário) --- */
     function startGeolocation() {
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(
@@ -88,7 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /* --- Sistema de Login --- */
+
+    /* --- Sistema de Login / Logout --- */
     document.getElementById('btnLogin').addEventListener('click', () => {
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPass').value.trim();
@@ -120,9 +117,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Navegação e Eventos --- */
     function showContent() {
+        // Volta para a visualização normal (reaparece o sidebar)
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
-        if(window.innerWidth <= 768) dom.sidebar.classList.remove('active');
+        if (window.innerWidth > 768) { 
+            // Mostra o sidebar no PC
+            dom.sidebar.classList.remove('hidden'); 
+        } else {
+            // Esconde o sidebar no mobile (se estiver ativo)
+            dom.sidebar.classList.remove('active');
+        }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
             dom.exportOptions.style.display = 'none'; 
@@ -130,13 +134,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
+        // Esconde a área principal e o sidebar (se não for mobile)
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
-        if(window.innerWidth <= 768) dom.sidebar.classList.remove('active');
+        if(window.innerWidth > 768) {
+             // Esconde o sidebar no PC, deixando apenas o scanner em tela cheia
+            dom.sidebar.classList.add('hidden'); 
+        } else {
+            // Esconde menu mobile
+            dom.sidebar.classList.remove('active');
+        }
         startScanner();
     });
-
-    // O botão Entregas (btnDashboard) chama renderDashboard()
+    // ... (restante dos event listeners) ...
     document.getElementById('btnDashboard').addEventListener('click', renderDashboard); 
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
@@ -217,8 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = h;
             ctx.drawImage(dom.video, 0, 0, w, h);
             
-            // Otimização: Cortar 60% da área central para foco no QR/código.
-            // O CSS (525px) controla o visual, mas a área de leitura no JS permanece centrada.
             const size = Math.min(w, h) * 0.6; 
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
@@ -253,10 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
         
         updateMiniList();
-        // Nota: O Dashboard será atualizado na próxima vez que o usuário navegar para ele.
     }
-
-    /* --- Parsers e Helpers --- */
+    // ... (restante do código de parsePayload, beep, showFeedback, btnTorch) ...
     function parsePayload(raw, lat, lon) {
         let id = raw;
         let type = 'Genérico';
@@ -317,12 +323,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Views (Renderização) --- */
     
-    // Deixa a função renderDashboard global para o botão Voltar (btnBackCamera)
     window.renderDashboard = renderDashboard; 
     
-    // Função que carrega os dados escaneados na tela "Entregas"
     function renderDashboard() {
-        showContent();
+        // showContent() é chamada aqui, e ela remove a classe 'hidden' do sidebar no PC
+        showContent(); 
         const html = `
             <h2>📦 Entregas Realizadas</h2>
             <p>Total de registros: ${scanRecords.length}</p>
@@ -339,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         dom.contentArea.innerHTML = html;
     }
-
+    // ... (restante do código de renderRoutes, renderMap, updateMapLocation, renderUsers, saveUser, deleteUser, updateMiniList, generateCSV) ...
     function renderRoutes() {
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
