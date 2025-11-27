@@ -31,10 +31,11 @@
       overflow: hidden;
     }
 
-    /* Layout Principal */
+    /* Layout Principal - PC */
     .app {
       display: grid;
-      grid-template-columns: 280px 1fr;
+      /* Sidebar aumentado em 40%: 280px * 1.4 = 392px */
+      grid-template-columns: 392px 1fr;
       gap: 16px;
       padding: 16px;
       height: 100vh;
@@ -44,10 +45,10 @@
     .sidebar {
       background: var(--panel);
       border-radius: 16px;
-      padding: 20px;
+      padding: 24px; /* Aumentado um pouco */
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 18px; /* Aumentado */
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255,255,255,0.05);
       overflow-y: auto;
@@ -55,11 +56,11 @@
     }
 
     .logo {
-      font-size: 20px;
+      font-size: 24px; /* Aumentado */
       font-weight: 800;
       color: var(--accent);
       letter-spacing: -0.5px;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -68,18 +69,18 @@
     /* Inputs e Botões */
     input, select {
       width: 100%;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 14px; /* Aumentado */
+      border-radius: 10px; /* Aumentado */
       border: 1px solid rgba(255,255,255,0.1);
       background: rgba(0,0,0,0.3);
       color: white;
-      margin-bottom: 8px;
-      font-size: 14px;
+      margin-bottom: 10px; /* Aumentado */
+      font-size: 16px; /* Aumentado */
     }
     
     button {
-      padding: 12px;
-      border-radius: 8px;
+      padding: 14px; /* Aumentado em 40% */
+      border-radius: 10px; /* Aumentado */
       border: none;
       cursor: pointer;
       font-weight: 600;
@@ -87,7 +88,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 8px; /* Aumentado */
+      font-size: 16px; /* Aumentado */
     }
 
     .btn-primary { background: var(--accent); color: #0f172a; }
@@ -97,22 +99,22 @@
       background: transparent;
       color: var(--muted);
       justify-content: flex-start;
-      padding: 10px;
+      padding: 12px; /* Aumentado */
       width: 100%;
     }
     .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; }
     
     /* Novo estilo para sub-botões de exportação */
     .export-options {
-        display: none; /* Inicia oculto */
+        display: none; 
         flex-direction: column;
-        gap: 5px;
-        margin: 5px 0 10px 15px;
+        gap: 6px; /* Aumentado */
+        margin: 6px 0 12px 20px; /* Aumentado */
     }
     .export-options button {
-        padding: 8px 10px;
+        padding: 10px 15px; /* Aumentado */
         background: rgba(255,255,255,0.1);
-        font-size: 13px;
+        font-size: 14px; /* Aumentado */
     }
 
     /* Área Principal */
@@ -126,15 +128,28 @@
       background: rgba(0,0,0,0.2);
     }
 
-    /* Container da Câmera */
+    /* Container da Câmera (Simulação de Nova Janela) */
     .camera-container {
-      position: relative;
+      position: fixed; /* Fixado para cobrir a tela inteira (Simulação de nova tela) */
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
       background: #000;
-      display: none; /* Controlado via JS */
-      border-radius: 16px;
-      overflow: hidden;
+      display: none; 
+      z-index: 99; /* Alto z-index para sobrepor tudo */
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .camera-video-wrapper {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        max-width: 1000px; /* Limita o tamanho do vídeo para PC */
+        max-height: calc(100vh - 80px); /* Deixa espaço para o botão voltar */
+        overflow: hidden;
     }
 
     video {
@@ -142,6 +157,22 @@
       height: 100%;
       object-fit: cover;
     }
+    
+    /* Botão Voltar na Janela da Câmera */
+    #btnBackCamera {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 101;
+        padding: 12px 30px;
+        background: var(--danger);
+        color: white;
+        font-size: 16px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
 
     /* Overlay de Scanner (Mira) */
     .scan-overlay {
@@ -149,21 +180,21 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 250px;
-      height: 250px;
-      border: 2px solid rgba(255, 255, 255, 0.5);
-      border-radius: 12px;
-      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6); /* Escurece o redor */
+      width: 350px; /* Aumentado em 40% (250 * 1.4 = 350) */
+      height: 350px;
+      border: 3px solid rgba(255, 255, 255, 0.5); /* Borda mais grossa */
+      border-radius: 15px;
+      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6); 
       pointer-events: none;
     }
     
     .scan-line {
       width: 100%;
-      height: 2px;
+      height: 3px; /* Aumentado */
       background: var(--success);
       position: absolute;
       animation: scanAnim 2s infinite linear;
-      box-shadow: 0 0 4px var(--success);
+      box-shadow: 0 0 6px var(--success); /* Sombra mais forte */
     }
 
     @keyframes scanAnim {
@@ -176,37 +207,37 @@
     /* Controles Flutuantes da Câmera */
     .camera-controls {
       position: absolute;
-      top: 20px;
-      right: 20px;
+      top: 25px; /* Aumentado */
+      right: 25px;
       display: flex;
-      gap: 10px;
+      gap: 12px; /* Aumentado */
       z-index: 10;
     }
     
     .ctrl-btn {
       background: rgba(0,0,0,0.6);
       color: white;
-      width: 40px;
-      height: 40px;
+      width: 48px; /* Aumentado */
+      height: 48px;
       border-radius: 50%;
       padding: 0;
-      font-size: 18px;
+      font-size: 20px; /* Aumentado */
     }
 
     /* Lista de Scans */
     .scan-list-container {
       margin-top: auto;
-      max-height: 200px;
+      max-height: 250px; /* Aumentado */
       overflow-y: auto;
     }
     
     .scan-item {
       background: rgba(255,255,255,0.05);
-      padding: 8px 12px;
-      border-radius: 6px;
-      margin-bottom: 6px;
-      font-size: 13px;
-      border-left: 3px solid var(--accent);
+      padding: 10px 15px; /* Aumentado */
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 14px; /* Aumentado */
+      border-left: 4px solid var(--accent); /* Borda mais grossa */
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -221,44 +252,32 @@
 
     /* Feedback Visual */
     #feedbackMsg {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--success);
-      color: white;
-      padding: 10px 20px;
-      border-radius: 30px;
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      /* Estilo mantido */
       z-index: 1000;
-      opacity: 0;
-      transition: opacity 0.3s;
-      pointer-events: none;
     }
     
     /* Estilos para o formulário de usuários (Admin/Gestor) */
     .user-form-card {
         background: rgba(255,255,255,0.05);
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-    }
-    .user-form-card input, .user-form-card select {
-        background: rgba(0,0,0,0.4);
-        border: none;
+        padding: 20px; /* Aumentado */
+        border-radius: 10px;
+        margin-bottom: 12px;
     }
 
-    /* Mobile Responsividade */
+    /* --- MOBILE RESPONSIVIDADE (Sobrescreve estilos de PC) --- */
     @media (max-width: 768px) {
+      /* Reverte o layout grid para coluna única */
       .app { grid-template-columns: 1fr; padding: 0; gap: 0; }
+      
+      /* Sidebar padrão de menu mobile */
       .sidebar { 
         position: fixed; 
         z-index: 50; 
-        width: 80%; 
+        width: 85%; /* Um pouco maior que antes */
         height: 100%; 
         left: -100%;
         border-radius: 0;
+        padding: 20px; /* Menor padding no mobile */
       }
       .sidebar.active { left: 0; }
       .main { border-radius: 0; }
@@ -271,11 +290,28 @@
         z-index: 20;
         background: rgba(0,0,0,0.6);
         color: white;
-        padding: 8px;
+        padding: 10px;
         border-radius: 8px;
+        font-size: 18px;
       }
       
-      .scan-overlay { width: 200px; height: 200px; }
+      /* Reduz o tamanho da mira no mobile */
+      .scan-overlay { width: 250px; height: 250px; }
+
+      /* Ajusta a visualização da câmera para ocupar toda a tela sem limitação de largura */
+      .camera-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 99;
+      }
+      
+      .camera-video-wrapper {
+          max-width: 100vw;
+          max-height: 100vh;
+      }
     }
     
     .hidden { display: none !important; }
@@ -309,7 +345,8 @@
         <div style="height:10px"></div>
         <button class="nav-btn" id="btnDashboard">📦 Entregas</button>
         <button class="nav-btn" id="btnMap">📍 Mapa</button>
-        <button class="nav-btn" id="btnRoutes">🗺️ Gerar Rotas</button> <button class="nav-btn" id="btnUsers">👥 Usuários</button>
+        <button class="nav-btn" id="btnRoutes">🗺️ Gerar Rotas</button>
+        <button class="nav-btn" id="btnUsers">👥 Usuários</button>
         <button class="nav-btn" id="btnExport">📄 Exportar CSV</button>
         
         <div id="exportOptions" class="export-options">
@@ -332,29 +369,32 @@
 
     <div class="main">
       
-      <div id="cameraView" class="camera-container">
-        <video id="videoElement" playsinline muted autoplay></video>
-        
-        <div class="scan-overlay">
-          <div class="scan-line"></div>
-        </div>
-
-        <div class="camera-controls">
-          <select id="cameraSelect" class="hidden" style="width:auto; height:40px; background:rgba(0,0,0,0.6); border:none;"></select>
-          <button class="ctrl-btn" id="btnTorch" title="Flash">⚡</button>
-          <button class="ctrl-btn" id="btnCloseCamera" style="background:var(--danger)">✕</button>
-        </div>
-      </div>
-
       <div id="contentArea">
         <div style="text-align:center; margin-top:20vh; opacity:0.5">
           <h2>Bem-vindo</h2>
           <p>Faça login para acessar o sistema.</p>
         </div>
       </div>
-
     </div>
-  </div>
+    
+    <div id="cameraView" class="camera-container">
+        
+        <div class="camera-video-wrapper">
+            <video id="videoElement" playsinline muted autoplay></video>
+            
+            <div class="scan-overlay">
+              <div class="scan-line"></div>
+            </div>
+
+            <div class="camera-controls">
+              <select id="cameraSelect" class="hidden" style="width:auto; height:48px; background:rgba(0,0,0,0.6); border:none;"></select>
+              <button class="ctrl-btn" id="btnTorch" title="Flash">⚡</button>
+            </div>
+        </div>
+        
+        <button id="btnBackCamera" onclick="renderDashboard()">← Voltar ao Menu</button>
+        
+    </div>
 
   <script src="app.js" defer></script>
 </body>
