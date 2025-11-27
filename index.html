@@ -10,19 +10,17 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
   <style>
-    /* --- VARIÁVEIS DE COR (MOLDURA AMARELA, DARK AZUL MANTIDO, TEXTO ESCURO NO CONTEÚDO) --- */
+    /* --- VARIÁVEIS DE COR (TEMA DARK AZUL ORIGINAL RESTAURADO) --- */
     :root {
-      --bg: #0f172a; /* Fundo principal (Slate 900) - MANTIDO DARK */
-      --panel: rgba(30, 41, 59, 0.7); /* Fundo dos painéis com transparência (Slate 800) - MANTIDO DARK */
-      --accent: #facc15; /* AMARELO PRINCIPAL (Amber 400) */
-      --accent-dark: #eab308; /* AMARELO MAIS ESCURO PARA HOVER */
+      --bg: #0f172a; /* Fundo principal (Slate 900) */
+      --panel: rgba(30, 41, 59, 0.7); /* Fundo dos painéis com transparência (Slate 800) */
+      --accent: #38bdf8; /* Azul principal (Sky 400) */
+      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro */
       --success: #22c55e; /* Verde */
       --danger: #ef4444; /* Vermelho */
-      --muted: #94a3b8; /* Cinza claro para textos secundários no painel dark */
-      --text: #f1f5f9; /* Texto principal claro para o painel dark */
-      --content-bg-light: #f9fafb; /* NOVO: Fundo claro para áreas de conteúdo */
-      --content-text-dark: #1f2937; /* NOVO: Texto escuro para áreas de conteúdo */
-      --content-border: #e5e7eb; /* NOVO: Borda clara para cards de conteúdo */
+      --muted: #94a3b8; /* Cinza claro para textos secundários */
+      --text: #f1f5f9; /* Texto principal claro */
+      /* Removidas as variáveis de fundo claro */
       
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
@@ -31,8 +29,8 @@
     
     body {
       margin: 0;
-      background: linear-gradient(180deg, var(--bg) 0%, #020617 100%); /* Gradiente Dark - MANTIDO AZUL ESCURO */
-      color: var(--text); /* Cor de texto padrão para o corpo (painéis escuros) */
+      background: linear-gradient(180deg, var(--bg) 0%, #020617 100%); /* Gradiente Dark */
+      color: var(--text);
       height: 100vh;
       overflow: hidden;
       display: flex;
@@ -51,7 +49,7 @@
 
     /* Sidebar / Menu */
     .sidebar {
-      background: var(--panel); /* Fundo dark com transparência - MANTIDO AZUL ESCURO */
+      background: var(--panel);
       border-radius: 16px;
       padding: 24px;
       display: flex;
@@ -59,7 +57,7 @@
       gap: 18px;
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255,255,255,0.05);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Sombra mantida para um toque moderno */
       overflow-y: auto;
       transition: transform 0.3s ease;
     }
@@ -67,7 +65,7 @@
     .logo {
       font-size: 24px;
       font-weight: 800;
-      color: var(--accent); /* AMARELO PARA O LOGO */
+      color: var(--accent); /* Azul para o logo */
       letter-spacing: -0.5px;
       margin-bottom: 15px;
       display: flex;
@@ -102,8 +100,8 @@
     }
 
     .btn-primary { 
-        background: var(--accent); /* AMARELO PARA BOTÕES PRIMÁRIOS */
-        color: var(--content-text-dark); /* Texto escuro no botão amarelo */
+        background: var(--accent); /* Azul para botões primários */
+        color: #0f172a; /* Texto escuro no botão azul */
         box-shadow: none;
     }
     .btn-primary:hover { background: var(--accent-dark); }
@@ -118,7 +116,7 @@
     }
     .nav-btn:hover { background: rgba(255,255,255,0.05); color: white; } 
     
-    /* Novo estilo para sub-botões de exportação */
+    /* Sub-botões de exportação (fundo escuro) */
     .export-options {
         display: none; 
         flex-direction: column;
@@ -132,7 +130,7 @@
         font-size: 14px;
     }
 
-    /* Área Principal - ONDE O CONTEÚDO SERÁ CLARO */
+    /* Área Principal - AGORA TAMBÉM ESCURA */
     .main {
       position: relative;
       display: flex;
@@ -140,9 +138,9 @@
       height: 100%;
       overflow: hidden;
       border-radius: 16px;
-      background: var(--content-bg-light); /* FUNDO CLARO PARA O MAIN */
-      color: var(--content-text-dark); /* TEXTO ESCURO PARA O MAIN */
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      background: rgba(0,0,0,0.2); /* Fundo escuro para o main */
+      color: var(--text); /* Texto claro para o main */
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); /* Sombra mantida */
     }
 
     /* Conteúdo (Dashboard, Mapas, etc) */
@@ -152,15 +150,15 @@
       height: 100%;
     }
     
-    /* Estilo de item na dashboard para o novo tema (fundo claro com borda amarela) */
+    /* Estilo de item na dashboard (fundo escuro com borda azul) */
     #contentArea > div > div {
-        background: #ffffff !important; /* Card branco */
-        border-left: 4px solid var(--accent) !important; /* Borda amarela */
-        color: var(--content-text-dark); /* Texto escuro */
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        background: rgba(255,255,255,0.05) !important; /* Card escuro */
+        border-left: 4px solid var(--accent) !important; /* Borda azul */
+        color: var(--text); /* Texto claro */
+        box-shadow: none; /* Sem sombra para manter o visual flat dark */
     }
 
-    /* Container da Câmera (Simulação de Nova Janela) */
+    /* Container da Câmera */
     .camera-container {
       position: fixed;
       top: 0;
@@ -211,8 +209,8 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 787px; /* Aumentado em 50% */
-      height: 787px; /* Aumentado em 50% */
+      width: 787px; 
+      height: 787px; 
       border: 3px solid rgba(255, 255, 255, 0.5);
       border-radius: 15px;
       box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.6); 
@@ -270,38 +268,38 @@
       pointer-events: none;
     }
     
-    /* Estilos para o formulário de usuários (fundo claro com borda amarela) */
+    /* Estilos para o formulário de usuários (fundo escuro) */
     .user-form-card {
-        background: #ffffff; /* Fundo branco */
+        background: rgba(255,255,255,0.05); /* Fundo escuro */
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 12px;
-        border: 1px solid var(--content-border);
-        color: var(--content-text-dark); /* Texto escuro */
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        border: 1px solid rgba(255,255,255,0.05);
+        color: var(--text); /* Texto claro */
+        box-shadow: none;
     }
     
     /* Info box no menu logado (sidebar dark) */
     #menuSection > div:first-child {
         background: rgba(255,255,255,0.1) !important;
-        color: var(--text); /* Texto claro no painel dark */
+        color: var(--text); 
     }
     #menuSection > div:first-child strong {
-        color: var(--accent); /* AMARELO para o nome de usuário */
+        color: var(--accent); /* Azul para o nome de usuário */
     }
     
-    /* Botões de edição e delete no tema claro */
+    /* Botões de edição e delete (fundo escuro) */
     .user-form-card button:first-of-type { /* Botão Editar */
-        background: rgba(250,204,21,0.2) !important; /* AMARELO CLARO */
-        color: var(--accent) !important; /* AMARELO ESCURO */
+        background: rgba(56, 189, 248, 0.2) !important; /* Azul claro */
+        color: var(--accent) !important; /* Azul escuro */
     }
     .user-form-card button:nth-of-type(2) { /* Botão Excluir */
-        background: rgba(239, 68, 68, 0.2) !important; /* VERMELHO CLARO */
-        color: var(--danger) !important; /* VERMELHO ESCURO */
+        background: rgba(239, 68, 68, 0.2) !important; /* Vermelho claro */
+        color: var(--danger) !important; /* Vermelho escuro */
     }
 
 
-    /* --- MOBILE RESPONSIVIDADE (Sobrescreve estilos de PC) --- */
+    /* --- MOBILE RESPONSIVIDADE --- */
     @media (max-width: 768px) {
       .app { 
         grid-template-columns: 1fr; 
@@ -331,8 +329,8 @@
         top: 16px;
         left: 16px;
         z-index: 20;
-        background: var(--accent); /* AMARELO para o botão de menu mobile */
-        color: var(--content-text-dark); /* Texto escuro */
+        background: var(--accent); /* Azul para o botão de menu mobile */
+        color: #0f172a; /* Texto escuro */
         padding: 10px;
         border-radius: 8px;
         font-size: 18px;
