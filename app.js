@@ -22,8 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const SCAN_DELAY = 1000;
     let lastScanCode = '';
     let lastScanTime = 0;
-    let userLocation = null; // Armazenará a localização atual do usuário
-    let mapInstance = null; // Instância do Leaflet Map
+    let userLocation = null;
+    let mapInstance = null;
+    let locationMarker = null;
 
     /* --- Referências DOM --- */
     const dom = {
@@ -43,12 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Inicialização e Storage --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        // Garante que o usuário 'thon' esteja sempre presente com a senha correta na inicialização
         if(!raw) {
             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
             return DEFAULT_USERS;
         }
-        // Se o localStorage existe, mas não inclui 'thon' (ou se a senha mudou), atualiza 'thon'
         const existingUsers = JSON.parse(raw);
         const thonExists = existingUsers.some(u => u.username === 'thon');
 
@@ -56,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
             existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
         } else {
             const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
-            // Força a senha e role do admin
+            // Força a senha e role do admin na inicialização
             existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
             existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
         }
@@ -80,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 (error) => {
                     console.warn('Geolocation error:', error.message);
-                    userLocation = null; // Limpa se houver erro
+                    userLocation = null;
                 },
                 { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
             );
@@ -104,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderDashboard();
             updateMiniList();
             document.getElementById('loginError').textContent = '';
-            startGeolocation(); // Inicia monitoramento GPS após login
+            startGeolocation();
         } else {
             document.getElementById('loginError').textContent = 'Credenciais inválidas';
         }
@@ -121,18 +120,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Navegação e Eventos --- */
     function showContent() {
+        // Garante que o container da câmera esteja escondido
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
         if(window.innerWidth <= 768) dom.sidebar.classList.remove('active');
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
-            dom.exportOptions.style.display = 'none'; // Esconde opções de exportação ao mudar de tela
+            dom.exportOptions.style.display = 'none'; 
         }
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
+        // Ao clicar, mostra o container da câmera em tela cheia (simulando nova janela)
         dom.contentArea.style.display = 'none';
-        dom.cameraView.style.display = 'block';
+        dom.cameraView.style.display = 'flex'; 
         if(window.innerWidth <= 768) dom.sidebar.classList.remove('active');
         startScanner();
     });
@@ -140,15 +141,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnDashboard').addEventListener('click', renderDashboard);
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
-    document.getElementById('btnRoutes').addEventListener('click', renderRoutes); // Novo Handler
-    document.getElementById('btnCloseCamera').addEventListener('click', renderDashboard);
+    document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
+    // document.getElementById('btnCloseCamera').addEventListener('click', renderDashboard); // Botão removido/substituído
+
+    // Botões de navegação chamam showContent internamente e renderizam o conteúdo
 
     // Toggle para opções de Exportação CSV
     document.getElementById('btnExport').addEventListener('click', () => {
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
 
-    // Eventos de Exportação (com filtros de data)
+    // Eventos de Exportação
     document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
     document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
     document.getElementById('btnExportMonthly').addEventListener('click', () => generateCSV('monthly'));
@@ -178,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
-            // Listar dispositivos
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
             if (videoDevices.length > 1) {
@@ -247,7 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         beep();
         showFeedback(data);
 
-        // Gera a coordenada simulada OU usa a coordenada real, se disponível
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
 
@@ -303,7 +304,24 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
 
+    document.getElementById('btnTorch').addEventListener('click', async () => {
+        if(videoTrack) {
+            try {
+                const caps = videoTrack.getCapabilities();
+                if(caps.torch) {
+                    const settings = videoTrack.getSettings();
+                    await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
+                } else {
+                    alert('Flash não suportado neste dispositivo/navegador');
+                }
+            } catch(e) { console.log(e); }
+        }
+    });
+
     /* --- Views (Renderização) --- */
+    
+    // Deixa a função renderDashboard global para o botão Voltar (btnBackCamera)
+    window.renderDashboard = renderDashboard; 
     
     function renderDashboard() {
         showContent();
@@ -333,10 +351,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // SIMULAÇÃO DE GERAÇÃO DE ROTA (Algoritmo do Vendedor Viajante - TSP, simplificado)
         const simplifiedRoute = deliveryPoints
-            .slice(0, 10) // Limita a 10 pontos para simulação
-            .sort(() => Math.random() - 0.5); // Apenas embaralha para simular ordem otimizada
+            .slice(0, 10) 
+            .sort(() => Math.random() - 0.5); 
 
         const routeMapHtml = `
             <h2>🗺️ Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
@@ -361,7 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
                     .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
                 
-                // Marcador personalizado para a ordem
                 marker.setIcon(L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="background:var(--accent); color:#000; border-radius:50%; width:24px; height:24px; text-align:center; font-weight:bold; line-height:24px;">${index + 1}</div>`,
@@ -371,7 +387,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return [p.lat, p.lon];
             });
             
-            // Desenha a linha da rota
             if (routePoints.length > 1) {
                 L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
                 map.fitBounds(L.polyline(routePoints).getBounds());
@@ -380,12 +395,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
 
-    // Variável global para armazenar o marcador de localização do usuário
-    let locationMarker = null;
-
     function renderMap() {
         showContent();
-        mapInstance = null; // Zera a instância anterior
+        mapInstance = null;
         dom.contentArea.innerHTML = `<h2>📍 Mapa de Entregas</h2><p>Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
         
         setTimeout(() => {
@@ -397,13 +409,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 attribution: '&copy; OSM'
             }).addTo(mapInstance);
 
-            // Adiciona entregas escaneadas
             scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
                     .bindPopup(`<b>${r.id}</b><br>${r.type}`);
             });
 
-            // Atualiza a localização do usuário no mapa
             updateMapLocation();
 
         }, 100);
@@ -448,10 +458,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredUsers = users.filter(u => {
             if (currentUser.role === 'admin') return true;
             if (currentUser.role === 'gestor') {
-                // Gestor vê seus próprios colaboradores E a si mesmo
                 return u.creatorId === currentUser.id || u.id === currentUser.id;
             }
-            // Colaborador só vê a si mesmo
             return u.id === currentUser.id;
         });
 
@@ -466,8 +474,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="color:var(--accent); font-size:12px">(${u.role})</span>
                     </div>
                     <div>
-                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(255,193,7,0.2); color:#ffc107; padding:5px 10px; margin-right:5px;">Editar</button>` : ''}
-                        ${canDelete ? `<button onclick="window.deleteUser('${u.id}')" style="background:rgba(220,53,69,0.2); color:var(--danger); padding:5px 10px;">Excluir</button>` : ''}
+                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(255,193,7,0.2); color:#ffc107; padding:5px 10px; margin-right:5px; font-size:14px;">Editar</button>` : ''}
+                        ${canDelete ? `<button onclick="window.deleteUser('${u.id}')" style="background:rgba(220,53,69,0.2); color:var(--danger); padding:5px 10px; font-size:14px;">Excluir</button>` : ''}
                     </div>
                 </div>
             `;
@@ -477,11 +485,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.innerHTML = userListHtml;
     }
 
-    // Adiciona funções CRUD no escopo global para serem chamadas pelo HTML
+    // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
-        // Permissões
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
             alert('Você não tem permissão para editar este usuário.');
             return;
@@ -534,14 +541,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: 'u' + Date.now(),
                 username,
                 password,
-                role: currentUser.role === 'colaborador' ? 'colaborador' : role, // Colab. só cria outro Colab.
+                role: currentUser.role === 'colaborador' ? 'colaborador' : role, 
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
             updatedUser = users[userIndex];
             if (password) updatedUser.password = password;
-            // Admin pode mudar o role. Gestor/Colaborador só podem mudar a senha do próprio perfil.
             if (currentUser.role === 'admin') updatedUser.role = role; 
         }
 
@@ -611,6 +617,6 @@ document.addEventListener('DOMContentLoaded', () => {
         a.download = filename;
         a.click();
 
-        dom.exportOptions.style.display = 'none'; // Esconde menu após exportar
+        dom.exportOptions.style.display = 'none';
     }
 });
