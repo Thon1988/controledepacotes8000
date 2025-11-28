@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'),
+        appContainer: document.querySelector('.app-wrapper'), // ATUALIZADO para .app-wrapper
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -137,11 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
 
-        dom.appContainer.style.display = 'grid';
+        dom.appContainer.style.display = 'flex'; // Volta para flex
+        dom.appContainer.style.flexDirection = 'row'; // Volta para row
 
         if (window.innerWidth > 768) {
             dom.sidebar.classList.remove('hidden');
-            dom.appContainer.style.gridTemplateColumns = '392px 1fr';
         } else {
             dom.sidebar.classList.remove('active');
         }
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex';
 
-        dom.appContainer.style.display = 'none'; // Esconde o grid app
+        dom.appContainer.style.display = 'none'; // Esconde o app-wrapper
 
         if(window.innerWidth > 768) {
             dom.sidebar.classList.add('hidden');
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Função global que chama renderDashboard sem filtros
     window.loadDashboard = () => {
-        dom.appContainer.style.display = 'grid';
+        dom.appContainer.style.display = 'flex'; // Volta para flex ao carregar
         renderDashboard(); 
     }
 
