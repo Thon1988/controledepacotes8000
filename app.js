@@ -1,7 +1,3 @@
-/* ---------------------------------------------------
- * app.js - Lógica Principal (Incorporação de Menu e Mapa)
- * --------------------------------------------------- */
-
 document.addEventListener('DOMContentLoaded', () => {
     
     /* --- Configurações e Estado --- */
@@ -11,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ];    
+    ]; 
     const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
     
     let currentUser = null;
@@ -32,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'), 
+        appContainer: document.querySelector('.app'), // Adicionado
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -42,9 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
-        // NOVO: Referências do menu e mapa
-        mapContainer: document.getElementById('mapContainer'),
-        menuItems: document.querySelectorAll('.menu-item'),
     };
 
     /* --- Inicialização e Storage --- */
@@ -57,10 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingUsers = JSON.parse(raw);
         const thonExists = existingUsers.some(u => u.username === 'thon');
 
+        // Garante que o usuário admin padrão 'thon' exista
         if (!thonExists) {
             existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
         } else {
             const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
+            // Mantém a senha e role do admin padrão
             existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
             existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
         }
@@ -93,94 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /* ---------------------------------------------------
-     * NOVO: LÓGICA DE VISIBILIDADE DO MAPA E MENU 
-     * --------------------------------------------------- */
-
-    /**
-     * Define qual item do menu está ativo.
-     * @param {string} activeId - O ID do item de menu a ser ativado (ex: 'btnDashboard').
-     */
-    function setActiveMenuItem(activeId) {
-        dom.menuItems.forEach(i => i.classList.remove('active'));
-        const activeItem = document.getElementById(activeId);
-        if (activeItem) {
-            activeItem.classList.add('active');
-        }
-    }
-
-    /**
-     * Alterna a visibilidade do mapa (mapContainer).
-     * @param {boolean} showMap - true para mostrar, false para esconder.
-     */
-    function toggleMapVisibility(showMap) {
-        if (!dom.mapContainer) return;
-
-        if (showMap) {
-            dom.mapContainer.classList.remove('mapa-hidden');
-            // Crucial para garantir que o mapa seja renderizado corretamente
-            if (mapInstance) {
-                setTimeout(() => { 
-                    mapInstance.invalidateSize(); 
-                }, 100); 
-            }
-        } else {
-            dom.mapContainer.classList.add('mapa-hidden');
-        }
-    }
-
-    /* --- Lógica de Manipulação de Menu (Centralizada) --- */
-
-    dom.menuItems.forEach(item => {
-        item.addEventListener('click', () => {
-            
-            setActiveMenuItem(item.id);
-
-            // Esconde o mapa se não for a opção 'Mapa de Entregas'
-            const isMapButton = item.id === 'btnMap';
-            toggleMapVisibility(isMapButton); 
-            
-            // Fecha o sidebar em mobile
-            if (window.innerWidth <= 768) {
-                window.toggleSidebar(false); 
-            }
-
-            // Garante que o scanner não esteja ativo
-            stopScanner();
-            
-            // Chama a função de renderização apropriada
-            switch (item.id) {
-                case 'btnDashboard':
-                    renderDashboard();
-                    break;
-                case 'btnMap':
-                    renderMap(); 
-                    break;
-                case 'btnRoutes':
-                    renderRoutes();
-                    break;
-                case 'btnUsers':
-                    renderUsers();
-                    break;
-                case 'btnScanMode':
-                    // A função startScanner() já chama openCameraView()
-                    startScanner();
-                    break;
-            }
-        });
-    });
-
-    // Removendo os event listeners antigos, mantendo apenas a lógica nova
-    document.getElementById('btnDashboard').removeEventListener('click', window.renderDashboard); 
-    document.getElementById('btnUsers').removeEventListener('click', renderUsers);
-    document.getElementById('btnMap').removeEventListener('click', renderMap);
-    document.getElementById('btnRoutes').removeEventListener('click', renderRoutes);
-
-    /* ---------------------------------------------------
-     * FIM DA LÓGICA DE MENU
-     * --------------------------------------------------- */
-
-
     /* --- Sistema de Login --- */
     document.getElementById('btnLogin').addEventListener('click', () => {
         const u = document.getElementById('loginUser').value.trim();
@@ -191,9 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             
-            // NOVO: Esconde o login e mostra o app principal
+            // Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
-            dom.appContainer.classList.remove('hidden');    
+            dom.appContainer.classList.remove('hidden'); 
             
             if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
             
@@ -204,7 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             renderDashboard();
-            setActiveMenuItem('btnDashboard'); // Define o dashboard como ativo
             document.getElementById('loginError').textContent = '';
             startGeolocation();
         } else {
@@ -216,76 +122,61 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = null;
         stopScanner();
         
-        // NOVO: Mostra o login e esconde o app principal
+        // Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
-        dom.loginSection.classList.remove('hidden');    
+        dom.loginSection.classList.remove('hidden'); 
 
         dom.mobileMenuBtn.classList.add('hidden');
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
-        
-        // Limpa a instância do mapa ao sair
-        if (mapInstance) {
-            mapInstance.remove();
-            mapInstance = null;
-        }
     });
 
     /* --- Navegação e Eventos --- */
     function showContent() {
-        // Assegura que a área de conteúdo seja visível e o mapa/scanner não
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
         
-        dom.appContainer.style.display = 'grid';    
-        dom.mapContainer.classList.add('mapa-hidden'); // Garante que o mapa esteja escondido por padrão
+        dom.appContainer.style.display = 'grid'; 
 
-        if (window.innerWidth > 768) {    
-            dom.sidebar.classList.remove('hidden');    
+        if (window.innerWidth > 768) { 
+            dom.sidebar.classList.remove('hidden'); 
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
         } else {
             dom.sidebar.classList.remove('active');
         }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
-            dom.exportOptions.style.display = 'none';    
+            dom.exportOptions.style.display = 'none'; 
         }
-        dom.feedback.style.opacity = '0';    
+        dom.feedback.style.opacity = '0'; 
     }
 
-    // A função de clique no Scanner (btnScanMode) foi movida para a lógica centralizada (dom.menuItems.forEach)
-
-    window.openCameraView = () => {
-        // Prepara a tela para o scanner
+    document.getElementById('btnScanMode').addEventListener('click', () => {
         dom.contentArea.style.display = 'none';
-        dom.cameraView.style.display = 'flex';    
+        dom.cameraView.style.display = 'flex'; 
+        
         dom.appContainer.style.display = 'none'; // Esconde o grid app
         
         if(window.innerWidth > 768) {
-            dom.sidebar.classList.add('hidden');    
+            dom.sidebar.classList.add('hidden'); 
         } else {
             dom.sidebar.classList.remove('active');
         }
-    }
-    
-    // A função renderDashboard global não é mais necessária, mas mantida para compatibilidade
+        startScanner();
+    });
+
     window.renderDashboard = () => {
-        dom.appContainer.style.display = 'grid';    
+        dom.appContainer.style.display = 'grid'; 
         renderDashboard();
     }
     
-    // Botão mobile
-    dom.mobileMenuBtn.addEventListener('click', () => {
-        window.toggleSidebar();
-    });
+    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
+    document.getElementById('btnUsers').addEventListener('click', renderUsers);
+    document.getElementById('btnMap').addEventListener('click', renderMap);
+    document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
 
-    document.getElementById('btnExport').addEventListener('click', (e) => {
-        e.stopPropagation();
+    document.getElementById('btnExport').addEventListener('click', () => {
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
-    document.addEventListener('click', () => {
-        dom.exportOptions.style.display = 'none';
-    });
-
 
     document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
     document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
@@ -296,32 +187,69 @@ document.addEventListener('DOMContentLoaded', () => {
         if(isScanning) startScanner(e.target.value);
     });
 
-    // Função de toggleSidebar (tornada global para o botão mobile)
-    window.toggleSidebar = (forceClose = undefined) => {
-        if (forceClose !== undefined) {
-            if (forceClose) {
-                dom.sidebar.classList.add('active');
-            } else {
-                dom.sidebar.classList.remove('active');
-            }
-        } else {
-            dom.sidebar.classList.toggle('active');
-        }
-    };
+    window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
     /* --- Lógica do Scanner --- */
+    
+    /** Função para forçar a permissão e preencher a lista de câmeras */
+    async function enumerateDevices() {
+        try {
+            // Tenta obter uma stream para forçar a permissão do usuário
+            const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            initialStream.getTracks().forEach(track => track.stop());
+            
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+            
+            dom.cameraSelect.innerHTML = '';
+            if (videoDevices.length > 0) {
+                 // Preenche o seletor com todas as câmeras
+                videoDevices.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    opt.text = d.label || `Câmera ${dom.cameraSelect.length + 1}`;
+                    dom.cameraSelect.appendChild(opt);
+                });
+                dom.cameraSelect.classList.remove('hidden');
+            } else {
+                dom.cameraSelect.classList.add('hidden');
+            }
+        } catch (err) {
+            console.error("Erro ao enumerar dispositivos:", err);
+            // Se houver erro, a lista de câmeras ficará vazia/escondida
+        }
+    }
+    
     async function startScanner(deviceId = null) {
         if (isScanning && !deviceId) return;
-        stopScanner();    
+        stopScanner(); 
         
-        // Prepara a tela do scanner
-        window.openCameraView();
+        const videoDevices = Array.from(dom.cameraSelect.options);
+        
+        let targetDeviceId = deviceId;
+        
+        // Lógica de seleção automática da câmera 0 (traseira/environment)
+        if (!targetDeviceId && videoDevices.length > 0) {
+            // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
+            const preferredCamera = videoDevices.find(opt => 
+                opt.text.toLowerCase().includes('environment') || 
+                opt.text.toLowerCase().includes('back') || 
+                opt.text.toLowerCase().includes('traseira')
+            );
+            
+            if (preferredCamera) {
+                targetDeviceId = preferredCamera.value;
+            } else {
+                // 2. Se não encontrar pelo label, usa a primeira (índice 0)
+                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
+                targetDeviceId = videoDevices[0].value;
+            }
+        }
 
-        const isMobile = window.innerWidth <= 768;
         const constraints = {
-            video: deviceId    
-                ? { deviceId: { exact: deviceId } }    
-                : { facingMode: isMobile ? 'environment' : 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+            video: targetDeviceId
+                ? { deviceId: { exact: targetDeviceId } } 
+                : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         };
 
         try {
@@ -332,27 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoDevices = devices.filter(d => d.kind === 'videoinput');
-            if (videoDevices.length > 1) {
-                dom.cameraSelect.innerHTML = '';
-                videoDevices.forEach(d => {
-                    const opt = document.createElement('option');
-                    opt.value = d.deviceId;
-                    opt.text = d.label || `Câmera ${dom.cameraSelect.length + 1}`;
-                    opt.selected = d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('environment') || d.label.toLowerCase().includes('traseira');
-                    dom.cameraSelect.appendChild(opt);
-                });
-                dom.cameraSelect.classList.remove('hidden');
-                if(deviceId) dom.cameraSelect.value = deviceId;
-            }
+            // Atualiza o seletor para o dispositivo que realmente foi aberto
+            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
 
             requestAnimationFrame(tick);
         } catch (err) {
             console.error(err);
             alert('Erro ao acessar câmera: ' + err.message);
-            renderDashboard(); // Volta para o Dashboard
-            setActiveMenuItem('btnDashboard');
+            window.renderDashboard(); 
         }
     }
 
@@ -374,10 +289,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const h = dom.video.videoHeight;
             canvas.width = w;
             canvas.height = h;
-            ctx.drawImage(dom.video, 0, 0, w, w);    
+            ctx.drawImage(dom.video, 0, 0, w, h); 
             
             // Lógica de corte para varrer uma área maior (mantida em 90%)
-            const size = Math.min(w, h) * 0.9;    
+            const size = Math.min(w, h) * 0.9; 
 
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
@@ -402,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastScanTime = now;
 
         beep();
-        showFeedback(data);    
+        showFeedback(data); 
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
@@ -450,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showFeedback(text) {
         dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
         dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000);    
+        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
         
         const overlay = document.querySelector('.scan-overlay');
         overlay.style.borderColor = 'var(--success)';
@@ -475,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function renderDashboard() {
         showContent();
-        toggleMapVisibility(false); // Garante que o mapa esteja escondido
         
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             dom.adminMenuOptions.classList.remove('hidden');
@@ -483,11 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.adminMenuOptions.classList.add('hidden');
         }
         
-        // Remove o container do mapa da área de conteúdo se ele estiver lá
-        if (dom.mapContainer.parentNode === dom.contentArea) {
-             dom.contentArea.removeChild(dom.mapContainer);
-        }
-
         const html = `
             <h2>📦 Entregas Realizadas</h2>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
@@ -507,8 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRoutes() {
         showContent();
-        toggleMapVisibility(false); // Garante que o mapa esteja escondido
-        
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
         if (deliveryPoints.length < 2) {
@@ -516,19 +423,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Simula otimização básica (apenas ordena aleatoriamente)
         const simplifiedRoute = deliveryPoints
-            .slice(0, 10)    
-            .sort(() => Math.random() - 0.5);    
+            .slice(0, 10) 
+            .sort(() => Math.random() - 0.5); 
 
         const routeMapHtml = `
             <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
             <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
             <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
             <div style="margin-top:10px">
-                ${simplifiedRoute.map((p, index) =>    
+                ${simplifiedRoute.map((p, index) => 
                     `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
-                        ${index + 1}. ${p.id}    
+                        ${index + 1}. ${p.id} 
                         (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
                     </div>`
                 ).join('')}
@@ -563,19 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderMap() {
         showContent();
-        toggleMapVisibility(true); // Exibe o mapa
-
-        // Remove o conteúdo estático (h2, p) e deixa APENAS o mapContainer na contentArea
-        dom.contentArea.innerHTML = '';
-        dom.contentArea.appendChild(dom.mapContainer); 
+        mapInstance = null;
+        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
         
-        // Se o mapa não foi inicializado, inicializa
-        if (!mapInstance) {
+        setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
             const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
 
-            // mapContainer DEVE ter um ID (que deve ser 'mapContainer')
-            mapInstance = L.map('mapContainer').setView([initialLat, initialLon], 14);
+            mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OSM'
             }).addTo(mapInstance);
@@ -586,19 +487,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             updateMapLocation();
-        } else {
-            // Se já está inicializado, apenas garante que ele reajuste o tamanho
-            mapInstance.invalidateSize();
-        }
+
+        }, 100);
     }
     
     function updateMapLocation() {
         if (!mapInstance || !userLocation) return;
 
-        // Note: A div para mostrar a localização atual (`currentLoc`) não está mais no HTML, 
-        // pois a renderização do mapa agora exibe apenas o mapContainer. 
-        // Você pode ignorar a lógica do currentLocEl ou adicioná-lo de volta ao HTML do mapa 
-        // se necessário, mas o principal é o marcador.
+        const currentLocEl = document.getElementById('currentLoc');
+        if (currentLocEl) {
+            currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
+        }
 
         if (locationMarker) {
             locationMarker.setLatLng([userLocation.lat, userLocation.lon]);
@@ -619,7 +518,6 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
     function renderUsers() {
         showContent();
-        toggleMapVisibility(false); // Garante que o mapa esteja escondido
         
         let userListHtml = `
             <h2>👥 Gerenciamento de Usuários</h2>
@@ -644,7 +542,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userListHtml += `
                 <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <strong>${u.username}</strong>    
+                        <strong>${u.username}</strong> 
                         <span style="color:var(--accent); font-size:12px">(${u.role})</span>
                     </div>
                     <div>
@@ -676,16 +574,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
                 <input type="text" id="formUsername" placeholder="Usuário" value="${userToEdit ? userToEdit.username : ''}" ${userToEdit ? 'readonly' : ''} style="margin-bottom:8px;">
                 <input type="password" id="formPassword" placeholder="Nova Senha (deixe em branco para manter)" value="">
-                <select id="formRole" style="margin-bottom:8px;" ${isAdmin ? '' : 'disabled'}>
+                <select id="formRole" style="margin-bottom:8px;" ${isAdmin || isSelf ? '' : 'disabled'}>
                     <option value="colaborador" ${userToEdit && userToEdit.role === 'colaborador' ? 'selected' : ''}>Colaborador</option>
-                    <option value="gestor" ${userToEdit && userToEdit.role === 'gestor' ? 'selected' : ''} ${!isAdmin ? 'hidden' : ''}>Gestor</option>
-                    <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''} ${!isAdmin ? 'hidden' : ''}>Administrador</option>
+                    <option value="gestor" ${userToEdit && userToEdit.role === 'gestor' ? 'selected' : ''} ${!isAdmin && !isSelf ? 'hidden' : ''}>Gestor</option>
+                    <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''} ${!isAdmin && !isSelf ? 'hidden' : ''}>Administrador</option>
                 </select>
                 <div style="display:flex;gap:8px;margin-top:10px">
                     <button class="btn-primary" onclick="window.saveUser('${userId || ''}')" style="flex:1">Salvar</button>
                     <button onclick="renderUsers()" style="background:#e5e7eb; color:var(--content-text-dark); box-shadow:none;">Cancelar</button>
                 </div>
-                ${!isAdmin && !isSelf ? `<p style="color:var(--danger); font-size:12px; margin-top:10px;">Apenas Admins podem alterar o Nível de Acesso.</p>` : ''}
+                ${!isAdmin && !isSelf ? `<p style="color:var(--danger); font-size:12px; margin-top:10px;">Apenas Admins/Você podem alterar o Nível de Acesso.</p>` : ''}
             </div>
         `;
         document.getElementById('userFormArea').innerHTML = formHtml;
@@ -715,14 +613,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: 'u' + Date.now(),
                 username,
                 password,
-                role: currentUser.role === 'colaborador' ? 'colaborador' : role,    
+                // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
+                role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
-            updatedUser = users[userIndex];
+            // CORREÇÃO: Usa o userIndex para obter a referência correta
+            updatedUser = users[userIndex]; 
+
             if (password) updatedUser.password = password;
-            if (currentUser.role === 'admin') updatedUser.role = role;    
+
+            // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
+            if (currentUser.role === 'admin' || currentUser.id === userId) {
+                updatedUser.role = role; 
+            }
         }
 
         saveUsers();
@@ -770,9 +675,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const scanDate = new Date(r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            // Remove quebras de linha e substitui aspas duplas por duas aspas duplas no campo RAW
-            const rawSanitized = r.raw.replace(/"/g, '""').replace(/[\r\n]/g, ' '); 
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${rawSanitized}"\n`;
+            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
         });
         
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
@@ -785,4 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.exportOptions.style.display = 'none';
     }
+    
+    // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
+    enumerateDevices();
 });
