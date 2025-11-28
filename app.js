@@ -1,5 +1,3 @@
-// O código abaixo assume que as bibliotecas jsQR e Leaflet.js foram carregadas no HTML.
-
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Configurações e Estado --- */
@@ -30,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app-wrapper'), // ATUALIZADO para .app-wrapper
+        appContainer: document.querySelector('.app'),
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -42,10 +40,18 @@ document.addEventListener('DOMContentLoaded', () => {
         adminMenuOptions: document.getElementById('adminMenuOptions'),
     };
 
+    // Segurança visual: garante que sidebar tenha z-index alto (impede que mapas fiquem na frente)
+    // Alguns estilos dependem do CSS; ajustamos inline como reforço.
+    if (dom.sidebar) {
+        dom.sidebar.style.position = dom.sidebar.style.position || 'relative';
+        dom.sidebar.style.zIndex = '1000';
+        dom.sidebar.style.pointerEvents = 'auto';
+    }
+
     /* --- Inicialização e Storage --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        if(!raw) {
+        if (!raw) {
             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
             return DEFAULT_USERS;
         }
@@ -104,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden');
 
-            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            if (window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
 
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
@@ -137,11 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
 
-        dom.appContainer.style.display = 'flex'; // Volta para flex
-        dom.appContainer.style.flexDirection = 'row'; // Volta para row
+        dom.appContainer.style.display = 'grid';
 
+        // Força sidebar em frente ao mapa / conteúdo de mapa
         if (window.innerWidth > 768) {
             dom.sidebar.classList.remove('hidden');
+            dom.appContainer.style.gridTemplateColumns = '392px 1fr';
+            // garantir z-index do sidebar
+            dom.sidebar.style.zIndex = '1000';
         } else {
             dom.sidebar.classList.remove('active');
         }
@@ -156,9 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex';
 
-        dom.appContainer.style.display = 'none'; // Esconde o app-wrapper
+        dom.appContainer.style.display = 'none'; // Esconde o grid app
 
-        if(window.innerWidth > 768) {
+        // quando no scanner, escondemos a sidebar visualmente
+        if (window.innerWidth > 768) {
             dom.sidebar.classList.add('hidden');
         } else {
             dom.sidebar.classList.remove('active');
@@ -166,13 +176,12 @@ document.addEventListener('DOMContentLoaded', () => {
         startScanner();
     });
 
-    // Função global que chama renderDashboard sem filtros
-    window.loadDashboard = () => {
-        dom.appContainer.style.display = 'flex'; // Volta para flex ao carregar
-        renderDashboard(); 
-    }
+    window.renderDashboard = () => {
+        dom.appContainer.style.display = 'grid';
+        renderDashboard();
+    };
 
-    document.getElementById('btnDashboard').addEventListener('click', window.loadDashboard);
+    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard);
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -182,12 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
-    document.getElementById('btnExportFortnightly').addEventListener('click', () => generateCSV('fortnightly')); // NOVO: Quinzenal
+    document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
     document.getElementById('btnExportMonthly').addEventListener('click', () => generateCSV('monthly'));
-    // Removido o btnExportWeekly e btnExportAll
+    document.getElementById('btnExportAll').addEventListener('click', () => generateCSV('all'));
 
     dom.cameraSelect.addEventListener('change', (e) => {
-        if(isScanning) startScanner(e.target.value);
+        if (isScanning) startScanner(e.target.value);
     });
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
@@ -206,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             dom.cameraSelect.innerHTML = '';
             if (videoDevices.length > 0) {
-                 // Preenche o seletor com todas as câmeras
+                // Preenche o seletor com todas as câmeras
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
@@ -269,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
             alert('Erro ao acessar câmera: ' + err.message);
-            window.loadDashboard();
+            window.renderDashboard();
         }
     }
 
@@ -300,7 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
 
-            // A função jsQR DEVE estar disponível globalmente
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "attemptBoth",
             });
@@ -344,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: id,
             raw: raw,
             type: type,
-            user: currentUser.username,
+            user: currentUser ? currentUser.username : 'anon',
             date: new Date().toISOString(),
             lat: lat,
             lon: lon
@@ -362,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gain.gain.value = 0.1;
             osc.start();
             setTimeout(() => { osc.stop(); audioCtx.close(); }, 100);
-        } catch(e){}
+        } catch (e) { }
     }
 
     function showFeedback(text) {
@@ -378,58 +386,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
-        if(videoTrack) {
+        if (videoTrack) {
             try {
                 const caps = videoTrack.getCapabilities();
-                if(caps.torch) {
+                if (caps.torch) {
                     const settings = videoTrack.getSettings();
                     await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
                 } else {
                     alert('Flash não suportado neste dispositivo/navegador');
                 }
-            } catch(e) { console.log(e); }
+            } catch (e) { console.log(e); }
         }
     });
 
     /* --- Views (Renderização) --- */
 
-    /**
-     * Renderiza o Dashboard com lista de entregas.
-     * @param {string} [filterUser=''] Nome de usuário opcional para filtrar.
-     */
-    function renderDashboard(filterUser = '') {
+    function renderDashboard() {
         showContent();
 
-        const canFilter = currentUser.role === 'admin' || currentUser.role === 'gestor';
-
-        if (canFilter) {
+        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             dom.adminMenuOptions.classList.remove('hidden');
         } else {
             dom.adminMenuOptions.classList.add('hidden');
         }
 
-        // APLICAÇÃO DO FILTRO DE USUÁRIO
-        let displayedRecords = scanRecords;
-        if (canFilter && filterUser) {
-            displayedRecords = scanRecords.filter(r => r.user.toLowerCase().includes(filterUser.toLowerCase()));
-        } else if (!canFilter) {
-             // Colaboradores só veem seus próprios registros
-            displayedRecords = scanRecords.filter(r => r.user === currentUser.username);
-        }
-        
-        const userFilterHtml = canFilter ? `
-            <div style="margin-bottom: 20px; display:flex; gap:10px;">
-                <input type="text" id="userFilterInput" placeholder="Filtrar por nome de usuário..." value="${filterUser}" style="flex:1; padding: 10px; border: 1px solid var(--content-text-dark); border-radius: 8px;">
-                <button class="btn-primary" id="applyUserFilterBtn">Filtrar</button>
-            </div>
-        ` : '';
-
         const html = `
             <h2>📦 Entregas Realizadas</h2>
-            ${userFilterHtml}
-            <p style="color:var(--content-text-dark)">Total de registros exibidos: ${displayedRecords.length}</p>
+            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
-                ${displayedRecords.map(r => `
+                ${scanRecords.map(r => `
                     <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid var(--accent)">
                         <div style="font-weight:bold; font-size:16px">${r.id}</div>
                         <div style="font-size:12px; color:#6b7280;">
@@ -440,25 +425,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         dom.contentArea.innerHTML = html;
-
-        // Adicionar listener ao botão de filtro após a renderização
-        if (canFilter) {
-            const inputElement = document.getElementById('userFilterInput');
-            const buttonElement = document.getElementById('applyUserFilterBtn');
-
-            if (buttonElement && inputElement) {
-                buttonElement.addEventListener('click', () => {
-                    const user = inputElement.value.trim();
-                    renderDashboard(user);
-                });
-                 // Opcional: Adicionar filtro no enter
-                inputElement.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        buttonElement.click();
-                    }
-                });
-            }
-        }
     }
 
     function renderRoutes() {
@@ -472,26 +438,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const simplifiedRoute = deliveryPoints
             .slice(0, 10)
-            .sort(() => Math.random() - 0.5); // Simulação de Otimização
+            .sort(() => Math.random() - 0.5);
 
         const routeMapHtml = `
             <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
             <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
-            <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
+            <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px; position:relative; z-index:0;"></div>
             <div style="margin-top:10px">
                 ${simplifiedRoute.map((p, index) =>
-                    `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
+            `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
                         ${index + 1}. ${p.id}
                         (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
                     </div>`
-                ).join('')}
+        ).join('')}
             </div>
         `;
         dom.contentArea.innerHTML = routeMapHtml;
 
         setTimeout(() => {
+            // Inicializa mapa com z-index baixo (para não cobrir sidebar)
             const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
+
+            // Garantir que o container do mapa tenha z-index baixo
+            const container = map.getContainer();
+            if (container) {
+                container.style.zIndex = '0';
+                container.style.position = container.style.position || 'relative';
+            }
 
             const routePoints = simplifiedRoute.map((p, index) => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
@@ -510,14 +484,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
                 map.fitBounds(L.polyline(routePoints).getBounds());
             }
-
         }, 100);
     }
 
     function renderMap() {
         showContent();
         mapInstance = null;
-        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
+        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px; position:relative; z-index:0;"></div>`;
 
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
@@ -527,6 +500,15 @@ document.addEventListener('DOMContentLoaded', () => {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OSM'
             }).addTo(mapInstance);
+
+            // Garantir que o container do mapa não sobreponha a sidebar
+            const container = mapInstance.getContainer();
+            if (container) {
+                container.style.zIndex = '0';
+                container.style.position = container.style.position || 'relative';
+            }
+            // E reafirmar z-index do sidebar (para caso algum CSS do leaflet sobrescreva)
+            if (dom.sidebar) dom.sidebar.style.zIndex = '1000';
 
             scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
@@ -543,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const currentLocEl = document.getElementById('currentLoc');
         if (currentLocEl) {
-            currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
+            currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - Atual`;
         }
 
         if (locationMarker) {
@@ -557,10 +539,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     iconAnchor: [9, 9]
                 })
             }).addTo(mapInstance)
-            .bindPopup("Sua Localização Atual");
+                .bindPopup("Sua Localização Atual");
         }
     }
-
 
     /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
     function renderUsers() {
@@ -589,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userListHtml += `
                 <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <strong>${u.username}</strong>
+                        <strong>${u.username}</strong> 
                         <span style="color:var(--accent); font-size:12px">(${u.role})</span>
                     </div>
                     <div>
@@ -660,21 +641,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: 'u' + Date.now(),
                 username,
                 password,
-                 // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
+                // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
                 role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role,
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
-             // CORREÇÃO: Usa o userIndex para obter a referência correta
+            // Usa o userIndex para obter a referência correta
+            if (userIndex === -1) { alert('Usuário não encontrado.'); return; }
             updatedUser = users[userIndex];
 
+            // Username é imutável em edição (por design)
             if (password) updatedUser.password = password;
 
-             // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
-            if (currentUser.role === 'admin' || currentUser.id === userId) {
-                updatedUser.role = role;
+            // Regras de alteração de role:
+            // - Admin pode alterar role de qualquer usuário (exceto não pode remover seu próprio admin se estiver logado)
+            // - Usuário pode alterar apenas sua própria role (mas não pode promover-se para admin se não for admin)
+            // - Gestor não pode alterar seu próprio nível, e só pode editar role de colaboradores que criou (mas só para manter 'colaborador')
+            if (currentUser.role === 'admin') {
+                // prevenir que admin remova/administre seu próprio papel via essa tela
+                if (updatedUser.id === currentUser.id) {
+                    // Não alterar role do próprio admin logado através do formulário
+                    // (se quiser alterar, deverá haver fluxo separado)
+                } else {
+                    updatedUser.role = role;
+                }
+            } else if (currentUser.id === updatedUser.id) {
+                // Usuário alterando a si mesmo:
+                // permite trocar a própria senha e, se for admin (não é este ramo), já tratado.
+                // Não permite que um usuário comum ou gestor promova-se.
+                // Então não mudamos role aqui a menos que seja explicitamente permitido (não é).
+            } else if (currentUser.role === 'gestor') {
+                // Gestor só pode criar/editar colaboradores que criou; não altera role para gestor/admin
+                if (updatedUser.creatorId === currentUser.id && updatedUser.role === 'colaborador') {
+                    // manter role como colaborador (não alteramos para gestor/admin)
+                    updatedUser.role = 'colaborador';
+                } else {
+                    // não permitido
+                }
             }
+            // Mantém creatorId inalterado
         }
 
         saveUsers();
@@ -694,7 +700,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-
     /* --- Exportação CSV com Filtros de Data --- */
     function generateCSV(filter) {
         let filteredRecords = [];
@@ -703,32 +708,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (filter === 'daily') {
             filteredRecords = scanRecords.filter(r => new Date(r.date) >= today);
-        } else if (filter === 'fortnightly') { // NOVO FILTRO: Quinzenal (15 dias)
-            const fifteenDaysAgo = new Date(today);
-            fifteenDaysAgo.setDate(today.getDate() - 15);
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= fifteenDaysAgo);
+        } else if (filter === 'weekly') {
+            const oneWeekAgo = new Date(today);
+            oneWeekAgo.setDate(today.getDate() - 7);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneWeekAgo);
         } else if (filter === 'monthly') {
             const oneMonthAgo = new Date(today);
             oneMonthAgo.setMonth(today.getMonth() - 1);
             filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
         } else {
-            return alert(`Filtro desconhecido: ${filter}.`);
+            filteredRecords = scanRecords; // 'all'
         }
 
-        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
+        if (!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
 
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            // Remove quebras de linha e substitui aspas duplas por duas aspas duplas (para CSV)
-            const rawClean = r.raw.replace(/\r?\n|\r/g, " ").replace(/"/g, '""');
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${rawClean}"\n`;
+            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
         });
 
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
-        const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
