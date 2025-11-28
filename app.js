@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-
+    
     /* --- Configurações e Estado --- */
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
@@ -7,13 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ];
+    ]; 
     const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
-
+    
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
     let users = loadUsers();
-
+    
     let videoStream = null;
     let isScanning = false;
     let videoTrack = null;
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'),
+        appContainer: document.querySelector('.app'), // Adicionado
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -40,18 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
         adminMenuOptions: document.getElementById('adminMenuOptions'),
     };
 
-    // Segurança visual: garante que sidebar tenha z-index alto (impede que mapas fiquem na frente)
-    // Alguns estilos dependem do CSS; ajustamos inline como reforço.
-    if (dom.sidebar) {
-        dom.sidebar.style.position = dom.sidebar.style.position || 'relative';
-        dom.sidebar.style.zIndex = '1000';
-        dom.sidebar.style.pointerEvents = 'auto';
-    }
-
     /* --- Inicialização e Storage --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        if (!raw) {
+        if(!raw) {
             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
             return DEFAULT_USERS;
         }
@@ -69,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return existingUsers;
     }
-
+    
     function saveUsers() {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     }
@@ -101,17 +93,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPass').value.trim();
         const user = users.find(x => x.username === u && x.password === p);
-
+        
         if (user) {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
-
+            
             // Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
-            dom.appContainer.classList.remove('hidden');
-
-            if (window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
-
+            dom.appContainer.classList.remove('hidden'); 
+            
+            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
             } else {
@@ -129,10 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnLogout').addEventListener('click', () => {
         currentUser = null;
         stopScanner();
-
+        
         // Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
-        dom.loginSection.classList.remove('hidden');
+        dom.loginSection.classList.remove('hidden'); 
 
         dom.mobileMenuBtn.classList.add('hidden');
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
@@ -142,34 +134,30 @@ document.addEventListener('DOMContentLoaded', () => {
     function showContent() {
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
+        
+        dom.appContainer.style.display = 'grid'; 
 
-        dom.appContainer.style.display = 'grid';
-
-        // Força sidebar em frente ao mapa / conteúdo de mapa
-        if (window.innerWidth > 768) {
-            dom.sidebar.classList.remove('hidden');
+        if (window.innerWidth > 768) { 
+            dom.sidebar.classList.remove('hidden'); 
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
-            // garantir z-index do sidebar
-            dom.sidebar.style.zIndex = '1000';
         } else {
             dom.sidebar.classList.remove('active');
         }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
-            dom.exportOptions.style.display = 'none';
+            dom.exportOptions.style.display = 'none'; 
         }
-        dom.feedback.style.opacity = '0';
+        dom.feedback.style.opacity = '0'; 
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
         dom.contentArea.style.display = 'none';
-        dom.cameraView.style.display = 'flex';
-
+        dom.cameraView.style.display = 'flex'; 
+        
         dom.appContainer.style.display = 'none'; // Esconde o grid app
-
-        // quando no scanner, escondemos a sidebar visualmente
-        if (window.innerWidth > 768) {
-            dom.sidebar.classList.add('hidden');
+        
+        if(window.innerWidth > 768) {
+            dom.sidebar.classList.add('hidden'); 
         } else {
             dom.sidebar.classList.remove('active');
         }
@@ -177,11 +165,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.renderDashboard = () => {
-        dom.appContainer.style.display = 'grid';
+        dom.appContainer.style.display = 'grid'; 
         renderDashboard();
-    };
-
-    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard);
+    }
+    
+    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -196,26 +184,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnExportAll').addEventListener('click', () => generateCSV('all'));
 
     dom.cameraSelect.addEventListener('change', (e) => {
-        if (isScanning) startScanner(e.target.value);
+        if(isScanning) startScanner(e.target.value);
     });
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
     /* --- Lógica do Scanner --- */
-
+    
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
         try {
             // Tenta obter uma stream para forçar a permissão do usuário
             const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
             initialStream.getTracks().forEach(track => track.stop());
-
+            
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
-
+            
             dom.cameraSelect.innerHTML = '';
             if (videoDevices.length > 0) {
-                // Preenche o seletor com todas as câmeras
+                 // Preenche o seletor com todas as câmeras
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
@@ -231,35 +219,36 @@ document.addEventListener('DOMContentLoaded', () => {
             // Se houver erro, a lista de câmeras ficará vazia/escondida
         }
     }
-
+    
     async function startScanner(deviceId = null) {
         if (isScanning && !deviceId) return;
-        stopScanner();
-
+        stopScanner(); 
+        
         const videoDevices = Array.from(dom.cameraSelect.options);
-
+        
         let targetDeviceId = deviceId;
-
+        
         // Lógica de seleção automática da câmera 0 (traseira/environment)
         if (!targetDeviceId && videoDevices.length > 0) {
             // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
-            const preferredCamera = videoDevices.find(opt =>
-                opt.text.toLowerCase().includes('environment') ||
-                opt.text.toLowerCase().includes('back') ||
+            const preferredCamera = videoDevices.find(opt => 
+                opt.text.toLowerCase().includes('environment') || 
+                opt.text.toLowerCase().includes('back') || 
                 opt.text.toLowerCase().includes('traseira')
             );
-
+            
             if (preferredCamera) {
                 targetDeviceId = preferredCamera.value;
             } else {
                 // 2. Se não encontrar pelo label, usa a primeira (índice 0)
+                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
                 targetDeviceId = videoDevices[0].value;
             }
         }
 
         const constraints = {
             video: targetDeviceId
-                ? { deviceId: { exact: targetDeviceId } }
+                ? { deviceId: { exact: targetDeviceId } } 
                 : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         };
 
@@ -270,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await dom.video.play();
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
-
+            
             // Atualiza o seletor para o dispositivo que realmente foi aberto
             if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
 
@@ -278,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
             alert('Erro ao acessar câmera: ' + err.message);
-            window.renderDashboard();
+            window.renderDashboard(); 
         }
     }
 
@@ -300,15 +289,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const h = dom.video.videoHeight;
             canvas.width = w;
             canvas.height = h;
-            ctx.drawImage(dom.video, 0, 0, w, h);
-
+            ctx.drawImage(dom.video, 0, 0, w, h); 
+            
             // Lógica de corte para varrer uma área maior (mantida em 90%)
-            const size = Math.min(w, h) * 0.9;
+            const size = Math.min(w, h) * 0.9; 
 
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
-
+            
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "attemptBoth",
             });
@@ -323,12 +312,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleScan(data) {
         const now = Date.now();
         if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
-
+        
         lastScanCode = data;
         lastScanTime = now;
 
         beep();
-        showFeedback(data);
+        showFeedback(data); 
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
@@ -344,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let type = 'Genérico';
         if (raw.includes('shopee')) { type = 'Shopee'; }
         else if (raw.includes('mercadoli')) { type = 'Mercado Livre'; }
-
+        
         const numMatch = raw.match(/(\d{8,})/);
         if (numMatch) id = numMatch[1];
 
@@ -352,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: id,
             raw: raw,
             type: type,
-            user: currentUser ? currentUser.username : 'anon',
+            user: currentUser.username,
             date: new Date().toISOString(),
             lat: lat,
             lon: lon
@@ -370,46 +359,44 @@ document.addEventListener('DOMContentLoaded', () => {
             gain.gain.value = 0.1;
             osc.start();
             setTimeout(() => { osc.stop(); audioCtx.close(); }, 100);
-        } catch (e) { }
+        } catch(e){}
     }
 
     function showFeedback(text) {
         dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
         dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000);
-
+        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
+        
         const overlay = document.querySelector('.scan-overlay');
-        if (overlay) {
-            overlay.style.borderColor = 'var(--success)';
-            setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
-        }
+        overlay.style.borderColor = 'var(--success)';
+        setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
-        if (videoTrack) {
+        if(videoTrack) {
             try {
                 const caps = videoTrack.getCapabilities();
-                if (caps.torch) {
+                if(caps.torch) {
                     const settings = videoTrack.getSettings();
                     await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
                 } else {
                     alert('Flash não suportado neste dispositivo/navegador');
                 }
-            } catch (e) { console.log(e); }
+            } catch(e) { console.log(e); }
         }
     });
 
     /* --- Views (Renderização) --- */
-
+    
     function renderDashboard() {
         showContent();
-
+        
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             dom.adminMenuOptions.classList.remove('hidden');
         } else {
             dom.adminMenuOptions.classList.add('hidden');
         }
-
+        
         const html = `
             <h2>📦 Entregas Realizadas</h2>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
@@ -430,47 +417,39 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderRoutes() {
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
-
+        
         if (deliveryPoints.length < 2) {
             dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
             return;
         }
 
         const simplifiedRoute = deliveryPoints
-            .slice(0, 10)
-            .sort(() => Math.random() - 0.5);
+            .slice(0, 10) 
+            .sort(() => Math.random() - 0.5); 
 
         const routeMapHtml = `
             <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
             <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
-            <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px; position:relative; z-index:0;"></div>
+            <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
             <div style="margin-top:10px">
-                ${simplifiedRoute.map((p, index) =>
-            `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
-                        ${index + 1}. ${p.id}
+                ${simplifiedRoute.map((p, index) => 
+                    `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
+                        ${index + 1}. ${p.id} 
                         (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
                     </div>`
-        ).join('')}
+                ).join('')}
             </div>
         `;
         dom.contentArea.innerHTML = routeMapHtml;
 
         setTimeout(() => {
-            // Inicializa mapa com z-index baixo (para não cobrir sidebar)
             const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
-
-            // Garantir que o container do mapa tenha z-index baixo
-            const container = map.getContainer();
-            if (container) {
-                container.style.zIndex = '0';
-                container.style.position = container.style.position || 'relative';
-            }
 
             const routePoints = simplifiedRoute.map((p, index) => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
                     .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
-
+                
                 marker.setIcon(L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="background:var(--accent); color:#000; border-radius:50%; width:24px; height:24px; text-align:center; font-weight:bold; line-height:24px;">${index + 1}</div>`,
@@ -479,19 +458,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 return [p.lat, p.lon];
             });
-
+            
             if (routePoints.length > 1) {
                 L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
                 map.fitBounds(L.polyline(routePoints).getBounds());
             }
+
         }, 100);
     }
 
     function renderMap() {
         showContent();
         mapInstance = null;
-        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px; position:relative; z-index:0;"></div>`;
-
+        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
+        
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
             const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
@@ -500,15 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OSM'
             }).addTo(mapInstance);
-
-            // Garantir que o container do mapa não sobreponha a sidebar
-            const container = mapInstance.getContainer();
-            if (container) {
-                container.style.zIndex = '0';
-                container.style.position = container.style.position || 'relative';
-            }
-            // E reafirmar z-index do sidebar (para caso algum CSS do leaflet sobrescreva)
-            if (dom.sidebar) dom.sidebar.style.zIndex = '1000';
 
             scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
@@ -519,13 +490,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }, 100);
     }
-
+    
     function updateMapLocation() {
         if (!mapInstance || !userLocation) return;
 
         const currentLocEl = document.getElementById('currentLoc');
         if (currentLocEl) {
-            currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - Atual`;
+            currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
         }
 
         if (locationMarker) {
@@ -539,14 +510,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     iconAnchor: [9, 9]
                 })
             }).addTo(mapInstance)
-                .bindPopup("Sua Localização Atual");
+            .bindPopup("Sua Localização Atual");
         }
     }
+
 
     /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
     function renderUsers() {
         showContent();
-
+        
         let userListHtml = `
             <h2>👥 Gerenciamento de Usuários</h2>
             <div style="margin-bottom: 20px;">
@@ -554,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div id="userListContainer">
         `;
-
+        
         const filteredUsers = users.filter(u => {
             if (currentUser.role === 'admin') return true;
             if (currentUser.role === 'gestor') {
@@ -566,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
         filteredUsers.forEach(u => {
             const canEdit = currentUser.role === 'admin' || currentUser.id === u.id || (currentUser.role === 'gestor' && u.role === 'colaborador' && u.creatorId === currentUser.id);
             const canDelete = currentUser.role === 'admin' && currentUser.id !== u.id;
-
+            
             userListHtml += `
                 <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
@@ -580,7 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         });
-
+        
         userListHtml += `</div><div id="userFormArea"></div>`;
         dom.contentArea.innerHTML = userListHtml;
     }
@@ -588,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
-
+        
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
             alert('Você não tem permissão para editar este usuário.');
             return;
@@ -596,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isAdmin = currentUser.role === 'admin';
         const isSelf = userToEdit && userToEdit.id === currentUser.id;
-
+        
         let formHtml = `
             <div class="user-form-card" style="border:1px solid var(--accent)">
                 <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
@@ -634,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Nome de usuário já existe.');
             return;
         }
-
+        
         let updatedUser;
         if (isNew) {
             updatedUser = {
@@ -642,45 +614,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 username,
                 password,
                 // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
-                role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role,
+                role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
-            // Usa o userIndex para obter a referência correta
-            if (userIndex === -1) { alert('Usuário não encontrado.'); return; }
-            updatedUser = users[userIndex];
+            // CORREÇÃO: Usa o userIndex para obter a referência correta
+            updatedUser = users[userIndex]; 
 
-            // Username é imutável em edição (por design)
             if (password) updatedUser.password = password;
 
-            // Regras de alteração de role:
-            // - Admin pode alterar role de qualquer usuário (exceto não pode remover seu próprio admin se estiver logado)
-            // - Usuário pode alterar apenas sua própria role (mas não pode promover-se para admin se não for admin)
-            // - Gestor não pode alterar seu próprio nível, e só pode editar role de colaboradores que criou (mas só para manter 'colaborador')
-            if (currentUser.role === 'admin') {
-                // prevenir que admin remova/administre seu próprio papel via essa tela
-                if (updatedUser.id === currentUser.id) {
-                    // Não alterar role do próprio admin logado através do formulário
-                    // (se quiser alterar, deverá haver fluxo separado)
-                } else {
-                    updatedUser.role = role;
-                }
-            } else if (currentUser.id === updatedUser.id) {
-                // Usuário alterando a si mesmo:
-                // permite trocar a própria senha e, se for admin (não é este ramo), já tratado.
-                // Não permite que um usuário comum ou gestor promova-se.
-                // Então não mudamos role aqui a menos que seja explicitamente permitido (não é).
-            } else if (currentUser.role === 'gestor') {
-                // Gestor só pode criar/editar colaboradores que criou; não altera role para gestor/admin
-                if (updatedUser.creatorId === currentUser.id && updatedUser.role === 'colaborador') {
-                    // manter role como colaborador (não alteramos para gestor/admin)
-                    updatedUser.role = 'colaborador';
-                } else {
-                    // não permitido
-                }
+            // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
+            if (currentUser.role === 'admin' || currentUser.id === userId) {
+                updatedUser.role = role; 
             }
-            // Mantém creatorId inalterado
         }
 
         saveUsers();
@@ -699,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderUsers();
         }
     };
+
 
     /* --- Exportação CSV com Filtros de Data --- */
     function generateCSV(filter) {
@@ -720,8 +668,8 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredRecords = scanRecords; // 'all'
         }
 
-        if (!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
-
+        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
+        
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
@@ -729,9 +677,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
             csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
         });
-
+        
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -740,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.exportOptions.style.display = 'none';
     }
-
+    
     // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
     enumerateDevices();
 });
