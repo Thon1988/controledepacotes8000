@@ -1,516 +1,531 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>PegazusLog — Scanner Integrado</title>
+  <meta charset="utf-utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>PegazusLog — Scanner Integrado</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
-  <script src="app.js" defer></script> 
+  <script src="app.js" defer></script> 
 
-  <style>
-    /* --- VARIÁVEIS DE COR PADRÃO (TEMA CLARO - DEFAULT) --- */
-    :root {
-      /* Base - Sidebar Dark / Conteúdo Light */
-      --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
-      --panel: rgba(30, 41, 59, 0.95); /* Sidebar/Login (Slate 800) */
-      --text: #f1f5f9; /* Texto claro (para sidebar) */
-      --muted: #94a3b8; /* Cinza claro (para sidebar) */
-      
-      /* Conteúdo Light */
-      --content-bg-light: #f4f6f8; /* Fundo claro para o Main (cinza claro) */
-      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
-      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
+  <style>
+    /* --- VARIÁVEIS DE COR PADRÃO (TEMA CLARO - DEFAULT) --- */
+    :root {
+      /* Base - Sidebar Dark / Conteúdo Light */
+      --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
+      --panel: rgba(30, 41, 59, 0.95); /* Sidebar/Login (Slate 800) */
+      --text: #f1f5f9; /* Texto claro (para sidebar) */
+      --muted: #94a3b8; /* Cinza claro (para sidebar) */
+      
+      /* Conteúdo Light */
+      --content-bg-light: #f4f6f8; /* Fundo claro para o Main (cinza claro) */
+      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
+      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
 
-      /* Acento */
-      --accent: #38bdf8; /* Azul principal (Sky 400) */
-      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
-      --success: #22c55e; /* Verde */
-      --danger: #ef4444; /* Vermelho */
-      
-      /* Raio de Borda */
-      --radius: 25px; 
-      
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    }
+      /* Acento */
+      --accent: #38bdf8; /* Azul principal (Sky 400) */
+      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
+      --success: #22c55e; /* Verde */
+      --danger: #ef4444; /* Vermelho */
+      
+      /* Raio de Borda */
+      --radius: 25px; 
+      
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
 
-    /* --- MEDIA QUERY: TEMA DARK COMPLETO (Se preferência do usuário for dark) --- */
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg: #020617; /* Fundo principal mais escuro */
-            --panel: rgba(15, 23, 42, 0.95); /* Sidebar/Login (Slate 900) */
-            
-            /* Todos os painéis ficam escuros */
-            --content-bg-light: #0f172a; /* Main fica Slate 900 */
-            --content-card-bg: rgba(30, 41, 59, 0.7); /* Cards internos ficam Slate 800 */
-            --content-text-dark: #f1f5f9; /* Texto fica claro em todo lugar */
-            
-            --text: #f1f5f9; /* Texto claro (para sidebar) */
-            --muted: #94a3b8; /* Cinza claro (para sidebar) */
-        }
+    /* --- MEDIA QUERY: TEMA DARK COMPLETO (Se preferência do usuário for dark) --- */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #020617; /* Fundo principal mais escuro */
+            --panel: rgba(15, 23, 42, 0.95); /* Sidebar/Login (Slate 900) */
+            
+            /* Todos os painéis ficam escuros */
+            --content-bg-light: #0f172a; /* Main fica Slate 900 */
+            --content-card-bg: rgba(30, 41, 59, 0.7); /* Cards internos ficam Slate 800 */
+            --content-text-dark: #f1f5f9; /* Texto fica claro em todo lugar */
+            
+            --text: #f1f5f9; /* Texto claro (para sidebar) */
+            --muted: #94a3b8; /* Cinza claro (para sidebar) */
+        }
 
-        /* Ajustes específicos para elementos no modo Dark */
-        .user-form-card, #contentArea > div > div {
-            border: 1px solid rgba(255,255,255,0.05) !important;
-            box-shadow: none !important;
-        }
+        /* Ajustes específicos para elementos no modo Dark */
+        .user-form-card, #contentArea > div > div {
+            border: 1px solid rgba(255,255,255,0.05) !important;
+            box-shadow: none !important;
+        }
 
-        /* Inputs na área de conteúdo (que agora é dark) */
-        .main input, .main select {
-             background: rgba(0,0,0,0.3) !important;
-             border: 1px solid rgba(255,255,255,0.1) !important;
-             color: white !important;
-        }
-        
-        /* Botões de edição e delete no modo Dark */
-        .user-form-card button:first-of-type { /* Botão Editar (Azul) */
-            background: rgba(56, 189, 248, 0.2) !important; 
-            color: var(--accent) !important; 
-        }
-        .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
-            background: rgba(239, 68, 68, 0.2) !important; 
-            color: var(--danger) !important; 
-        }
-    }
+        /* Inputs na área de conteúdo (que agora é dark) */
+        .main input, .main select {
+             background: rgba(0,0,0,0.3) !important;
+             border: 1px solid rgba(255,255,255,0.1) !important;
+             color: white !important;
+        }
+        
+        /* Botões de edição e delete no modo Dark */
+        .user-form-card button:first-of-type { /* Botão Editar (Azul) */
+            background: rgba(56, 189, 248, 0.2) !important; 
+            color: var(--accent) !important; 
+        }
+        .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
+            background: rgba(239, 68, 68, 0.2) !important; 
+            color: var(--danger) !important; 
+        }
+    }
 
 
-    * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
-    
-    body {
-      margin: 0;
-      background: linear-gradient(180deg, var(--bg) 0%, #000 100%);
-      color: var(--content-text-dark);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+    * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+    
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, var(--bg) 0%, #000 100%);
+      color: var(--content-text-dark);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
-    /* --- LAYOUT GERAL DO APP --- */
-    .app {
-      display: grid;
-      grid-template-columns: 392px 1fr; /* Sidebar + Content */
-      background: var(--content-bg-light);
-      width: 100vw;
-      height: 100vh;
-      max-width: 100%;
-      max-height: 100%;
-      overflow: hidden;
-    }
+    /* --- LAYOUT GERAL DO APP --- */
+    .app {
+      display: grid;
+      grid-template-columns: 392px 1fr; /* Sidebar + Content */
+      background: var(--content-bg-light);
+      width: 100vw;
+      height: 100vh;
+      max-width: 100%;
+      max-height: 100%;
+      overflow: hidden;
+    }
 
-    /* --- SIDEBAR (BARRA LATERAL) --- */
-    .sidebar {
-      background: var(--panel);
-      color: var(--text);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 4px 0 10px rgba(0,0,0,0.2);
-      position: relative;
-      z-index: 10;
-    }
-    
-    .logo {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--accent);
-        margin-bottom: 30px;
-        display: flex;
-        align-items: center;
-    }
+    /* --- SIDEBAR (BARRA LATERAL) --- */
+    .sidebar {
+      background: var(--panel);
+      color: var(--text);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 4px 0 10px rgba(0,0,0,0.2);
+      position: relative;
+      z-index: 10;
+    }
+    
+    .logo {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--accent);
+        margin-bottom: 30px;
+        display: flex;
+        align-items: center;
+    }
 
-    .menu-item {
-      padding: 12px 15px;
-      margin-bottom: 8px;
-      border-radius: 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: background-color 0.2s, color 0.2s;
-      font-weight: 500;
-    }
+    .menu-item {
+      padding: 12px 15px;
+      margin-bottom: 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background-color 0.2s, color 0.2s;
+      font-weight: 500;
+    }
 
-    .menu-item:hover {
-      background: rgba(56, 189, 248, 0.1);
-      color: var(--accent);
-    }
-    
-    .menu-item.active {
-        background: var(--accent);
-        color: var(--panel);
-        font-weight: 700;
-    }
+    .menu-item:hover {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
+    }
+    
+    .menu-item.active {
+        background: var(--accent);
+        color: var(--panel);
+        font-weight: 700;
+    }
 
-    /* --- FOOTER DA SIDEBAR --- */
-    .sidebar-footer {
-        margin-top: auto;
-        padding-top: 15px;
-        border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .user-info {
-        font-size: 14px;
-        color: var(--muted);
-    }
-    .user-info strong {
-        color: var(--text);
-        font-weight: 600;
-    }
+    /* --- FOOTER DA SIDEBAR --- */
+    .sidebar-footer {
+        margin-top: auto;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .user-info {
+        font-size: 14px;
+        color: var(--muted);
+    }
+    .user-info strong {
+        color: var(--text);
+        font-weight: 600;
+    }
 
-    /* --- MAIN CONTENT (ÁREA DE CONTEÚDO) --- */
-    .main {
-      padding: 30px;
-      overflow-y: auto;
-      height: 100%;
-    }
-    
-    .main h2 {
-        color: var(--content-text-dark);
-        margin-top: 0;
-    }
-    
-    .main input, .main select {
-        width: 100%;
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid #ccc;
-        margin-bottom: 10px;
-        font-size: 16px;
-        color: var(--content-text-dark);
-        background: #fff;
-    }
-    
-    .user-form-card {
-        background: var(--content-card-bg);
-        padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        margin-bottom: 10px;
-    }
+    /* --- MAIN CONTENT (ÁREA DE CONTEÚDO) --- */
+    .main {
+      padding: 30px;
+      overflow-y: auto;
+      height: 100%;
+    }
+    
+    .main h2 {
+        color: var(--content-text-dark);
+        margin-top: 0;
+    }
+    
+    .main input, .main select {
+        width: 100%;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        margin-bottom: 10px;
+        font-size: 16px;
+        color: var(--content-text-dark);
+        background: #fff;
+    }
+    
+    .user-form-card {
+        background: var(--content-card-bg);
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 10px;
+    }
 
-    /* --- LOGIN SCREEN --- */
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        width: 100vw;
-        background: var(--bg);
-    }
-    .login-card {
-        background: var(--panel);
-        padding: 40px;
-        border-radius: var(--radius);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        text-align: center;
-        max-width: 400px;
-        width: 90%;
-        color: var(--text);
-    }
-    .login-card h1 {
-        color: var(--accent);
-        margin-bottom: 30px;
-        font-size: 28px;
-    }
-    .login-card input {
-        width: 100%;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 10px;
-        border: none;
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text);
-        font-size: 16px;
-    }
-    .login-card input::placeholder {
-        color: var(--muted);
-    }
-    #loginError {
-        color: var(--danger);
-        margin-top: 10px;
-        font-size: 14px;
-    }
+    /* --- ESTILOS ESPECÍFICOS PARA O MAPA --- */
+    #mapContainer {
+        /* O mapa deve preencher a área principal */
+        width: 100%;
+        height: 100%; 
+        min-height: 500px; /* Garante altura mínima em telas menores */
+        border-radius: 12px;
+        /* Z-index baixo para ficar atrás de overlays de modal, mas acima do fundo */
+        position: relative; 
+        z-index: 1; 
+    }
 
-    /* --- BOTÕES E GERAL --- */
-    .btn-primary {
-        background: var(--accent);
-        color: var(--content-text-dark);
-        padding: 12px 20px;
-        border: none;
-        border-radius: 10px;
-        cursor: pointer;
-        font-weight: 700;
-        transition: background-color 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 10px rgba(56, 189, 248, 0.4);
-    }
-    .btn-primary:hover {
-        background: var(--accent-dark);
-    }
-    
-    .btn-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text);
-        padding: 10px 15px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: background-color 0.2s;
-    }
-    .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.2);
-    }
+    /* --- LOGIN SCREEN --- */
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        width: 100vw;
+        background: var(--bg);
+    }
+    .login-card {
+        background: var(--panel);
+        padding: 40px;
+        border-radius: var(--radius);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        text-align: center;
+        max-width: 400px;
+        width: 90%;
+        color: var(--text);
+    }
+    .login-card h1 {
+        color: var(--accent);
+        margin-bottom: 30px;
+        font-size: 28px;
+    }
+    .login-card input {
+        width: 100%;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 10px;
+        border: none;
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        font-size: 16px;
+    }
+    .login-card input::placeholder {
+        color: var(--muted);
+    }
+    #loginError {
+        color: var(--danger);
+        margin-top: 10px;
+        font-size: 14px;
+    }
 
-    /* --- CAMERA VIEW --- */
-    #cameraView {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: black;
-        display: none; /* Controlado pelo JS */
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-    }
-    #videoElement {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .scan-overlay {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 90vmin; /* 90% da menor dimensão da tela */
-        height: 90vmin;
-        max-width: 400px;
-        max-height: 400px;
-        border: 4px solid rgba(255,255,255,0.5);
-        border-radius: 15px;
-        z-index: 1001;
-        transition: border-color 0.3s;
-    }
-    
-    #feedbackMsg {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: var(--accent);
-        color: var(--content-text-dark);
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-weight: bold;
-        z-index: 1002;
-        opacity: 0;
-        transition: opacity 0.3s;
-        max-width: 90%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .camera-controls {
-        position: absolute;
-        top: 10px;
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        padding: 0 10px;
-        z-index: 1002;
-    }
-    
-    .camera-controls button {
-        background: rgba(0,0,0,0.5);
-        color: white;
-        border: none;
-        padding: 10px;
-        border-radius: 50%;
-        width: 45px;
-        height: 45px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 20px;
-        cursor: pointer;
-    }
-    
-    #cameraSelect {
-        background: rgba(0,0,0,0.5);
-        color: white;
-        border: none;
-        padding: 8px 15px;
-        border-radius: 8px;
-        margin-right: 10px;
-        appearance: none;
-        cursor: pointer;
-    }
-    
-    /* --- EXPORT OPTIONS (CSS para o menu flutuante) --- */
-    #exportOptions {
-        position: absolute;
-        right: 0;
-        top: 100%;
-        background: var(--content-card-bg);
-        border-radius: 10px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        padding: 10px;
-        display: none; /* Escondido por padrão */
-        flex-direction: column;
-        gap: 5px;
-        z-index: 20;
-    }
+    /* --- BOTÕES E GERAL --- */
+    .btn-primary {
+        background: var(--accent);
+        color: var(--content-text-dark);
+        padding: 12px 20px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 700;
+        transition: background-color 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 10px rgba(56, 189, 248, 0.4);
+    }
+    .btn-primary:hover {
+        background: var(--accent-dark);
+    }
+    
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        padding: 10px 15px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
 
-    #exportOptions button {
-        background: none;
-        border: none;
-        padding: 8px 15px;
-        text-align: left;
-        color: var(--content-text-dark);
-        border-radius: 5px;
-        transition: background 0.2s;
-    }
+    /* --- CAMERA VIEW --- */
+    #cameraView {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: black;
+        display: none; /* Controlado pelo JS */
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    #videoElement {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .scan-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90vmin; /* 90% da menor dimensão da tela */
+        height: 90vmin;
+        max-width: 400px;
+        max-height: 400px;
+        border: 4px solid rgba(255,255,255,0.5);
+        border-radius: 15px;
+        z-index: 1001;
+        transition: border-color 0.3s;
+    }
+    
+    #feedbackMsg {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--accent);
+        color: var(--content-text-dark);
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: bold;
+        z-index: 1002;
+        opacity: 0;
+        transition: opacity 0.3s;
+        max-width: 90%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .camera-controls {
+        position: absolute;
+        top: 10px;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 10px;
+        z-index: 1002;
+    }
+    
+    .camera-controls button {
+        background: rgba(0,0,0,0.5);
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 50%;
+        width: 45px;
+        height: 45px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 20px;
+        cursor: pointer;
+    }
+    
+    #cameraSelect {
+        background: rgba(0,0,0,0.5);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 8px;
+        margin-right: 10px;
+        appearance: none;
+        cursor: pointer;
+    }
+    
+    /* --- EXPORT OPTIONS (CSS para o menu flutuante) --- */
+    #exportOptions {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: var(--content-card-bg);
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        padding: 10px;
+        display: none; /* Escondido por padrão */
+        flex-direction: column;
+        gap: 5px;
+        z-index: 20;
+    }
 
-    #exportOptions button:hover {
-        background: var(--content-bg-light);
-    }
-    
-    .export-container {
-        position: relative;
-        display: inline-block;
-    }
+    #exportOptions button {
+        background: none;
+        border: none;
+        padding: 8px 15px;
+        text-align: left;
+        color: var(--content-text-dark);
+        border-radius: 5px;
+        transition: background 0.2s;
+    }
 
-    /* --- UTILIDADES --- */
-    .hidden { display: none !important; }
+    #exportOptions button:hover {
+        background: var(--content-bg-light);
+    }
+    
+    .export-container {
+        position: relative;
+        display: inline-block;
+    }
 
-    /* --- MEDIA QUERIES (RESPONSIVIDADE) --- */
-    @media (max-width: 768px) {
-        .app {
-            grid-template-columns: 1fr;
-            height: 100vh;
-        }
+    /* --- UTILIDADES --- */
+    .hidden { display: none !important; }
+    .mapa-hidden { display: none !important; } /* Adicionado para esconder o mapa */
 
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 300px;
-            height: 100%;
-            transform: translateX(-300px);
-            transition: transform 0.3s ease;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            padding: 30px 20px;
-            overflow-y: auto;
-            background: var(--panel); /* Garante que a sidebar seja opaca em mobile */
-        }
-        
-        .sidebar.active {
-            transform: translateX(0);
-        }
+    /* --- MEDIA QUERIES (RESPONSIVIDADE) --- */
+    @media (max-width: 768px) {
+        .app {
+            grid-template-columns: 1fr;
+            height: 100vh;
+        }
 
-        .main {
-            padding: 20px;
-            height: 100%;
-        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 300px;
+            height: 100%;
+            transform: translateX(-300px);
+            transition: transform 0.3s ease;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            padding: 30px 20px;
+            overflow-y: auto;
+            background: var(--panel); /* Garante que a sidebar seja opaca em mobile */
+            z-index: 1000; /* Z-index alto para cobrir o mapa e o conteúdo principal */
+        }
+        
+        .sidebar.active {
+            transform: translateX(0);
+        }
 
-        /* Botão de menu mobile */
-        #mobileMenuBtn {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 100;
-            background: var(--accent);
-            color: var(--content-text-dark);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            display: block; /* Visível em mobile */
-            border: none;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 20px;
-            line-height: 1;
-        }
-    }
-  </style>
+        .main {
+            padding: 20px;
+            height: 100%;
+        }
+
+        /* Botão de menu mobile */
+        #mobileMenuBtn {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1010; /* Maior que o sidebar para fechar */
+            background: var(--accent);
+            color: var(--content-text-dark);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: block; /* Visível em mobile */
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            line-height: 1;
+        }
+    }
+  </style>
 </head>
 <body>
 
-  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
+  <button id="mobileMenuBtn" onclick="window.toggleSidebar()">☰</button>
 
-  <section id="loginSection" class="login-container">
-    <div class="login-card">
-      <h1>PegazusLog</h1>
-      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
-      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
-      <button id="btnLogin" class="btn-primary" style="width: 100%">Entrar</button>
-      <p id="loginError"></p>
-    </div>
-  </section>
+  <section id="loginSection" class="login-container">
+    <div class="login-card">
+      <h1>PegazusLog</h1>
+      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
+      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
+      <button id="btnLogin" class="btn-primary" style="width: 100%">Entrar</button>
+      <p id="loginError"></p>
+    </div>
+  </section>
 
-  <div class="app hidden">
-    <aside id="sidebar" class="sidebar">
-      <div class="logo">
-          📦 PegazusLog
-      </div>
+  <div class="app hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="logo">
+          📦 PegazusLog
+      </div>
 
-      <div id="menuSection">
-        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
-        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
-        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
-        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
-        
-        <div id="adminMenuOptions">
-            <hr style="border-color:rgba(255,255,255,0.1); margin:15px 0;">
-            <div id="btnUsers" class="menu-item">👥 Usuários</div>
-            <div class="export-container menu-item">
-                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
-                    ⬇️ Exportar Dados
-                </button>
-                <div id="exportOptions">
-                    <button id="btnExportDaily">Últimas 24h</button>
-                    <button id="btnExportWeekly">Últimos 7 dias</button>
-                    <button id="btnExportMonthly">Últimos 30 dias</button>
-                    <button id="btnExportAll">Todos os Dados</button>
-                </div>
-            </div>
-        </div>
-      </div>
+      <div id="menuSection">
+        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
+        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
+        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
+        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
+        
+        <div id="adminMenuOptions">
+            <hr style="border-color:rgba(255,255,255,0.1); margin:15px 0;">
+            <div id="btnUsers" class="menu-item">👥 Usuários</div>
+            <div class="export-container menu-item">
+                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
+                    ⬇️ Exportar Dados
+                </button>
+                <div id="exportOptions">
+                    <button id="btnExportDaily">Últimas 24h</button>
+                    <button id="btnExportWeekly">Últimos 7 dias</button>
+                    <button id="btnExportMonthly">Últimos 30 dias</button>
+                    <button id="btnExportAll">Todos os Dados</button>
+                </div>
+            </div>
+        </div>
+      </div>
 
-      <div class="sidebar-footer">
-        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
-        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
-      </div>
-    </aside>
+      <div class="sidebar-footer">
+        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
+        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
+      </div>
+    </aside>
 
-    <main class="main">
-      <div id="contentArea">
-        </div>
-    </main>
-  </div>
+    <main class="main">
+      <div id="contentArea">
+                <div id="mapContainer" class="mapa-hidden"></div> 
+      </div>
+    </main>
+  </div>
 
-  <section id="cameraView">
-    <video id="videoElement" playsinline></video>
-    <div class="scan-overlay"></div>
-    <div class="camera-controls">
-        <button onclick="window.renderDashboard()">✕</button>
-        <div>
-            <select id="cameraSelect" class="hidden"></select>
-            <button id="btnTorch">💡</button>
-        </div>
-    </div>
-    <div id="feedbackMsg"></div>
-  </section>
+  <section id="cameraView">
+    <video id="videoElement" playsinline></video>
+    <div class="scan-overlay"></div>
+    <div class="camera-controls">
+        <button onclick="window.renderDashboard()">✕</button>
+        <div>
+            <select id="cameraSelect" class="hidden"></select>
+            <button id="btnTorch">💡</button>
+        </div>
+    </div>
+    <div id="feedbackMsg"></div>
+  </section>
 
 </body>
 </html>
