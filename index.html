@@ -10,7 +10,7 @@
           crossorigin=""/>
 
     <style>
-        /* Estilos CSS básicos para funcionar com o JS (personalize à vontade) */
+        /* Estilos CSS Básicos (Revisados para Layout Simples) */
         :root {
             --primary: #4f46e5;
             --accent: #3b82f6;
@@ -27,19 +27,22 @@
             margin: 0;
             padding: 0;
             font-family: sans-serif;
-            background-color: var(--bg-dark);
+            background-color: var(--content-bg);
             color: #333;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            min-height: 100vh;
+        }
+        
+        /* O container principal do aplicativo */
+        .app-wrapper {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex; /* Layout desktop: Menu e Conteúdo lado a lado */
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            background: #fff;
         }
 
-        .container {
-            width: 100%;
-            height: 100%;
-            max-width: 1400px;
-            max-height: 1000px;
+        .hidden {
+            display: none !important;
         }
 
         /* --- Login --- */
@@ -49,25 +52,14 @@
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             width: 350px;
+            margin: 100px auto; /* Centraliza a tela de login */
             text-align: center;
-        }
-
-        /* --- App Grid --- */
-        .app {
-            display: grid;
-            grid-template-columns: 392px 1fr;
-            height: 100%;
-            background: var(--content-bg);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        
-        .hidden {
-            display: none !important;
         }
 
         /* --- Sidebar --- */
         #sidebar {
+            width: 300px; /* Largura fixa para o menu */
+            min-width: 250px;
             background: var(--sidebar-bg);
             color: white;
             padding: 20px;
@@ -75,17 +67,19 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            position: relative; /* Para o mobileMenuBtn */
+            flex-shrink: 0; /* Não permite que a sidebar encolha */
         }
 
         /* --- Content Area --- */
         #contentArea {
+            flex-grow: 1; /* Permite que a área de conteúdo preencha o restante */
             padding: 30px;
             overflow-y: auto;
+            min-height: calc(100vh - 40px); /* Garante altura mínima */
             background: var(--content-bg);
         }
         
-        /* Formulários e Botões */
+        /* Formulários e Botões (Estilos mantidos) */
         input[type="text"], input[type="password"], select {
             width: 100%;
             padding: 10px;
@@ -112,7 +106,6 @@
         }
         .btn-primary:hover { background-color: #3730a3; }
         
-        /* Estilos específicos do menu */
         .menu-btn {
             background: none;
             color: white;
@@ -136,7 +129,7 @@
             font-size: 14px;
         }
 
-        /* --- Scanner View --- */
+        /* --- Scanner View (Estilos mantidos) --- */
         #cameraView {
             display: none;
             position: fixed;
@@ -147,6 +140,7 @@
             background: #000;
             justify-content: center;
             align-items: center;
+            z-index: 100;
         }
         #videoElement {
             width: 100%;
@@ -200,17 +194,7 @@
             border: none;
         }
         
-        /* Estilos de Mapa Leaflet (para marcadores customizados) */
-        .custom-div-icon {
-            background: transparent;
-            border: none;
-        }
-        .current-location-marker {
-            background: transparent;
-            border: none;
-        }
-
-        /* --- Mobile --- */
+        /* --- Mobile Responsiveness (Simplificada) --- */
         #mobileMenuBtn {
             position: fixed;
             top: 10px;
@@ -222,13 +206,12 @@
             width: 40px;
             height: 40px;
             font-size: 20px;
-            display: none; /* Escondido por padrão, mostrado no JS após o login em mobile */
+            display: none;
         }
         
         @media (max-width: 768px) {
-            .app {
-                grid-template-columns: 1fr;
-                border-radius: 0;
+            .app-wrapper {
+                flex-direction: column; /* Em mobile, empilha menu sobre conteúdo */
             }
             #sidebar {
                 position: fixed;
@@ -239,30 +222,19 @@
                 z-index: 50;
                 transform: translateX(-100%);
                 transition: transform 0.3s ease-in-out;
-                box-shadow: none;
+                box-shadow: 2px 0 5px rgba(0,0,0,0.5);
                 padding-top: 60px;
             }
             #sidebar.active {
                 transform: translateX(0);
             }
+            #mobileMenuBtn {
+                display: block;
+            }
             #contentArea {
                 padding: 10px;
+                margin-top: 10px; /* Espaço para o botão de menu */
             }
-            .app:not(.hidden) {
-                display: block; /* Volta para o layout de bloco em mobile */
-            }
-            #mobileMenuBtn.hidden {
-                display: none !important;
-            }
-        }
-
-        /* --- Formulário de Usuário --- */
-        .user-form-card {
-            background: var(--content-card-bg);
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
     </style>
 </head>
@@ -278,7 +250,7 @@
 
     <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
-    <div class="app hidden">
+    <div class="app-wrapper hidden">
         
         <aside id="sidebar">
             <h3 style="color:var(--accent)">Pegazus</h3>
@@ -300,7 +272,8 @@
                 </div>
             </div>
 
-            <div style="flex-grow: 1;"></div> <button id="btnLogout" style="background:var(--danger); color:white;">Sair</button>
+            <div style="flex-grow: 1;"></div> 
+            <button id="btnLogout" style="background:var(--danger); color:white;">Sair</button>
         </aside>
 
         <main id="contentArea">
@@ -324,6 +297,9 @@
             integrity="sha256-20n6c6P6Dkd6+A4B8b08g0c/xRk0s7x8t4S2U6Dq7Ff="
             crossorigin=""></script>
             
-    <script src="app.js"></script> 
-    </body>
+    <script>
+        // Cole o conteúdo do app.js atualizado aqui se não quiser usar um arquivo separado.
+        // Se usar arquivo, mantenha: <script src="app.js"></script>
+    </script> 
+</body>
 </html>
