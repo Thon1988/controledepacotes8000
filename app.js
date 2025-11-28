@@ -1,5 +1,7 @@
+// O código abaixo assume que as bibliotecas jsQR e Leaflet.js foram carregadas no HTML.
+
 document.addEventListener('DOMContentLoaded', () => {
-    
+
     /* --- Configurações e Estado --- */
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
@@ -7,13 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ]; 
+    ];
     const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
-    
+
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
     let users = loadUsers();
-    
+
     let videoStream = null;
     let isScanning = false;
     let videoTrack = null;
@@ -28,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'), // Adicionado
+        appContainer: document.querySelector('.app'),
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -61,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return existingUsers;
     }
-    
+
     function saveUsers() {
         localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
     }
@@ -93,17 +95,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPass').value.trim();
         const user = users.find(x => x.username === u && x.password === p);
-        
+
         if (user) {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
-            
+
             // Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
-            dom.appContainer.classList.remove('hidden'); 
-            
+            dom.appContainer.classList.remove('hidden');
+
             if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
-            
+
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
             } else {
@@ -121,10 +123,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnLogout').addEventListener('click', () => {
         currentUser = null;
         stopScanner();
-        
+
         // Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
-        dom.loginSection.classList.remove('hidden'); 
+        dom.loginSection.classList.remove('hidden');
 
         dom.mobileMenuBtn.classList.add('hidden');
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
@@ -134,42 +136,43 @@ document.addEventListener('DOMContentLoaded', () => {
     function showContent() {
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
-        
-        dom.appContainer.style.display = 'grid'; 
 
-        if (window.innerWidth > 768) { 
-            dom.sidebar.classList.remove('hidden'); 
+        dom.appContainer.style.display = 'grid';
+
+        if (window.innerWidth > 768) {
+            dom.sidebar.classList.remove('hidden');
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
         } else {
             dom.sidebar.classList.remove('active');
         }
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
-            dom.exportOptions.style.display = 'none'; 
+            dom.exportOptions.style.display = 'none';
         }
-        dom.feedback.style.opacity = '0'; 
+        dom.feedback.style.opacity = '0';
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
         dom.contentArea.style.display = 'none';
-        dom.cameraView.style.display = 'flex'; 
-        
+        dom.cameraView.style.display = 'flex';
+
         dom.appContainer.style.display = 'none'; // Esconde o grid app
-        
+
         if(window.innerWidth > 768) {
-            dom.sidebar.classList.add('hidden'); 
+            dom.sidebar.classList.add('hidden');
         } else {
             dom.sidebar.classList.remove('active');
         }
         startScanner();
     });
 
-    window.renderDashboard = () => {
-        dom.appContainer.style.display = 'grid'; 
-        renderDashboard();
+    // Função global que chama renderDashboard sem filtros
+    window.loadDashboard = () => {
+        dom.appContainer.style.display = 'grid';
+        renderDashboard(); 
     }
-    
-    document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
+
+    document.getElementById('btnDashboard').addEventListener('click', window.loadDashboard);
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -179,9 +182,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
-    document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
+    document.getElementById('btnExportFortnightly').addEventListener('click', () => generateCSV('fortnightly')); // NOVO: Quinzenal
     document.getElementById('btnExportMonthly').addEventListener('click', () => generateCSV('monthly'));
-    document.getElementById('btnExportAll').addEventListener('click', () => generateCSV('all'));
+    // Removido o btnExportWeekly e btnExportAll
 
     dom.cameraSelect.addEventListener('change', (e) => {
         if(isScanning) startScanner(e.target.value);
@@ -190,17 +193,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
     /* --- Lógica do Scanner --- */
-    
+
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
         try {
             // Tenta obter uma stream para forçar a permissão do usuário
             const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
             initialStream.getTracks().forEach(track => track.stop());
-            
+
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
-            
+
             dom.cameraSelect.innerHTML = '';
             if (videoDevices.length > 0) {
                  // Preenche o seletor com todas as câmeras
@@ -219,36 +222,35 @@ document.addEventListener('DOMContentLoaded', () => {
             // Se houver erro, a lista de câmeras ficará vazia/escondida
         }
     }
-    
+
     async function startScanner(deviceId = null) {
         if (isScanning && !deviceId) return;
-        stopScanner(); 
-        
+        stopScanner();
+
         const videoDevices = Array.from(dom.cameraSelect.options);
-        
+
         let targetDeviceId = deviceId;
-        
+
         // Lógica de seleção automática da câmera 0 (traseira/environment)
         if (!targetDeviceId && videoDevices.length > 0) {
             // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
-            const preferredCamera = videoDevices.find(opt => 
-                opt.text.toLowerCase().includes('environment') || 
-                opt.text.toLowerCase().includes('back') || 
+            const preferredCamera = videoDevices.find(opt =>
+                opt.text.toLowerCase().includes('environment') ||
+                opt.text.toLowerCase().includes('back') ||
                 opt.text.toLowerCase().includes('traseira')
             );
-            
+
             if (preferredCamera) {
                 targetDeviceId = preferredCamera.value;
             } else {
                 // 2. Se não encontrar pelo label, usa a primeira (índice 0)
-                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
                 targetDeviceId = videoDevices[0].value;
             }
         }
 
         const constraints = {
             video: targetDeviceId
-                ? { deviceId: { exact: targetDeviceId } } 
+                ? { deviceId: { exact: targetDeviceId } }
                 : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         };
 
@@ -259,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await dom.video.play();
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
-            
+
             // Atualiza o seletor para o dispositivo que realmente foi aberto
             if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
 
@@ -267,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error(err);
             alert('Erro ao acessar câmera: ' + err.message);
-            window.renderDashboard(); 
+            window.loadDashboard();
         }
     }
 
@@ -289,15 +291,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const h = dom.video.videoHeight;
             canvas.width = w;
             canvas.height = h;
-            ctx.drawImage(dom.video, 0, 0, w, h); 
-            
+            ctx.drawImage(dom.video, 0, 0, w, h);
+
             // Lógica de corte para varrer uma área maior (mantida em 90%)
-            const size = Math.min(w, h) * 0.9; 
+            const size = Math.min(w, h) * 0.9;
 
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
-            
+
+            // A função jsQR DEVE estar disponível globalmente
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "attemptBoth",
             });
@@ -312,12 +315,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleScan(data) {
         const now = Date.now();
         if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
-        
+
         lastScanCode = data;
         lastScanTime = now;
 
         beep();
-        showFeedback(data); 
+        showFeedback(data);
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
@@ -333,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let type = 'Genérico';
         if (raw.includes('shopee')) { type = 'Shopee'; }
         else if (raw.includes('mercadoli')) { type = 'Mercado Livre'; }
-        
+
         const numMatch = raw.match(/(\d{8,})/);
         if (numMatch) id = numMatch[1];
 
@@ -365,11 +368,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function showFeedback(text) {
         dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
         dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
-        
+        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000);
+
         const overlay = document.querySelector('.scan-overlay');
-        overlay.style.borderColor = 'var(--success)';
-        setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+        if (overlay) {
+            overlay.style.borderColor = 'var(--success)';
+            setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+        }
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
@@ -387,21 +392,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /* --- Views (Renderização) --- */
-    
-    function renderDashboard() {
+
+    /**
+     * Renderiza o Dashboard com lista de entregas.
+     * @param {string} [filterUser=''] Nome de usuário opcional para filtrar.
+     */
+    function renderDashboard(filterUser = '') {
         showContent();
-        
-        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
+
+        const canFilter = currentUser.role === 'admin' || currentUser.role === 'gestor';
+
+        if (canFilter) {
             dom.adminMenuOptions.classList.remove('hidden');
         } else {
             dom.adminMenuOptions.classList.add('hidden');
         }
+
+        // APLICAÇÃO DO FILTRO DE USUÁRIO
+        let displayedRecords = scanRecords;
+        if (canFilter && filterUser) {
+            displayedRecords = scanRecords.filter(r => r.user.toLowerCase().includes(filterUser.toLowerCase()));
+        } else if (!canFilter) {
+             // Colaboradores só veem seus próprios registros
+            displayedRecords = scanRecords.filter(r => r.user === currentUser.username);
+        }
         
+        const userFilterHtml = canFilter ? `
+            <div style="margin-bottom: 20px; display:flex; gap:10px;">
+                <input type="text" id="userFilterInput" placeholder="Filtrar por nome de usuário..." value="${filterUser}" style="flex:1; padding: 10px; border: 1px solid var(--content-text-dark); border-radius: 8px;">
+                <button class="btn-primary" id="applyUserFilterBtn">Filtrar</button>
+            </div>
+        ` : '';
+
         const html = `
             <h2>📦 Entregas Realizadas</h2>
-            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
+            ${userFilterHtml}
+            <p style="color:var(--content-text-dark)">Total de registros exibidos: ${displayedRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
-                ${scanRecords.map(r => `
+                ${displayedRecords.map(r => `
                     <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid var(--accent)">
                         <div style="font-weight:bold; font-size:16px">${r.id}</div>
                         <div style="font-size:12px; color:#6b7280;">
@@ -412,29 +440,48 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         dom.contentArea.innerHTML = html;
+
+        // Adicionar listener ao botão de filtro após a renderização
+        if (canFilter) {
+            const inputElement = document.getElementById('userFilterInput');
+            const buttonElement = document.getElementById('applyUserFilterBtn');
+
+            if (buttonElement && inputElement) {
+                buttonElement.addEventListener('click', () => {
+                    const user = inputElement.value.trim();
+                    renderDashboard(user);
+                });
+                 // Opcional: Adicionar filtro no enter
+                inputElement.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        buttonElement.click();
+                    }
+                });
+            }
+        }
     }
 
     function renderRoutes() {
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
-        
+
         if (deliveryPoints.length < 2) {
             dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
             return;
         }
 
         const simplifiedRoute = deliveryPoints
-            .slice(0, 10) 
-            .sort(() => Math.random() - 0.5); 
+            .slice(0, 10)
+            .sort(() => Math.random() - 0.5); // Simulação de Otimização
 
         const routeMapHtml = `
             <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
             <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
             <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
             <div style="margin-top:10px">
-                ${simplifiedRoute.map((p, index) => 
+                ${simplifiedRoute.map((p, index) =>
                     `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
-                        ${index + 1}. ${p.id} 
+                        ${index + 1}. ${p.id}
                         (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
                     </div>`
                 ).join('')}
@@ -449,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const routePoints = simplifiedRoute.map((p, index) => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
                     .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
-                
+
                 marker.setIcon(L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div style="background:var(--accent); color:#000; border-radius:50%; width:24px; height:24px; text-align:center; font-weight:bold; line-height:24px;">${index + 1}</div>`,
@@ -458,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
                 return [p.lat, p.lon];
             });
-            
+
             if (routePoints.length > 1) {
                 L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
                 map.fitBounds(L.polyline(routePoints).getBounds());
@@ -471,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showContent();
         mapInstance = null;
         dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
-        
+
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
             const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
@@ -490,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }, 100);
     }
-    
+
     function updateMapLocation() {
         if (!mapInstance || !userLocation) return;
 
@@ -518,7 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
     function renderUsers() {
         showContent();
-        
+
         let userListHtml = `
             <h2>👥 Gerenciamento de Usuários</h2>
             <div style="margin-bottom: 20px;">
@@ -526,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div id="userListContainer">
         `;
-        
+
         const filteredUsers = users.filter(u => {
             if (currentUser.role === 'admin') return true;
             if (currentUser.role === 'gestor') {
@@ -538,11 +585,11 @@ document.addEventListener('DOMContentLoaded', () => {
         filteredUsers.forEach(u => {
             const canEdit = currentUser.role === 'admin' || currentUser.id === u.id || (currentUser.role === 'gestor' && u.role === 'colaborador' && u.creatorId === currentUser.id);
             const canDelete = currentUser.role === 'admin' && currentUser.id !== u.id;
-            
+
             userListHtml += `
                 <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <strong>${u.username}</strong> 
+                        <strong>${u.username}</strong>
                         <span style="color:var(--accent); font-size:12px">(${u.role})</span>
                     </div>
                     <div>
@@ -552,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         });
-        
+
         userListHtml += `</div><div id="userFormArea"></div>`;
         dom.contentArea.innerHTML = userListHtml;
     }
@@ -560,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
-        
+
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
             alert('Você não tem permissão para editar este usuário.');
             return;
@@ -568,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isAdmin = currentUser.role === 'admin';
         const isSelf = userToEdit && userToEdit.id === currentUser.id;
-        
+
         let formHtml = `
             <div class="user-form-card" style="border:1px solid var(--accent)">
                 <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
@@ -606,27 +653,27 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Nome de usuário já existe.');
             return;
         }
-        
+
         let updatedUser;
         if (isNew) {
             updatedUser = {
                 id: 'u' + Date.now(),
                 username,
                 password,
-                // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
-                role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
+                 // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
+                role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role,
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
-            // CORREÇÃO: Usa o userIndex para obter a referência correta
-            updatedUser = users[userIndex]; 
+             // CORREÇÃO: Usa o userIndex para obter a referência correta
+            updatedUser = users[userIndex];
 
             if (password) updatedUser.password = password;
 
-            // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
+             // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
             if (currentUser.role === 'admin' || currentUser.id === userId) {
-                updatedUser.role = role; 
+                updatedUser.role = role;
             }
         }
 
@@ -656,28 +703,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (filter === 'daily') {
             filteredRecords = scanRecords.filter(r => new Date(r.date) >= today);
-        } else if (filter === 'weekly') {
-            const oneWeekAgo = new Date(today);
-            oneWeekAgo.setDate(today.getDate() - 7);
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneWeekAgo);
+        } else if (filter === 'fortnightly') { // NOVO FILTRO: Quinzenal (15 dias)
+            const fifteenDaysAgo = new Date(today);
+            fifteenDaysAgo.setDate(today.getDate() - 15);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= fifteenDaysAgo);
         } else if (filter === 'monthly') {
             const oneMonthAgo = new Date(today);
             oneMonthAgo.setMonth(today.getMonth() - 1);
             filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
         } else {
-            filteredRecords = scanRecords; // 'all'
+            return alert(`Filtro desconhecido: ${filter}.`);
         }
 
         if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
-        
+
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
+            // Remove quebras de linha e substitui aspas duplas por duas aspas duplas (para CSV)
+            const rawClean = r.raw.replace(/\r?\n|\r/g, " ").replace(/"/g, '""');
+            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${rawClean}"\n`;
         });
-        
+
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
         const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
         const url = URL.createObjectURL(blob);
@@ -688,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.exportOptions.style.display = 'none';
     }
-    
+
     // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
     enumerateDevices();
 });
