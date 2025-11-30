@@ -36,7 +36,7 @@
 
     .sidebar{
       background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
-      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:20;
+      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; /* increased z-index to sit above map */
     }
     .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
     .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
@@ -68,7 +68,7 @@
     #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
 
     /* export options */
-    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:30; min-width:220px; }
+    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:60; min-width:220px; }
     #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
 
     /* deliveries list */
@@ -87,10 +87,13 @@
     .modal h3{ margin:0 0 8px 0; }
     .modal input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
 
+    /* ensure map wrapper stays behind sidebar */
+    .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
+
     /* responsive adjustments */
     @media(max-width:900px){
       .app{ grid-template-columns:1fr; }
-      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:40; }
+      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:60; }
       .sidebar.active{ transform:translateX(0); }
       .main{ padding:16px; }
       .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
