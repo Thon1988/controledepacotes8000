@@ -1,199 +1,205 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>PegazusLog — Scanner Integrado</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>PegazusLog — Scanner Integrado</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
-  <!-- app.js (separado) -->
-  <script src="app.js" defer></script>
+    <script src="app.js" defer></script>
 
-  <style>
-    /* --- (mantive e expandi seu CSS) --- */
-    :root{
-      --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
-      --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
-      --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
-      --radius:25px;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    }
+  <style>
+    /* --- (mantive e expandi seu CSS) --- */
+    :root{
+      --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
+      --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
+      --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
+      --radius:25px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
 
-    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-    body{
-      margin:0; background:linear-gradient(180deg,var(--bg) 0%, #000 100%); color:var(--content-text-dark);
-      min-height:100vh; display:flex; justify-content:center; align-items:center;
-      font-size:14px;
-    }
+    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+    body{
+      margin:0; background:linear-gradient(180deg,var(--bg) 0%, #000 100%); color:var(--content-text-dark);
+      min-height:100vh; display:flex; justify-content:center; align-items:center;
+      font-size:14px;
+    }
 
-    .app{
-      display:grid; grid-template-columns:392px 1fr; width:100vw; height:100vh; background:var(--content-bg-light);
-      max-width:100%; max-height:100%; overflow:hidden;
-    }
+    .app{
+      display:grid; grid-template-columns:392px 1fr; width:100vw; height:100vh; background:var(--content-bg-light);
+      max-width:100%; max-height:100%; overflow:hidden;
+    }
 
-    .sidebar{
-      background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
-      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; /* increased z-index to sit above map */
-    }
-    .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
-    .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
-    .menu-item:hover{ background:rgba(56,189,248,0.08); color:var(--accent);}
-    .menu-item.active{ background:var(--accent); color:var(--panel); font-weight:700;}
+    .sidebar{
+      background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
+      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; /* increased z-index to sit above map */
+    }
+    .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
+    .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
+    .menu-item:hover{ background:rgba(56,189,248,0.08); color:var(--accent);}
+    .menu-item.active{ background:var(--accent); color:var(--panel); font-weight:700;}
 
-    .sidebar-footer{ margin-top:auto; padding-top:15px; border-top:1px solid rgba(255,255,255,0.06); }
-    .user-info{ font-size:14px; color:var(--muted); }
-    .user-info strong{ color:var(--text); font-weight:600; }
+    .sidebar-footer{ margin-top:auto; padding-top:15px; border-top:1px solid rgba(255,255,255,0.06); }
+    .user-info{ font-size:14px; color:var(--muted); }
+    .user-info strong{ color:var(--text); font-weight:600; }
 
-    .main{ padding:24px; overflow-y:auto; height:100%; position:relative; }
-    .main h2{ margin-top:0; color:var(--content-text-dark); }
-    .user-form-card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
+    .main{ padding:24px; overflow-y:auto; height:100%; position:relative; }
+    .main h2{ margin-top:0; color:var(--content-text-dark); }
+    .user-form-card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
 
-    .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
-    .btn-primary:hover{ background:var(--accent-dark); }
-    .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
+    .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
+    .btn-primary:hover{ background:var(--accent-dark); }
+    .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
 
-    /* camera view */
-    #cameraView{ position:fixed; inset:0; background:black; display:none; justify-content:center; align-items:center; z-index:1000; }
-    #videoElement{ width:100%; height:100%; object-fit:cover; }
-    .scan-overlay{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90vmin; height:90vmin; max-width:420px; max-height:420px; border:4px solid rgba(255,255,255,0.5); border-radius:15px; z-index:1001; transition:border-color .3s; }
-    #feedbackMsg{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--content-text-dark); padding:10px 20px; border-radius:10px; z-index:1002; opacity:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* camera view */
+    #cameraView{ position:fixed; inset:0; background:black; display:none; justify-content:center; align-items:center; z-index:1000; }
+    #videoElement{ width:100%; height:100%; object-fit:cover; }
+    .scan-overlay{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90vmin; height:90vmin; max-width:420px; max-height:420px; border:4px solid rgba(255,255,255,0.5); border-radius:15px; z-index:1001; transition:border-color .3s; }
+    #feedbackMsg{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--content-text-dark); padding:10px 20px; border-radius:10px; z-index:1002; opacity:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-    .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
-    .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
-    .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
+    .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
+    .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
+    .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
 
-    #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
+    #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
 
-    /* export options */
-    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:60; min-width:220px; }
-    #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
+    /* export options */
+    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:60; min-width:220px; }
+    #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
 
-    /* deliveries list */
-    .deliveries-list{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
-    .delivery-item{ display:flex; gap:12px; align-items:flex-start; background:var(--content-card-bg); padding:12px; border-radius:10px; border-left:4px solid var(--accent); }
-    .delivery-id{ font-weight:700; }
-    .delivery-meta{ font-size:12px; color:#6b7280; margin-top:6px; }
+    /* deliveries list */
+    .deliveries-list{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
+    .delivery-item{ display:flex; gap:12px; align-items:flex-start; background:var(--content-card-bg); padding:12px; border-radius:10px; border-left:4px solid var(--accent); }
+    .delivery-id{ font-weight:700; }
+    .delivery-meta{ font-size:12px; color:#6b7280; margin-top:6px; }
 
-    /* header for content with X */
-    .view-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-    .close-btn{ background:transparent; border:none; font-size:20px; cursor:pointer; padding:6px; }
+    /* header for content with X */
+    .view-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+    .close-btn{ background:transparent; border:none; font-size:20px; cursor:pointer; padding:6px; }
 
-    /* modal manual input */
-    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
-    .modal{ background:white; padding:16px; border-radius:12px; width:90%; max-width:420px; }
-    .modal h3{ margin:0 0 8px 0; }
-    .modal input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
+    /* modal manual input */
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
+    .modal{ background:white; padding:16px; border-radius:12px; width:90%; max-width:420px; }
+    .modal h3{ margin:0 0 8px 0; }
+    .modal input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
 
-    /* ensure map wrapper stays behind sidebar */
-    .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
+    /* ensure map wrapper stays behind sidebar */
+    .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
 
-    /* responsive adjustments */
-    @media(max-width:900px){
-      .app{ grid-template-columns:1fr; }
-      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:60; }
-      .sidebar.active{ transform:translateX(0); }
-      .main{ padding:16px; }
-      .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
-      .camera-controls .left{ gap:6px; }
-    }
-  </style>
+    /* responsive adjustments */
+    @media(max-width:900px){
+      .app{ grid-template-columns:1fr; }
+      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:60; }
+      .sidebar.active{ transform:translateX(0); }
+      .main{ padding:16px; }
+      .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
+      .camera-controls .left{ gap:6px; }
+
+      #mobileMenuBtn{
+        display:block!important; /* Sobrescreve o display:none inicial ao carregar em telas pequenas */
+        position:fixed; top:12px; left:12px; z-index:70; 
+        background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; 
+        font-size:18px; line-height:1; font-weight:700;
+        transition: opacity .3s;
+      }
+      .app.hidden + #mobileMenuBtn { opacity: 0; pointer-events: none; } /* Esconde se não estiver logado */
+    }
+  </style>
 </head>
 <body>
 
-  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
+    <button id="mobileMenuBtn" style="display:none;" onclick="window.toggleSidebar()">☰</button>
 
-  <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
-    <div class="login-card" style="width:92%;max-width:420px;">
-      <h1 style="margin:0 0 18px 0; color:var(--accent)">PegazusLog</h1>
-      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
-      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
-      <button id="btnLogin" class="btn-primary" style="width:100%; margin-top:8px;">Entrar</button>
-      <p id="loginError" style="margin-top:8px;color:var(--danger)"></p>
-    </div>
-  </section>
+  <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
+    <div class="login-card" style="width:92%;max-width:420px;">
+      <h1 style="margin:0 0 18px 0; color:var(--accent)">PegazusLog</h1>
+      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
+      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
+      <button id="btnLogin" class="btn-primary" style="width:100%; margin-top:8px;">Entrar</button>
+      <p id="loginError" style="margin-top:8px;color:var(--danger)"></p>
+    </div>
+  </section>
 
-  <div class="app hidden">
-    <aside id="sidebar" class="sidebar" aria-hidden="false">
-      <div class="logo">📦 <span style="margin-left:6px">PegazusLog</span></div>
+  <div class="app hidden">
+    <aside id="sidebar" class="sidebar" aria-hidden="false">
+      <div class="logo">📦 <span style="margin-left:6px">PegazusLog</span></div>
 
-      <div id="menuSection">
-        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
-        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
-        <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
-        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
-        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
+      <div id="menuSection">
+        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
+        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
+        <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
+        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
+        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
 
-        <div id="adminMenuOptions" style="margin-top:12px;">
-            <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
-            <div id="btnUsers" class="menu-item">👥 Usuários</div>
+        <div id="adminMenuOptions" style="margin-top:12px;">
+            <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
+            <div id="btnUsers" class="menu-item">👥 Usuários</div>
 
-            <div class="export-container menu-item" style="align-items:flex-start;">
-                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
-                    ⬇️ Exportar Dados
-                </button>
-                <div id="exportOptions" aria-hidden="true">
-                    <label style="font-size:13px;margin-bottom:6px">Buscar por usuário (login)</label>
-                    <input id="exportUserFilter" placeholder="Digite o login (opcional)"/>
-                    <label style="font-size:13px;margin-bottom:6px">Período</label>
-                    <select id="exportPeriod">
-                      <option value="daily">Últimas 24h</option>
-                      <option value="weekly">Últimos 7 dias</option>
-                      <option value="monthly">Últimos 30 dias</option>
-                      <option value="all">Todos os Dados</option>
-                    </select>
-                    <button id="btnGenerateCSV" class="btn-primary" style="width:100%;">Gerar CSV</button>
-                </div>
-            </div>
-        </div>
-      </div>
+            <div class="export-container menu-item" style="align-items:flex-start;">
+                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
+                    ⬇️ Exportar Dados
+                </button>
+                <div id="exportOptions" aria-hidden="true">
+                    <label style="font-size:13px;margin-bottom:6px">Buscar por usuário (login)</label>
+                    <input id="exportUserFilter" placeholder="Digite o login (opcional)"/>
+                    <label style="font-size:13px;margin-bottom:6px">Período</label>
+                    <select id="exportPeriod">
+                      <option value="daily">Últimas 24h</option>
+                      <option value="weekly">Últimos 7 dias</option>
+                      <option value="monthly">Últimos 30 dias</option>
+                      <option value="all">Todos os Dados</option>
+                    </select>
+                    <button id="btnGenerateCSV" class="btn-primary" style="width:100%;">Gerar CSV</button>
+                </div>
+            </div>
+        </div>
+      </div>
 
-      <div class="sidebar-footer">
-        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
-        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
-      </div>
-    </aside>
+      <div class="sidebar-footer">
+        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
+        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
+        <div id="currentLoc" class="user-info" style="margin-top:5px; font-size:11px;"></div>
+      </div>
+    </aside>
 
-    <main class="main">
-      <div id="contentArea">
-        <!-- Conteúdo dinâmico é injetado aqui -->
-      </div>
-    </main>
-  </div>
+    <main class="main">
+      <div id="contentArea">
+              </div>
+    </main>
+  </div>
 
-  <!-- Camera / Scanner view -->
-  <section id="cameraView">
-    <video id="videoElement" playsinline></video>
-    <div class="scan-overlay" aria-hidden="true"></div>
+    <section id="cameraView">
+    <video id="videoElement" playsinline></video>
+    <div class="scan-overlay" aria-hidden="true"></div>
 
-    <div class="camera-controls">
-      <div class="left">
-        <button class="icon" id="btnCloseCamera" title="Fechar">✕</button>
-      </div>
+    <div class="camera-controls">
+      <div class="left">
+        <button class="icon" id="btnCloseCamera" title="Fechar">✕</button>
+      </div>
 
-      <div class="right">
-        <select id="cameraSelect" class="hidden"></select>
-        <button class="icon" id="btnTorch" title="Flash">💡</button>
-        <button class="icon" id="btnManual" title="Inserir rastreio manual">✏️</button>
-      </div>
-    </div>
+      <div class="right">
+        <select id="cameraSelect" class="hidden"></select>
+        <button class="icon" id="btnTorch" title="Flash">💡</button>
+        <button class="icon" id="btnManual" title="Inserir rastreio manual">✏️</button>
+      </div>
+    </div>
 
-    <div id="feedbackMsg" role="status" aria-live="polite"></div>
-  </section>
+    <div id="feedbackMsg" role="status" aria-live="polite"></div>
+  </section>
 
-  <!-- Modal para inserção manual -->
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <h3 id="modalTitle">Inserir rastreio manual</h3>
-      <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button id="manualCancel" class="btn-secondary">Cancelar</button>
-        <button id="manualSave" class="btn-primary">Salvar</button>
-      </div>
-    </div>
-  </div>
+    <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 id="modalTitle">Inserir rastreio manual</h3>
+      <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button id="manualCancel" class="btn-secondary">Cancelar</button>
+        <button id="manualSave" class="btn-primary">Salvar</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
