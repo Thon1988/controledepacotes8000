@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
     const DEFAULT_USERS = [
-        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' }, // Senha: 882010
+        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
     ]; 
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'),
+        appContainer: document.querySelector('.app'), // Adicionado
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -38,39 +38,27 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
-        
-        // btnManual e Modal são referenciados se existirem no HTML, mas garantimos o listener no renderDashboard
-        btnManual: document.getElementById('btnManual'),
-        modalBackdrop: document.getElementById('modalBackdrop'),
-        manualInput: document.getElementById('manualInput'),
-        manualCancel: document.getElementById('manualCancel'),
-        manualSave: document.getElementById('manualSave'),
-        btnGenerateCSV: document.getElementById('btnGenerateCSV'),
-        exportUserFilter: document.getElementById('exportUserFilter'),
-        exportPeriod: document.getElementById('exportPeriod'),
     };
 
     /* --- Inicialização e Storage --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        let existingUsers = [];
-
-        // 1. Se não houver dados no Local Storage, usa os usuários padrão
-        if (!raw) {
-            existingUsers = DEFAULT_USERS;
+        if(!raw) {
             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
-        } else {
-            existingUsers = JSON.parse(raw);
+            return DEFAULT_USERS;
         }
-        
-        // 2. Garantir que o usuário admin padrão 'thon' sempre exista para facilitar o login
+        const existingUsers = JSON.parse(raw);
         const thonExists = existingUsers.some(u => u.username === 'thon');
-        if (!thonExists) {
-             existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
-             // Salva de volta para o Local Storage após adicionar 'thon'
-             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(existingUsers));
-        }
 
+        // Garante que o usuário admin padrão 'thon' exista
+        if (!thonExists) {
+            existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
+        } else {
+            const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
+            // Mantém a senha e role do admin padrão
+            existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
+            existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
+        }
         return existingUsers;
     }
     
@@ -102,22 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Sistema de Login --- */
     document.getElementById('btnLogin').addEventListener('click', () => {
-        // Pega valores dos inputs
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPass').value.trim();
-        
-        // Compara com a lista de usuários
         const user = users.find(x => x.username === u && x.password === p);
         
         if (user) {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             
+            // Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden'); 
             
-            // Mostra o botão mobile se a tela for pequena
-            if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.remove('hidden');
+            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
             
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
@@ -137,10 +122,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = null;
         stopScanner();
         
+        // Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
         dom.loginSection.classList.remove('hidden'); 
 
-        if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.add('hidden');
+        dom.mobileMenuBtn.classList.add('hidden');
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
     });
 
@@ -150,35 +136,27 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'block';
         
         dom.appContainer.style.display = 'grid'; 
-        
-        // Desativa o estado 'active' de todos os itens do menu
-        document.querySelectorAll('#menuSection .menu-item').forEach(item => {
-            item.classList.remove('active');
-        });
 
-        if (window.innerWidth > 900) { 
+        if (window.innerWidth > 768) { 
             dom.sidebar.classList.remove('hidden'); 
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
         } else {
             dom.sidebar.classList.remove('active');
         }
         stopScanner();
-        if (dom.exportOptions && dom.exportOptions.style.display === 'flex') {
+        if (dom.exportOptions.style.display === 'flex') {
             dom.exportOptions.style.display = 'none'; 
         }
         dom.feedback.style.opacity = '0'; 
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
-        showContent(); // Garante que o menu ativo seja resetado
-        document.getElementById('btnScanMode').classList.add('active'); // Ativa apenas o scanner
-
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
         
-        dom.appContainer.style.display = 'none'; 
+        dom.appContainer.style.display = 'none'; // Esconde o grid app
         
-        if(window.innerWidth > 900) {
+        if(window.innerWidth > 768) {
             dom.sidebar.classList.add('hidden'); 
         } else {
             dom.sidebar.classList.remove('active');
@@ -192,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
-    // Removido: document.getElementById('btnDeliveries').addEventListener('click', window.renderDashboard);
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -201,10 +178,12 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
 
-    // Se os botões de exportação não existirem, este listener pode falhar, mas deixaremos como está.
-    // dom.btnGenerateCSV.addEventListener('click', () => generateCSV());
+    document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
+    document.getElementById('btnExportWeekly').addEventListener('click', () => generateCSV('weekly'));
+    document.getElementById('btnExportMonthly').addEventListener('click', () => generateCSV('monthly'));
+    document.getElementById('btnExportAll').addEventListener('click', () => generateCSV('all'));
 
-    if(dom.cameraSelect) dom.cameraSelect.addEventListener('change', (e) => {
+    dom.cameraSelect.addEventListener('change', (e) => {
         if(isScanning) startScanner(e.target.value);
     });
 
@@ -212,23 +191,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Lógica do Scanner --- */
     
+    /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
         try {
-            // Verificar se o acesso à mídia é permitido antes de tentar enumerar
-            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-                console.warn("MediaDevices não suportado.");
-                return;
-            }
-            
-            // Acesso inicial para obter permissão e labels
+            // Tenta obter uma stream para forçar a permissão do usuário
             const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
             initialStream.getTracks().forEach(track => track.stop());
             
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
             
-            if (dom.cameraSelect) dom.cameraSelect.innerHTML = '';
-            if (videoDevices.length > 0 && dom.cameraSelect) {
+            dom.cameraSelect.innerHTML = '';
+            if (videoDevices.length > 0) {
+                 // Preenche o seletor com todas as câmeras
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
@@ -236,12 +211,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     dom.cameraSelect.appendChild(opt);
                 });
                 dom.cameraSelect.classList.remove('hidden');
-            } else if (dom.cameraSelect) {
+            } else {
                 dom.cameraSelect.classList.add('hidden');
             }
         } catch (err) {
             console.error("Erro ao enumerar dispositivos:", err);
-            // Se falhar na enumeração, tentaremos apenas com facingMode
+            // Se houver erro, a lista de câmeras ficará vazia/escondida
         }
     }
     
@@ -249,21 +224,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScanning && !deviceId) return;
         stopScanner(); 
         
+        const videoDevices = Array.from(dom.cameraSelect.options);
+        
         let targetDeviceId = deviceId;
         
-        if (!targetDeviceId && dom.cameraSelect) {
-             const videoDevices = Array.from(dom.cameraSelect.options);
-             if (videoDevices.length > 0) {
-                 const preferredCamera = videoDevices.find(opt => 
-                     opt.text.toLowerCase().includes('environment') || 
-                     opt.text.toLowerCase().includes('back') || 
-                     opt.text.toLowerCase().includes('traseira')
-                 );
-                 
-                 targetDeviceId = preferredCamera ? preferredCamera.value : videoDevices[0].value;
-             }
+        // Lógica de seleção automática da câmera 0 (traseira/environment)
+        if (!targetDeviceId && videoDevices.length > 0) {
+            // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
+            const preferredCamera = videoDevices.find(opt => 
+                opt.text.toLowerCase().includes('environment') || 
+                opt.text.toLowerCase().includes('back') || 
+                opt.text.toLowerCase().includes('traseira')
+            );
+            
+            if (preferredCamera) {
+                targetDeviceId = preferredCamera.value;
+            } else {
+                // 2. Se não encontrar pelo label, usa a primeira (índice 0)
+                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
+                targetDeviceId = videoDevices[0].value;
+            }
         }
-
 
         const constraints = {
             video: targetDeviceId
@@ -273,15 +254,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-            if (dom.video) {
-                dom.video.srcObject = videoStream;
-                dom.video.setAttribute('playsinline', true);
-                await dom.video.play();
-            }
+            dom.video.srcObject = videoStream;
+            dom.video.setAttribute('playsinline', true);
+            await dom.video.play();
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
-            if (targetDeviceId && dom.cameraSelect) dom.cameraSelect.value = targetDeviceId;
+            // Atualiza o seletor para o dispositivo que realmente foi aberto
+            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
 
             requestAnimationFrame(tick);
         } catch (err) {
@@ -297,12 +277,12 @@ document.addEventListener('DOMContentLoaded', () => {
             videoStream.getTracks().forEach(t => t.stop());
             videoStream = null;
         }
-        if (dom.video) dom.video.srcObject = null;
+        dom.video.srcObject = null;
     }
 
     function tick() {
         if (!isScanning) return;
-        if (dom.video && dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
+        if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const w = dom.video.videoWidth;
@@ -311,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = h;
             ctx.drawImage(dom.video, 0, 0, w, h); 
             
+            // Lógica de corte para varrer uma área maior (mantida em 90%)
             const size = Math.min(w, h) * 0.9; 
 
             const sx = (w - size) / 2;
@@ -382,17 +363,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showFeedback(text) {
-        if (dom.feedback) {
-            dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
-            dom.feedback.style.opacity = '1';
-            setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
-        }
+        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
+        dom.feedback.style.opacity = '1';
+        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
         
         const overlay = document.querySelector('.scan-overlay');
-        if (overlay) {
-            overlay.style.borderColor = 'var(--success)';
-            setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
-        }
+        overlay.style.borderColor = 'var(--success)';
+        setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
@@ -409,69 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /* --- Lógica do Modal de Entrada Manual --- */
-
-    function openManualModal() {
-        // Asseguramos que o modal exista
-        const modalBackdrop = document.getElementById('modalBackdrop');
-        const manualInput = document.getElementById('manualInput');
-
-        if (modalBackdrop && manualInput) {
-            modalBackdrop.style.display = 'flex';
-            manualInput.value = '';
-            manualInput.focus();
-
-            const isDarkMode = window.getComputedStyle(document.body).getPropertyValue('background-color').includes('rgb(2, 6, 23)'); 
-            const modalCard = modalBackdrop.querySelector('.modal');
-            if (modalCard) {
-                if (isDarkMode) {
-                     modalCard.classList.add('modal-dark');
-                } else {
-                     modalCard.classList.remove('modal-dark');
-                }
-            }
-        }
-    }
-
-    function closeManualModal() {
-        const modalBackdrop = document.getElementById('modalBackdrop');
-        if (modalBackdrop) {
-            modalBackdrop.style.display = 'none';
-        }
-    }
-
-    function handleManualScan() {
-        const data = document.getElementById('manualInput').value.trim();
-        if (data.length < 5) {
-            alert('Por favor, insira um código de rastreio válido.');
-            return;
-        }
-
-        handleScan(data);
-        showFeedback("Entrada manual registrada: " + data);
-        
-        closeManualModal();
-    }
-    
-    // Adiciona listeners para o Modal - necessário se o modal existir no HTML
-    if (document.getElementById('manualCancel')) document.getElementById('manualCancel').addEventListener('click', closeManualModal);
-    if (document.getElementById('manualSave')) document.getElementById('manualSave').addEventListener('click', handleManualScan);
-    
-    if (document.getElementById('modalBackdrop')) {
-        document.getElementById('modalBackdrop').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('modalBackdrop')) {
-                closeManualModal();
-            }
-        });
-    }
-
     /* --- Views (Renderização) --- */
     
     function renderDashboard() {
         showContent();
-        
-        // Ativa APENAS o Dashboard
-        document.getElementById('btnDashboard').classList.add('active');
         
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             dom.adminMenuOptions.classList.remove('hidden');
@@ -480,12 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const html = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>📦 Entregas Realizadas</h2>
-                <button id="btnManual" style="background:none; border:none; color:var(--accent); font-size:24px; cursor:pointer;">
-                    ✏️
-                </button>
-            </div>
+            <h2>📦 Entregas Realizadas</h2>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
                 ${scanRecords.map(r => `
@@ -499,18 +412,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         dom.contentArea.innerHTML = html;
-        
-        // Re-anexa o listener do botão Manual APÓS ele ser injetado no DOM
-        const btnManual = document.getElementById('btnManual');
-        if (btnManual) {
-            btnManual.addEventListener('click', openManualModal); 
-        }
     }
 
     function renderRoutes() {
         showContent();
-        document.getElementById('btnRoutes').classList.add('active'); // Ativa o item do menu
-        
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
         if (deliveryPoints.length < 2) {
@@ -564,8 +469,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderMap() {
         showContent();
-        document.getElementById('btnMap').classList.add('active'); // Ativa o item do menu
-
         mapInstance = null;
         dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
         
@@ -615,7 +518,6 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
     function renderUsers() {
         showContent();
-        document.getElementById('btnUsers').classList.add('active'); // Ativa o item do menu
         
         let userListHtml = `
             <h2>👥 Gerenciamento de Usuários</h2>
@@ -655,6 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.innerHTML = userListHtml;
     }
 
+    // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
@@ -710,15 +613,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: 'u' + Date.now(),
                 username,
                 password,
+                // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
                 role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
+            // CORREÇÃO: Usa o userIndex para obter a referência correta
             updatedUser = users[userIndex]; 
 
             if (password) updatedUser.password = password;
 
+            // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
             if (currentUser.role === 'admin' || currentUser.id === userId) {
                 updatedUser.role = role; 
             }
@@ -742,14 +648,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
-    /* --- Exportação CSV com Filtros --- */
-    function generateCSV() {
-        // ... (Implementação omitida por brevidade, mas está correta)
-        const period = 'all'; // Simplificação para este exemplo
-        
-        let filteredRecords = scanRecords;
-        
-        if(!filteredRecords.length) return alert(`Nenhum dado encontrado.`);
+    /* --- Exportação CSV com Filtros de Data --- */
+    function generateCSV(filter) {
+        let filteredRecords = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (filter === 'daily') {
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= today);
+        } else if (filter === 'weekly') {
+            const oneWeekAgo = new Date(today);
+            oneWeekAgo.setDate(today.getDate() - 7);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneWeekAgo);
+        } else if (filter === 'monthly') {
+            const oneMonthAgo = new Date(today);
+            oneMonthAgo.setMonth(today.getMonth() - 1);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
+        } else {
+            filteredRecords = scanRecords; // 'all'
+        }
+
+        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
         
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
         filteredRecords.forEach(r => {
@@ -759,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
             csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
         });
         
-        const filename = `relatorio_pegazus_${period}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
+        const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
         const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -767,8 +686,27 @@ document.addEventListener('DOMContentLoaded', () => {
         a.download = filename;
         a.click();
 
-        if (dom.exportOptions) dom.exportOptions.style.display = 'none';
+        dom.exportOptions.style.display = 'none';
     }
+    
+    /* --- Funções Adicionais para Scanner Manual --- */
+    window.manualScan = () => {
+        const input = document.getElementById('manualCodeInput');
+        const code = input.value.trim();
+
+        if (code) {
+            // 1. Chama a função que processa o código e salva o registro
+            handleScan(code); 
+            
+            // 2. Limpa o campo
+            input.value = ''; 
+            
+            // 3. Sai do scanner e volta para o dashboard
+            window.renderDashboard(); 
+        } else {
+            alert('Por favor, insira um código de rastreamento.');
+        }
+    };
     
     // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
     enumerateDevices();
