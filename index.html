@@ -15,22 +15,23 @@
     /* --- VARIÁVEIS DE COR PADRÃO (TEMA CLARO - DEFAULT) --- */
     :root {
       /* Base - Sidebar Dark / Conteúdo Light */
-      --bg: #0f172a; 
-      --panel: rgba(30, 41, 59, 0.95); 
-      --text: #f1f5f9; 
-      --muted: #94a3b8; 
+      --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
+      --panel: rgba(30, 41, 59, 0.95); /* Sidebar/Login (Slate 800) */
+      --text: #f1f5f9; /* Texto claro (para sidebar) */
+      --muted: #94a3b8; /* Cinza claro (para sidebar) */
       
       /* Conteúdo Light */
-      --content-bg-light: #f4f6f8; 
-      --content-card-bg: #ffffff; 
-      --content-text-dark: #1f2937; 
+      --content-bg-light: #f4f6f8; /* Fundo claro para o Main (cinza claro) */
+      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
+      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
 
       /* Acento */
-      --accent: #38bdf8; 
-      --accent-dark: #0ea5e9; 
-      --success: #22c55e; 
-      --danger: #ef4444; 
+      --accent: #38bdf8; /* Azul principal (Sky 400) */
+      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
+      --success: #22c55e; /* Verde */
+      --danger: #ef4444; /* Vermelho */
       
+      /* Raio de Borda */
       --radius: 25px; 
       
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -39,15 +40,16 @@
     /* --- MEDIA QUERY: TEMA DARK COMPLETO (Se preferência do usuário for dark) --- */
     @media (prefers-color-scheme: dark) {
         :root {
-            --bg: #020617; 
-            --panel: rgba(15, 23, 42, 0.95); 
+            --bg: #020617; /* Fundo principal mais escuro */
+            --panel: rgba(15, 23, 42, 0.95); /* Sidebar/Login (Slate 900) */
             
-            --content-bg-light: #0f172a; 
-            --content-card-bg: rgba(30, 41, 59, 0.7); 
-            --content-text-dark: #f1f5f9; 
+            /* Todos os painéis ficam escuros */
+            --content-bg-light: #0f172a; /* Main fica Slate 900 */
+            --content-card-bg: rgba(30, 41, 59, 0.7); /* Cards internos ficam Slate 800 */
+            --content-text-dark: #f1f5f9; /* Texto fica claro em todo lugar */
             
-            --text: #f1f5f9; 
-            --muted: #94a3b8; 
+            --text: #f1f5f9; /* Texto claro (para sidebar) */
+            --muted: #94a3b8; /* Cinza claro (para sidebar) */
         }
 
         /* Ajustes específicos para elementos no modo Dark */
@@ -64,11 +66,11 @@
         }
         
         /* Botões de edição e delete no modo Dark */
-        .user-form-card button:first-of-type { 
+        .user-form-card button:first-of-type { /* Botão Editar (Azul) */
             background: rgba(56, 189, 248, 0.2) !important; 
             color: var(--accent) !important; 
         }
-        .user-form-card button:nth-of-type(2) { 
+        .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
             background: rgba(239, 68, 68, 0.2) !important; 
             color: var(--danger) !important; 
         }
@@ -85,13 +87,12 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 14px; 
     }
 
     /* --- LAYOUT GERAL DO APP --- */
     .app {
       display: grid;
-      grid-template-columns: 392px 1fr; 
+      grid-template-columns: 392px 1fr; /* Sidebar + Content */
       background: var(--content-bg-light);
       width: 100vw;
       height: 100vh;
@@ -109,7 +110,8 @@
       flex-direction: column;
       box-shadow: 4px 0 10px rgba(0,0,0,0.2);
       position: relative;
-      z-index: 10;
+      /* CORREÇÃO AQUI: Z-index aumentado para ficar acima do mapa Leaflet */
+      z-index: 101; 
     }
     
     .logo {
@@ -271,7 +273,7 @@
         width: 100%;
         height: 100%;
         background: black;
-        display: none; 
+        display: none; /* Controlado pelo JS */
         justify-content: center;
         align-items: center;
         z-index: 1000;
@@ -287,7 +289,7 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 90vmin; 
+        width: 90vmin; /* 90% da menor dimensão da tela */
         height: 90vmin;
         max-width: 400px;
         max-height: 400px;
@@ -326,11 +328,6 @@
         z-index: 1002;
     }
     
-    .camera-controls .right-controls {
-        display: flex;
-        gap: 10px;
-    }
-
     .camera-controls button {
         background: rgba(0,0,0,0.5);
         color: white;
@@ -356,76 +353,46 @@
         appearance: none;
         cursor: pointer;
     }
-
-    /* --- MODAL DE ENTRADA MANUAL --- */
-    .modal-backdrop{ 
-        position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; 
-        z-index:2000; justify-content:center; align-items:center; 
-    }
-    .modal{ 
-        background:white; padding:20px; border-radius:12px; width:90%; 
-        max-width:420px; color:var(--content-text-dark);
-    }
-    .modal h3{ margin:0 0 12px 0; }
-    .modal input{ 
-        width:100%; padding:10px; margin-bottom:15px; border-radius:8px; 
-        border:1px solid #ddd; font-size:16px;
-    }
-    .modal-dark { 
-        background: var(--content-card-bg);
-        border: 1px solid rgba(255,255,255,0.1);
-        color: var(--content-text-dark);
-    }
-
-    /* --- EXPORT OPTIONS --- */
+    
+    /* --- EXPORT OPTIONS (CSS para o menu flutuante) --- */
     #exportOptions {
         position: absolute;
         right: 0;
         top: 100%;
         background: var(--content-card-bg);
         border-radius: 10px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.12);
-        padding: 12px;
-        display: none; 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        padding: 10px;
+        display: none; /* Escondido por padrão */
         flex-direction: column;
-        gap: 8px;
-        z-index: 60;
-        min-width: 250px;
-        border: 1px solid #eee; 
+        gap: 5px;
+        z-index: 20;
     }
 
-    #exportOptions label {
-        font-size: 13px;
-        color: var(--muted);
-        margin-top: 5px;
-        margin-bottom: -3px;
-    }
-
-    #exportOptions input, #exportOptions select {
-        width: 100%;
-        padding: 8px;
-        border-radius: 8px;
-        border: 1px solid #ddd;
-        margin-bottom: 6px;
-        font-size: 14px;
+    #exportOptions button {
+        background: none;
+        border: none;
+        padding: 8px 15px;
+        text-align: left;
         color: var(--content-text-dark);
-        background: var(--content-bg-light); 
+        border-radius: 5px;
+        transition: background 0.2s;
+    }
+
+    #exportOptions button:hover {
+        background: var(--content-bg-light);
     }
     
     .export-container {
         position: relative;
+        display: inline-block;
     }
-    .export-container .menu-item:hover {
-        background: transparent !important;
-        color: var(--text) !important;
-    }
-
 
     /* --- UTILIDADES --- */
     .hidden { display: none !important; }
 
     /* --- MEDIA QUERIES (RESPONSIVIDADE) --- */
-    @media (max-width: 900px) { 
+    @media (max-width: 768px) {
         .app {
             grid-template-columns: 1fr;
             height: 100vh;
@@ -442,6 +409,7 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
             padding: 30px 20px;
             overflow-y: auto;
+            background: var(--panel); /* Garante que a sidebar seja opaca em mobile */
         }
         
         .sidebar.active {
@@ -456,21 +424,23 @@
         /* Botão de menu mobile */
         #mobileMenuBtn {
             position: fixed;
-            top: 12px;
-            left: 12px;
-            z-index: 100;
+            top: 10px;
+            left: 10px;
+            /* CORREÇÃO AQUI: Z-index alto para ficar acima da sidebar e do mapa em mobile */
+            z-index: 200; 
             background: var(--accent);
             color: var(--content-text-dark);
-            width: 44px;
-            height: 44px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: block; /* Visível em mobile */
             border: none;
             cursor: pointer;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 22px;
+            font-size: 20px;
             line-height: 1;
         }
     }
@@ -478,7 +448,7 @@
 </head>
 <body>
 
-  <button id="mobileMenuBtn" style="display:none;" onclick="window.toggleSidebar()">☰</button>
+  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
   <section id="loginSection" class="login-container">
     <div class="login-card">
@@ -499,30 +469,21 @@
       <div id="menuSection">
         <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
         <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
-        <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
         <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
         <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
         
-        <div id="adminMenuOptions" class="hidden">
+        <div id="adminMenuOptions">
             <hr style="border-color:rgba(255,255,255,0.1); margin:15px 0;">
             <div id="btnUsers" class="menu-item">👥 Usuários</div>
-
-            <div class="export-container menu-item" style="position:relative;">
+            <div class="export-container menu-item">
                 <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
                     ⬇️ Exportar Dados
                 </button>
-                
-                <div id="exportOptions" aria-hidden="true">
-                    <label>Buscar por usuário (login)</label>
-                    <input id="exportUserFilter" placeholder="Digite o login (opcional)"/>
-                    <label>Período</label>
-                    <select id="exportPeriod">
-                        <option value="daily">Últimas 24h</option>
-                        <option value="weekly">Últimos 7 dias</option>
-                        <option value="monthly">Últimos 30 dias</option>
-                        <option value="all">Todos os Dados</option>
-                    </select>
-                    <button id="btnGenerateCSV" class="btn-primary" style="width:100%; margin-top:5px;">Gerar CSV</button>
+                <div id="exportOptions">
+                    <button id="btnExportDaily">Últimas 24h</button>
+                    <button id="btnExportWeekly">Últimos 7 dias</button>
+                    <button id="btnExportMonthly">Últimos 30 dias</button>
+                    <button id="btnExportAll">Todos os Dados</button>
                 </div>
             </div>
         </div>
@@ -544,26 +505,14 @@
     <video id="videoElement" playsinline></video>
     <div class="scan-overlay"></div>
     <div class="camera-controls">
-        <button id="btnCloseCamera" onclick="window.renderDashboard()">✕</button>
-        <div class="right-controls">
+        <button onclick="window.renderDashboard()">✕</button>
+        <div>
             <select id="cameraSelect" class="hidden"></select>
             <button id="btnTorch">💡</button>
-            <button id="btnManual">✏️</button>
         </div>
     </div>
     <div id="feedbackMsg"></div>
   </section>
-
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <h3 id="modalTitle">Inserir rastreio manual</h3>
-      <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button id="manualCancel" class="btn-secondary">Cancelar</button>
-        <button id="manualSave" class="btn-primary">Salvar</button>
-      </div>
-    </div>
-  </div>
 
 </body>
 </html>
