@@ -110,8 +110,7 @@
       flex-direction: column;
       box-shadow: 4px 0 10px rgba(0,0,0,0.2);
       position: relative;
-      /* CORREÇÃO AQUI: Z-index aumentado para ficar acima do mapa Leaflet */
-      z-index: 101; 
+      z-index: 10;
     }
     
     .logo {
@@ -426,8 +425,7 @@
             position: fixed;
             top: 10px;
             left: 10px;
-            /* CORREÇÃO AQUI: Z-index alto para ficar acima da sidebar e do mapa em mobile */
-            z-index: 200; 
+            z-index: 100;
             background: var(--accent);
             color: var(--content-text-dark);
             width: 40px;
@@ -514,5 +512,15 @@
     <div id="feedbackMsg"></div>
   </section>
 
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="login-card modal" style="max-width: 350px;">
+    <h3 style="color:var(--accent); margin-top:0;">Entrada Manual</h3>
+    <input type="text" id="manualInput" placeholder="Código de Rastreio" style="margin-bottom: 20px;" />
+    <div style="display:flex; justify-content:space-between; gap:10px;">
+        <button id="manualCancel" class="btn-secondary" style="flex:1;">Cancelar</button>
+        <button id="manualSave" class="btn-primary" style="flex:1;">Salvar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
