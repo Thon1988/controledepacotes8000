@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
         
+        // btnManual e Modal são referenciados se existirem no HTML, mas garantimos o listener no renderDashboard
         btnManual: document.getElementById('btnManual'),
         modalBackdrop: document.getElementById('modalBackdrop'),
         manualInput: document.getElementById('manualInput'),
@@ -49,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exportPeriod: document.getElementById('exportPeriod'),
     };
 
-    /* --- Inicialização e Storage (CORRIGIDA) --- */
+    /* --- Inicialização e Storage --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
         let existingUsers = [];
@@ -162,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.sidebar.classList.remove('active');
         }
         stopScanner();
-        if (dom.exportOptions.style.display === 'flex') {
+        if (dom.exportOptions && dom.exportOptions.style.display === 'flex') {
             dom.exportOptions.style.display = 'none'; 
         }
         dom.feedback.style.opacity = '0'; 
@@ -191,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
-    // REMOVIDO: document.getElementById('btnDeliveries').addEventListener('click', window.renderDashboard);
+    // Removido: document.getElementById('btnDeliveries').addEventListener('click', window.renderDashboard);
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -200,9 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
 
-    dom.btnGenerateCSV.addEventListener('click', () => generateCSV());
+    // Se os botões de exportação não existirem, este listener pode falhar, mas deixaremos como está.
+    // dom.btnGenerateCSV.addEventListener('click', () => generateCSV());
 
-    dom.cameraSelect.addEventListener('change', (e) => {
+    if(dom.cameraSelect) dom.cameraSelect.addEventListener('change', (e) => {
         if(isScanning) startScanner(e.target.value);
     });
 
@@ -212,14 +214,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function enumerateDevices() {
         try {
+            // Verificar se o acesso à mídia é permitido antes de tentar enumerar
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                console.warn("MediaDevices não suportado.");
+                return;
+            }
+            
+            // Acesso inicial para obter permissão e labels
             const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
             initialStream.getTracks().forEach(track => track.stop());
             
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
             
-            dom.cameraSelect.innerHTML = '';
-            if (videoDevices.length > 0) {
+            if (dom.cameraSelect) dom.cameraSelect.innerHTML = '';
+            if (videoDevices.length > 0 && dom.cameraSelect) {
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
@@ -227,11 +236,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     dom.cameraSelect.appendChild(opt);
                 });
                 dom.cameraSelect.classList.remove('hidden');
-            } else {
+            } else if (dom.cameraSelect) {
                 dom.cameraSelect.classList.add('hidden');
             }
         } catch (err) {
             console.error("Erro ao enumerar dispositivos:", err);
+            // Se falhar na enumeração, tentaremos apenas com facingMode
         }
     }
     
@@ -239,22 +249,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScanning && !deviceId) return;
         stopScanner(); 
         
-        const videoDevices = Array.from(dom.cameraSelect.options);
         let targetDeviceId = deviceId;
         
-        if (!targetDeviceId && videoDevices.length > 0) {
-            const preferredCamera = videoDevices.find(opt => 
-                opt.text.toLowerCase().includes('environment') || 
-                opt.text.toLowerCase().includes('back') || 
-                opt.text.toLowerCase().includes('traseira')
-            );
-            
-            if (preferredCamera) {
-                targetDeviceId = preferredCamera.value;
-            } else {
-                targetDeviceId = videoDevices[0].value;
-            }
+        if (!targetDeviceId && dom.cameraSelect) {
+             const videoDevices = Array.from(dom.cameraSelect.options);
+             if (videoDevices.length > 0) {
+                 const preferredCamera = videoDevices.find(opt => 
+                     opt.text.toLowerCase().includes('environment') || 
+                     opt.text.toLowerCase().includes('back') || 
+                     opt.text.toLowerCase().includes('traseira')
+                 );
+                 
+                 targetDeviceId = preferredCamera ? preferredCamera.value : videoDevices[0].value;
+             }
         }
+
 
         const constraints = {
             video: targetDeviceId
@@ -264,13 +273,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-            dom.video.srcObject = videoStream;
-            dom.video.setAttribute('playsinline', true);
-            await dom.video.play();
+            if (dom.video) {
+                dom.video.srcObject = videoStream;
+                dom.video.setAttribute('playsinline', true);
+                await dom.video.play();
+            }
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
-            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
+            if (targetDeviceId && dom.cameraSelect) dom.cameraSelect.value = targetDeviceId;
 
             requestAnimationFrame(tick);
         } catch (err) {
@@ -286,12 +297,12 @@ document.addEventListener('DOMContentLoaded', () => {
             videoStream.getTracks().forEach(t => t.stop());
             videoStream = null;
         }
-        dom.video.srcObject = null;
+        if (dom.video) dom.video.srcObject = null;
     }
 
     function tick() {
         if (!isScanning) return;
-        if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
+        if (dom.video && dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const w = dom.video.videoWidth;
@@ -371,13 +382,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showFeedback(text) {
-        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
-        dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
+        if (dom.feedback) {
+            dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
+            dom.feedback.style.opacity = '1';
+            setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
+        }
         
         const overlay = document.querySelector('.scan-overlay');
-        overlay.style.borderColor = 'var(--success)';
-        setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+        if (overlay) {
+            overlay.style.borderColor = 'var(--success)';
+            setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+        }
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
@@ -397,29 +412,36 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Lógica do Modal de Entrada Manual --- */
 
     function openManualModal() {
-        if (dom.modalBackdrop) {
-            dom.modalBackdrop.style.display = 'flex';
-            dom.manualInput.value = '';
-            dom.manualInput.focus();
+        // Asseguramos que o modal exista
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        const manualInput = document.getElementById('manualInput');
+
+        if (modalBackdrop && manualInput) {
+            modalBackdrop.style.display = 'flex';
+            manualInput.value = '';
+            manualInput.focus();
 
             const isDarkMode = window.getComputedStyle(document.body).getPropertyValue('background-color').includes('rgb(2, 6, 23)'); 
-            const modalCard = dom.modalBackdrop.querySelector('.modal');
-            if (isDarkMode) {
-                 modalCard.classList.add('modal-dark');
-            } else {
-                 modalCard.classList.remove('modal-dark');
+            const modalCard = modalBackdrop.querySelector('.modal');
+            if (modalCard) {
+                if (isDarkMode) {
+                     modalCard.classList.add('modal-dark');
+                } else {
+                     modalCard.classList.remove('modal-dark');
+                }
             }
         }
     }
 
     function closeManualModal() {
-        if (dom.modalBackdrop) {
-            dom.modalBackdrop.style.display = 'none';
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        if (modalBackdrop) {
+            modalBackdrop.style.display = 'none';
         }
     }
 
     function handleManualScan() {
-        const data = dom.manualInput.value.trim();
+        const data = document.getElementById('manualInput').value.trim();
         if (data.length < 5) {
             alert('Por favor, insira um código de rastreio válido.');
             return;
@@ -431,13 +453,13 @@ document.addEventListener('DOMContentLoaded', () => {
         closeManualModal();
     }
     
-    if (dom.btnManual) dom.btnManual.addEventListener('click', openManualModal);
-    if (dom.manualCancel) dom.manualCancel.addEventListener('click', closeManualModal);
-    if (dom.manualSave) dom.manualSave.addEventListener('click', handleManualScan);
+    // Adiciona listeners para o Modal - necessário se o modal existir no HTML
+    if (document.getElementById('manualCancel')) document.getElementById('manualCancel').addEventListener('click', closeManualModal);
+    if (document.getElementById('manualSave')) document.getElementById('manualSave').addEventListener('click', handleManualScan);
     
-    if (dom.modalBackdrop) {
-        dom.modalBackdrop.addEventListener('click', (e) => {
-            if (e.target === dom.modalBackdrop) {
+    if (document.getElementById('modalBackdrop')) {
+        document.getElementById('modalBackdrop').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modalBackdrop')) {
                 closeManualModal();
             }
         });
@@ -448,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDashboard() {
         showContent();
         
-        // CORRIGIDO: Ativa APENAS o Dashboard (que é o que existe no HTML)
+        // Ativa APENAS o Dashboard
         document.getElementById('btnDashboard').classList.add('active');
         
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
@@ -458,7 +480,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const html = `
-            <h2>📦 Entregas Realizadas</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>📦 Entregas Realizadas</h2>
+                <button id="btnManual" style="background:none; border:none; color:var(--accent); font-size:24px; cursor:pointer;">
+                    ✏️
+                </button>
+            </div>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
                 ${scanRecords.map(r => `
@@ -472,6 +499,12 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         dom.contentArea.innerHTML = html;
+        
+        // Re-anexa o listener do botão Manual APÓS ele ser injetado no DOM
+        const btnManual = document.getElementById('btnManual');
+        if (btnManual) {
+            btnManual.addEventListener('click', openManualModal); 
+        }
     }
 
     function renderRoutes() {
@@ -734,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.download = filename;
         a.click();
 
-        dom.exportOptions.style.display = 'none';
+        if (dom.exportOptions) dom.exportOptions.style.display = 'none';
     }
     
     // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
