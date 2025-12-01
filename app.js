@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.appContainer.classList.remove('hidden'); 
             
             // Mostra o botão mobile se a tela for pequena
-            if(window.innerWidth <= 900) dom.mobileMenuBtn.style.display = 'block'; 
+            if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.remove('hidden');
             
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.appContainer.classList.add('hidden');
         dom.loginSection.classList.remove('hidden'); 
 
-        if(window.innerWidth <= 900) dom.mobileMenuBtn.style.display = 'none';
+        if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.add('hidden');
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
     });
 
@@ -149,6 +149,11 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'block';
         
         dom.appContainer.style.display = 'grid'; 
+        
+        // Novo: Desativa o estado 'active' de todos os itens do menu
+        document.querySelectorAll('#menuSection .menu-item').forEach(item => {
+            item.classList.remove('active');
+        });
 
         if (window.innerWidth > 900) { 
             dom.sidebar.classList.remove('hidden'); 
@@ -164,6 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
+        showContent(); // Garante que o menu ativo seja resetado
+        document.getElementById('btnScanMode').classList.add('active'); // Ativa apenas o scanner
+
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
         
@@ -183,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
-    document.getElementById('btnDeliveries').addEventListener('click', window.renderDashboard); 
+    document.getElementById('btnDeliveries').addEventListener('click', window.renderDashboard); // Mapeado para Dashboard
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
     document.getElementById('btnRoutes').addEventListener('click', renderRoutes);
@@ -440,6 +448,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDashboard() {
         showContent();
         
+        // Novo: Ativa o Dashboard e a Lista de Entregas
+        document.getElementById('btnDashboard').classList.add('active');
+        document.getElementById('btnDeliveries').classList.add('active');
+        
         if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
             dom.adminMenuOptions.classList.remove('hidden');
         } else {
@@ -465,6 +477,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRoutes() {
         showContent();
+        document.getElementById('btnRoutes').classList.add('active'); // Ativa o item do menu
+        
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
         if (deliveryPoints.length < 2) {
@@ -518,6 +532,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderMap() {
         showContent();
+        document.getElementById('btnMap').classList.add('active'); // Ativa o item do menu
+
         mapInstance = null;
         dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
         
@@ -567,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Gerenciamento de Usuários (CRUD com Permissões) --- */
     function renderUsers() {
         showContent();
+        document.getElementById('btnUsers').classList.add('active'); // Ativa o item do menu
         
         let userListHtml = `
             <h2>👥 Gerenciamento de Usuários</h2>
