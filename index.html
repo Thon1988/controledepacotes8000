@@ -509,18 +509,40 @@
             <button id="btnTorch">💡</button>
         </div>
     </div>
+    
+    <div class="manual-input-controls" style="
+        position: absolute; 
+        bottom: 70px; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        z-index: 1002; 
+        width: 90vmin; 
+        max-width: 400px;
+        display: flex;
+        gap: 8px;">
+        
+        <input type="text" id="manualCodeInput" placeholder="Inserir Código de Rastreio" style="
+            flex-grow:1; 
+            padding:10px; 
+            border-radius:8px; 
+            border:none; 
+            background:rgba(255,255,255,0.9); 
+            color:var(--content-text-dark);">
+            
+        <button id="btnManualScan" onclick="window.manualScan()" style="
+            background:var(--accent); 
+            color:var(--content-text-dark); 
+            border:none; 
+            padding:10px 15px; 
+            border-radius:8px; 
+            font-size:16px; 
+            font-weight:bold;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);">
+            ✏️
+        </button>
+    </div>
     <div id="feedbackMsg"></div>
   </section>
 
-<div id="modalBackdrop" class="modal-backdrop">
-  <div class="login-card modal" style="max-width: 350px;">
-    <h3 style="color:var(--accent); margin-top:0;">Entrada Manual</h3>
-    <input type="text" id="manualInput" placeholder="Código de Rastreio" style="margin-bottom: 20px;" />
-    <div style="display:flex; justify-content:space-between; gap:10px;">
-        <button id="manualCancel" class="btn-secondary" style="flex:1;">Cancelar</button>
-        <button id="manualSave" class="btn-primary" style="flex:1;">Salvar</button>
-    </div>
-  </div>
-</div>
 </body>
 </html>
