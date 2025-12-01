@@ -15,23 +15,22 @@
     /* --- VARIÁVEIS DE COR PADRÃO (TEMA CLARO - DEFAULT) --- */
     :root {
       /* Base - Sidebar Dark / Conteúdo Light */
-      --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
-      --panel: rgba(30, 41, 59, 0.95); /* Sidebar/Login (Slate 800) */
-      --text: #f1f5f9; /* Texto claro (para sidebar) */
-      --muted: #94a3b8; /* Cinza claro (para sidebar) */
+      --bg: #0f172a; 
+      --panel: rgba(30, 41, 59, 0.95); 
+      --text: #f1f5f9; 
+      --muted: #94a3b8; 
       
       /* Conteúdo Light */
-      --content-bg-light: #f4f6f8; /* Fundo claro para o Main (cinza claro) */
-      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
-      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
+      --content-bg-light: #f4f6f8; 
+      --content-card-bg: #ffffff; 
+      --content-text-dark: #1f2937; 
 
       /* Acento */
-      --accent: #38bdf8; /* Azul principal (Sky 400) */
-      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
-      --success: #22c55e; /* Verde */
-      --danger: #ef4444; /* Vermelho */
+      --accent: #38bdf8; 
+      --accent-dark: #0ea5e9; 
+      --success: #22c55e; 
+      --danger: #ef4444; 
       
-      /* Raio de Borda */
       --radius: 25px; 
       
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -86,7 +85,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 14px; /* Ajuste para melhor legibilidade */
+      font-size: 14px; 
     }
 
     /* --- LAYOUT GERAL DO APP --- */
@@ -372,13 +371,13 @@
         width:100%; padding:10px; margin-bottom:15px; border-radius:8px; 
         border:1px solid #ddd; font-size:16px;
     }
-    .modal-dark { /* Ajuste para modal no modo dark */
+    .modal-dark { 
         background: var(--content-card-bg);
         border: 1px solid rgba(255,255,255,0.1);
         color: var(--content-text-dark);
     }
 
-    /* --- EXPORT OPTIONS (CSS para o menu flutuante com filtros) --- */
+    /* --- EXPORT OPTIONS --- */
     #exportOptions {
         position: absolute;
         right: 0;
@@ -426,7 +425,7 @@
     .hidden { display: none !important; }
 
     /* --- MEDIA QUERIES (RESPONSIVIDADE) --- */
-    @media (max-width: 900px) { /* Mudei para 900px para pegar mais tablets */
+    @media (max-width: 900px) { 
         .app {
             grid-template-columns: 1fr;
             height: 100vh;
