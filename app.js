@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
     const DEFAULT_USERS = [
-        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
+        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' }, // Senha: 882010
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
     ]; 
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let mapInstance = null;
     let locationMarker = null;
 
-    /* --- Referências DOM (ATUALIZADO) --- */
+    /* --- Referências DOM --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
@@ -39,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
         
-        // Novos Elementos para o Modal e Exportação
         btnManual: document.getElementById('btnManual'),
         modalBackdrop: document.getElementById('modalBackdrop'),
         manualInput: document.getElementById('manualInput'),
@@ -50,25 +49,27 @@ document.addEventListener('DOMContentLoaded', () => {
         exportPeriod: document.getElementById('exportPeriod'),
     };
 
-    /* --- Inicialização e Storage --- */
+    /* --- Inicialização e Storage (CORRIGIDA) --- */
     function loadUsers() {
         const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        if(!raw) {
-            localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
-            return DEFAULT_USERS;
-        }
-        const existingUsers = JSON.parse(raw);
-        const thonExists = existingUsers.some(u => u.username === 'thon');
+        let existingUsers = [];
 
-        // Garante que o usuário admin padrão 'thon' exista
-        if (!thonExists) {
-            existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
+        // 1. Se não houver dados no Local Storage, usa os usuários padrão
+        if (!raw) {
+            existingUsers = DEFAULT_USERS;
+            localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
         } else {
-            const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
-            // Mantém a senha e role do admin padrão
-            existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
-            existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
+            existingUsers = JSON.parse(raw);
         }
+        
+        // 2. Garantir que o usuário admin padrão 'thon' sempre exista para facilitar o login
+        const thonExists = existingUsers.some(u => u.username === 'thon');
+        if (!thonExists) {
+             existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
+             // Salva de volta para o Local Storage após adicionar 'thon'
+             localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(existingUsers));
+        }
+
         return existingUsers;
     }
     
@@ -100,19 +101,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Sistema de Login --- */
     document.getElementById('btnLogin').addEventListener('click', () => {
+        // Pega valores dos inputs
         const u = document.getElementById('loginUser').value.trim();
         const p = document.getElementById('loginPass').value.trim();
+        
+        // Compara com a lista de usuários
         const user = users.find(x => x.username === u && x.password === p);
         
         if (user) {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             
-            // Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden'); 
             
-            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            // Mostra o botão mobile se a tela for pequena
+            if(window.innerWidth <= 900) dom.mobileMenuBtn.style.display = 'block'; 
             
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                 dom.adminMenuOptions.classList.remove('hidden');
@@ -132,22 +136,21 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = null;
         stopScanner();
         
-        // Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
         dom.loginSection.classList.remove('hidden'); 
 
-        dom.mobileMenuBtn.classList.add('hidden');
+        if(window.innerWidth <= 900) dom.mobileMenuBtn.style.display = 'none';
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
     });
 
-    /* --- Navegação e Eventos (ATUALIZADO) --- */
+    /* --- Navegação e Eventos --- */
     function showContent() {
         dom.cameraView.style.display = 'none';
         dom.contentArea.style.display = 'block';
         
         dom.appContainer.style.display = 'grid'; 
 
-        if (window.innerWidth > 768) { 
+        if (window.innerWidth > 900) { 
             dom.sidebar.classList.remove('hidden'); 
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
         } else {
@@ -164,9 +167,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
         
-        dom.appContainer.style.display = 'none'; // Esconde o grid app
+        dom.appContainer.style.display = 'none'; 
         
-        if(window.innerWidth > 768) {
+        if(window.innerWidth > 900) {
             dom.sidebar.classList.add('hidden'); 
         } else {
             dom.sidebar.classList.remove('active');
@@ -180,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
-    // NOVO: Conecta o botão Lista de Entregas ao Dashboard
     document.getElementById('btnDeliveries').addEventListener('click', window.renderDashboard); 
     document.getElementById('btnUsers').addEventListener('click', renderUsers);
     document.getElementById('btnMap').addEventListener('click', renderMap);
@@ -190,11 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
     });
 
-    // REMOVIDO: os antigos listeners de exportação
-    // document.getElementById('btnExportDaily').addEventListener('click', () => generateCSV('daily'));
-    // ... etc.
-
-    // NOVO: Listener único para o botão de geração de CSV
     dom.btnGenerateCSV.addEventListener('click', () => generateCSV());
 
     dom.cameraSelect.addEventListener('change', (e) => {
@@ -204,12 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
     /* --- Lógica do Scanner --- */
-    // (Restante do código do scanner... sem alterações)
     
-    /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
         try {
-            // Tenta obter uma stream para forçar a permissão do usuário
             const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
             initialStream.getTracks().forEach(track => track.stop());
             
@@ -218,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             dom.cameraSelect.innerHTML = '';
             if (videoDevices.length > 0) {
-                 // Preenche o seletor com todas as câmeras
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
@@ -231,7 +224,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error("Erro ao enumerar dispositivos:", err);
-            // Se houver erro, a lista de câmeras ficará vazia/escondida
         }
     }
     
@@ -240,12 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
         stopScanner(); 
         
         const videoDevices = Array.from(dom.cameraSelect.options);
-        
         let targetDeviceId = deviceId;
         
-        // Lógica de seleção automática da câmera 0 (traseira/environment)
         if (!targetDeviceId && videoDevices.length > 0) {
-            // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
             const preferredCamera = videoDevices.find(opt => 
                 opt.text.toLowerCase().includes('environment') || 
                 opt.text.toLowerCase().includes('back') || 
@@ -255,8 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (preferredCamera) {
                 targetDeviceId = preferredCamera.value;
             } else {
-                // 2. Se não encontrar pelo label, usa a primeira (índice 0)
-                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
                 targetDeviceId = videoDevices[0].value;
             }
         }
@@ -275,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
-            // Atualiza o seletor para o dispositivo que realmente foi aberto
             if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
 
             requestAnimationFrame(tick);
@@ -306,7 +292,6 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = h;
             ctx.drawImage(dom.video, 0, 0, w, h); 
             
-            // Lógica de corte para varrer uma área maior (mantida em 90%)
             const size = Math.min(w, h) * 0.9; 
 
             const sx = (w - size) / 2;
@@ -326,7 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleScan(data) {
         const now = Date.now();
-        // Atraso para evitar múltiplos scans do mesmo código
         if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
         
         lastScanCode = data;
@@ -335,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
         beep();
         showFeedback(data); 
 
-        // Usa localização real ou simula
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
 
@@ -403,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /* --- Lógica do Modal de Entrada Manual (NOVO) --- */
+    /* --- Lógica do Modal de Entrada Manual --- */
 
     function openManualModal() {
         if (dom.modalBackdrop) {
@@ -411,8 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.manualInput.value = '';
             dom.manualInput.focus();
 
-             // Aplica o tema dark se o background principal for dark (para o modal)
-            const isDarkMode = window.getComputedStyle(document.body).getPropertyValue('background-color').includes('rgb(2, 6, 23)'); // Cor do :root --bg
+            const isDarkMode = window.getComputedStyle(document.body).getPropertyValue('background-color').includes('rgb(2, 6, 23)'); 
             const modalCard = dom.modalBackdrop.querySelector('.modal');
             if (isDarkMode) {
                  modalCard.classList.add('modal-dark');
@@ -435,19 +417,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Simula o processamento do scanner
         handleScan(data);
-        showFeedback("Entrada manual registrada: " + data); // Mostra feedback também
+        showFeedback("Entrada manual registrada: " + data);
         
         closeManualModal();
     }
     
-    // Conecta os botões do Modal
     if (dom.btnManual) dom.btnManual.addEventListener('click', openManualModal);
     if (dom.manualCancel) dom.manualCancel.addEventListener('click', closeManualModal);
     if (dom.manualSave) dom.manualSave.addEventListener('click', handleManualScan);
     
-    // Fechar modal ao clicar no backdrop (fora do modal)
     if (dom.modalBackdrop) {
         dom.modalBackdrop.addEventListener('click', (e) => {
             if (e.target === dom.modalBackdrop) {
@@ -455,7 +434,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
 
     /* --- Views (Renderização) --- */
     
@@ -628,7 +606,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.innerHTML = userListHtml;
     }
 
-    // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
@@ -684,18 +661,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: 'u' + Date.now(),
                 username,
                 password,
-                // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
                 role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
         } else {
-            // CORREÇÃO: Usa o userIndex para obter a referência correta
             updatedUser = users[userIndex]; 
 
             if (password) updatedUser.password = password;
 
-            // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
             if (currentUser.role === 'admin' || currentUser.id === userId) {
                 updatedUser.role = role; 
             }
@@ -719,7 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
-    /* --- Exportação CSV com Filtros (ATUALIZADO) --- */
+    /* --- Exportação CSV com Filtros --- */
     function generateCSV() {
         const period = dom.exportPeriod.value;
         const userFilter = dom.exportUserFilter.value.trim().toLowerCase();
@@ -740,7 +714,6 @@ document.addEventListener('DOMContentLoaded', () => {
             oneMonthAgo.setMonth(today.getMonth() - 1);
             filteredRecords = filteredRecords.filter(r => new Date(r.date) >= oneMonthAgo);
         } 
-        // Se 'all', filteredRecords permanece como scanRecords
 
         // 2. Filtragem por Usuário (se preenchido)
         if (userFilter) {
@@ -754,7 +727,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const scanDate = new Date(r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            // Formata o campo RAW para evitar problemas com vírgulas no CSV
             csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
         });
         
