@@ -23,7 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let userLocation = null;
     let mapInstance = null;
     let locationMarker = null;
-
+    
+    let tempScanRecord = null; // NOVO: Armazena o registro escaneado antes da baixa
+    
     /* --- Referências DOM --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
@@ -318,14 +320,92 @@ document.addEventListener('DOMContentLoaded', () => {
         lastScanTime = now;
 
         beep();
-        showFeedback(data); 
+        showFeedback("QR Code lido. Processando baixa..."); // MENSAGEM ATUALIZADA
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
 
-        const record = parsePayload(data, scanLat, scanLon);
-        scanRecords.unshift(record);
+        // 1. Cria o registro temporário
+        tempScanRecord = parsePayload(data, scanLat, scanLon);
+        
+        // 2. Para o scanner e mostra o formulário de baixa
+        stopScanner();
+        renderBaixaForm(tempScanRecord); 
+    }
+
+    function stopScanner() {
+        isScanning = false;
+        if (videoStream) {
+            videoStream.getTracks().forEach(t => t.stop());
+            videoStream = null;
+        }
+        dom.video.srcObject = null;
+    }
+
+    /* --- FUNÇÕES DE BAIXA (NOVO) --- */
+
+    function renderBaixaForm(record) {
+        showContent();
+        
+        const possibleStatus = [
+            { code: 'ENTREGUE', label: '✅ Entregue com sucesso' },
+            { code: 'AUSENTE', label: '🏠 Ausente/Endereço Fechado' },
+            { code: 'RECUSA', label: '❌ Recusado pelo Destinatário' },
+            { code: 'PROBLEMA', label: '⚠️ Problema de Rota/Acesso' }
+        ];
+
+        const detailsHtml = `
+            <div style="background:var(--content-card-bg); padding:20px; border-radius:10px; border-left:4px solid var(--accent); margin-bottom:20px;">
+                <h3 style="margin-top:0; color:var(--content-text-dark);">Baixa de Entrega</h3>
+                <p style="font-weight:bold; font-size:18px; margin:5px 0;">ID: ${record.id}</p>
+                <p style="margin:2px 0;">Destinatário: <strong>${record.recipientName}</strong></p>
+                <p style="margin:2px 0;">Endereço: ${record.address}, ${record.zipCode}</p>
+                <p style="margin:2px 0; font-size:14px; color:var(--muted);">Transportadora: ${record.type} | Previsto: ${record.scheduledDate}</p>
+            </div>
+            
+            <h3 style="color:var(--content-text-dark);">Status Final da Baixa</h3>
+            <select id="finalStatus" style="margin-bottom:15px; background:var(--content-card-bg); border:1px solid var(--muted); padding:10px; border-radius:8px;">
+                ${possibleStatus.map(s => `<option value="${s.code}">${s.label}</option>`).join('')}
+            </select>
+            
+            <textarea id="observation" placeholder="Observações (opcional)" style="width:100%; height:100px; padding:10px; border-radius:8px; border:1px solid var(--muted); margin-bottom:15px; resize:vertical; background:var(--content-card-bg); color:var(--content-text-dark);"></textarea>
+            
+            <button class="btn-primary" onclick="window.confirmBaixa()" style="width:100%;">Confirmar Baixa e Salvar Registro</button>
+            <button onclick="window.cancelBaixa()" style="width:100%; margin-top:10px; background:#e5e7eb; color:var(--content-text-dark); padding:12px 20px; border:none; border-radius:10px; cursor:pointer;">Cancelar e Voltar</button>
+        `;
+        
+        dom.contentArea.innerHTML = detailsHtml;
+        window.confirmBaixa = confirmBaixa;
+        window.cancelBaixa = cancelBaixa;
+    }
+
+    function confirmBaixa() {
+        if (!tempScanRecord) return;
+
+        const finalStatus = document.getElementById('finalStatus').value;
+        const observation = document.getElementById('observation').value.trim();
+
+        // Atualiza o registro temporário com as informações da baixa
+        tempScanRecord.finalStatus = finalStatus;
+        tempScanRecord.observation = observation;
+        tempScanRecord.baixaDate = new Date().toISOString(); 
+        tempScanRecord.deliveryStatus = finalStatus; // Sobrescreve o status inicial com o final
+
+        // Salva o registro final
+        scanRecords.unshift(tempScanRecord);
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
+        
+        const finalId = tempScanRecord.id;
+        tempScanRecord = null; // Limpa o estado temporário
+        
+        showContent(); // Garante a transição visual
+        renderDashboard(); // Volta para o dashboard
+        alert(`Baixa do ID ${finalId} confirmada com status: ${finalStatus}!`);
+    }
+
+    function cancelBaixa() {
+        tempScanRecord = null; // Descarta o registro
+        renderDashboard(); // Volta para o dashboard
     }
 
     /* --- Parsers e Helpers --- */
@@ -374,18 +454,23 @@ document.addEventListener('DOMContentLoaded', () => {
             raw: raw,
             type: carrier,  // Usando a Transportadora como 'type'
             user: currentUser.username,
-            date: new Date().toISOString(),
+            date: new Date().toISOString(), // Data/Hora da leitura
             lat: lat,
             lon: lon,
 
             // Campos Detalhados (para nova exibição)
             scheduledDate: scheduledDate,
             deliveryType: deliveryType,
-            deliveryStatus: status,
+            deliveryStatus: status, // Status inicial (do QR Code)
             recipientName: recipientName,
             address: address,
             zipCode: zipCode,
             collectorId: collectorId
+            
+            // Campos de Baixa (adicionados em confirmBaixa)
+            // finalStatus: '...',
+            // observation: '...',
+            // baixaDate: '...'
         };
     }
 
@@ -404,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showFeedback(text) {
-        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
+        dom.feedback.textContent = text;
         dom.feedback.style.opacity = '1';
         setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
         
@@ -442,22 +527,32 @@ document.addEventListener('DOMContentLoaded', () => {
             <h2>📦 Entregas Realizadas</h2>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
-                ${scanRecords.map(r => `
-                    <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid var(--accent)">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div style="font-weight:bold; font-size:16px">${r.id}</div>
-                            <div style="font-size:12px; font-weight:600; color:var(--accent);">${r.type}</div>
+                ${scanRecords.map(r => {
+                    const isDelivered = r.finalStatus === 'ENTREGUE';
+                    const borderColor = isDelivered ? 'var(--success)' : 'var(--danger)';
+                    const statusDisplay = r.finalStatus || r.deliveryStatus;
+                    const dateDisplay = new Date(r.baixaDate || r.date).toLocaleString();
+                    
+                    return `
+                        <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid ${borderColor}">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div style="font-weight:bold; font-size:16px">${r.id}</div>
+                                <div style="font-size:12px; font-weight:600; color:var(--accent);">${r.type}</div>
+                            </div>
+                            <div style="font-size:14px; margin-top:5px; color:var(--content-text-dark);">
+                                <p style="margin:0;">Destino: <strong>${r.recipientName}</strong></p>
+                                <p style="margin:2px 0;">Endereço: ${r.address} (${r.zipCode})</p>
+                                <p style="margin:2px 0; font-size:12px; color:var(--muted);">
+                                    Status: <strong>${statusDisplay}</strong> | Coleta: ${r.collectorId}
+                                </p>
+                                ${r.observation ? `<p style="margin:2px 0; font-size:11px; color:var(--danger);">Obs: ${r.observation}</p>` : ''}
+                                <p style="margin:2px 0; font-size:11px; color:#94a3b8;">
+                                    Registrado por ${r.user} em ${dateDisplay} | Previsto: ${r.scheduledDate}
+                                </p>
+                            </div>
                         </div>
-                        <div style="font-size:14px; margin-top:5px; color:var(--content-text-dark);">
-                            <p style="margin:0;">Destino: <strong>${r.recipientName}</strong></p>
-                            <p style="margin:2px 0;">Endereço: ${r.address} (${r.zipCode})</p>
-                            <p style="margin:2px 0; font-size:12px; color:var(--muted);">Status: ${r.deliveryStatus} | Coleta: ${r.collectorId}</p>
-                            <p style="margin:2px 0; font-size:11px; color:#94a3b8;">
-                                Registrado por ${r.user} em ${new Date(r.date).toLocaleString()} | Previsto: ${r.scheduledDate}
-                            </p>
-                        </div>
-                    </div>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
         `;
         dom.contentArea.innerHTML = html;
@@ -704,27 +799,29 @@ document.addEventListener('DOMContentLoaded', () => {
         today.setHours(0, 0, 0, 0);
 
         if (filter === 'daily') {
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= today);
+            filteredRecords = scanRecords.filter(r => new Date(r.baixaDate || r.date) >= today);
         } else if (filter === 'weekly') {
             const oneWeekAgo = new Date(today);
             oneWeekAgo.setDate(today.getDate() - 7);
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneWeekAgo);
+            filteredRecords = scanRecords.filter(r => new Date(r.baixaDate || r.date) >= oneWeekAgo);
         } else if (filter === 'monthly') {
             const oneMonthAgo = new Date(today);
             oneMonthAgo.setMonth(today.getMonth() - 1);
-            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
+            filteredRecords = scanRecords.filter(r => new Date(r.baixaDate || r.date) >= oneMonthAgo);
         } else {
             filteredRecords = scanRecords; // 'all'
         }
 
         if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
         
-        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW\n';
+        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,STATUS_FINAL,OBSERVACAO,RAW\n';
         filteredRecords.forEach(r => {
-            const scanDate = new Date(r.date);
+            const scanDate = new Date(r.baixaDate || r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}"\n`;
+            const status = r.finalStatus || 'PENDENTE';
+            const observation = r.observation || '';
+            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${status},"${observation.replace(/"/g, '""')}","${r.raw.replace(/"/g, '""')}"\n`;
         });
         
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
