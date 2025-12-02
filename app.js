@@ -12,9 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-    // Garante que registros antigos tenham um status padrão
+    // Garante que registros antigos tenham um status padrão e adicione dados simulados
     scanRecords.forEach(r => {
         if (!r.status) r.status = 'pending';
+        // Adicionando dados simulados (nome, endereço, telefone)
+        if (!r.clientName) r.clientName = "Cliente Simulado " + r.id.slice(-4);
+        // Usamos um endereço mais simples para simular o agrupamento de condomínio/local
+        if (!r.clientAddress) r.clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`;
+        if (!r.clientPhone) r.clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
+        if (!r.lat) r.lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.01;
+        if (!r.lon) r.lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.01;
     });
 
     let users = loadUsers();
@@ -43,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
-        // NOVAS REFERÊNCIAS PARA INPUT MANUAL
         manualInputContainer: document.getElementById('manualInputContainer'),
         manualDeliveryId: document.getElementById('manualDeliveryId'),
         btnToggleManualInput: document.getElementById('btnToggleManualInput'),
@@ -60,12 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingUsers = JSON.parse(raw);
         const thonExists = existingUsers.some(u => u.username === 'thon');
 
-        // Garante que o usuário admin padrão 'thon' exista
         if (!thonExists) {
             existingUsers.push(DEFAULT_USERS.find(u => u.username === 'thon'));
         } else {
             const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
-            // Mantém a senha e role do admin padrão
             existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
             existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
         }
@@ -108,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = user;
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             
-            // Esconde o login e mostra o app principal
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden'); 
             
@@ -132,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = null;
         stopScanner();
         
-        // Mostra o login e esconde o app principal
         dom.appContainer.classList.add('hidden');
         dom.loginSection.classList.remove('hidden'); 
 
@@ -147,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         dom.appContainer.style.display = 'grid'; 
         
-        // Garante o layout padrão (sidebar + content) ao sair do scanner/mapa full screen
         if (window.innerWidth > 768) { 
             dom.sidebar.classList.remove('hidden'); 
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
@@ -161,16 +162,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         dom.feedback.style.opacity = '0'; 
         
-        // Esconde o input manual ao sair da tela da câmera
         dom.manualInputContainer.style.opacity = '0';
         dom.manualInputContainer.style.pointerEvents = 'none';
     }
 
+    
     document.getElementById('btnScanMode').addEventListener('click', () => {
         dom.contentArea.style.display = 'none';
         dom.cameraView.style.display = 'flex'; 
         
-        dom.appContainer.style.display = 'none'; // Esconde o grid app
+        dom.appContainer.style.display = 'none';
         
         if(window.innerWidth > 768) {
             dom.sidebar.classList.add('hidden'); 
@@ -205,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
     
-    // NOVO EVENTO: Alternar input manual (Ícone de Lápis)
     dom.btnToggleManualInput.addEventListener('click', () => {
         const isVisible = dom.manualInputContainer.style.opacity === '1';
         dom.manualInputContainer.style.opacity = isVisible ? '0' : '1';
@@ -215,7 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // NOVO EVENTO: Confirmar input manual
     dom.btnManualConfirm.addEventListener('click', () => {
         const id = dom.manualDeliveryId.value.trim();
         if (id) {
@@ -224,13 +223,11 @@ document.addEventListener('DOMContentLoaded', () => {
             showFeedback('ID de entrega vazio!', 'var(--danger)');
         }
     });
-
+    
     /* --- Lógica do Scanner --- */
     
-    /** Função para forçar a permissão e preencher a lista de câmeras (CORRIGIDA) */
-    async function enumerateDevices() {
+    async function enumerateDevices() { 
         try {
-            // Tenta obter uma stream para forçar a permissão do usuário
             const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
             initialStream.getTracks().forEach(track => track.stop());
             
@@ -239,8 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             dom.cameraSelect.innerHTML = '';
             
-            if (videoDevices.length > 1) { // Só mostra o seletor se houver MAIS DE UMA opção
-                 // Preenche o seletor com todas as câmeras
+            if (videoDevices.length > 1) { 
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
@@ -249,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 dom.cameraSelect.classList.remove('hidden');
             } else {
-                dom.cameraSelect.classList.add('hidden'); // Esconde se for 1 ou 0 câmeras
+                dom.cameraSelect.classList.add('hidden'); 
             }
         } catch (err) {
             console.error("Erro ao enumerar dispositivos:", err);
@@ -260,14 +256,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScanning && !deviceId) return;
         stopScanner(); 
         
-        // Chamada de enumeração AQUI para garantir que a lista esteja atualizada
         await enumerateDevices(); 
 
         const videoDevices = Array.from(dom.cameraSelect.options);
         
         let targetDeviceId = deviceId;
         
-        // Lógica de seleção automática da câmera 
         if (!targetDeviceId && videoDevices.length > 0) {
             const preferredCamera = videoDevices.find(opt => 
                 opt.text.toLowerCase().includes('environment') || 
@@ -282,7 +276,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Se o targetDeviceId ainda for nulo e tivermos opções no seletor, usa o valor atual
         if (!targetDeviceId && dom.cameraSelect.value) {
             targetDeviceId = dom.cameraSelect.value;
         }
@@ -301,7 +294,6 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             videoTrack = videoStream.getVideoTracks()[0];
             
-            // Atualiza o seletor para o dispositivo que realmente foi aberto
             if (targetDeviceId && dom.cameraSelect.value !== targetDeviceId) {
                 dom.cameraSelect.value = targetDeviceId;
             }
@@ -375,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
     }
     
-    // NOVO: Função para lidar com o input manual do ID
     function handleScanManual(data) {
         const id = data.trim();
         if (!id) return;
@@ -384,15 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
 
         const record = parsePayload(id, scanLat, scanLon);
-
-        // Simulação de busca de dados do cliente
-        const clienteSimulado = {
-            nome: "Cliente " + id.slice(-5).toUpperCase(),
-            endereco: "Rua Alameda, " + Math.floor(Math.random() * 900) + " - Bairro Simulado",
-            telefone: "(11) 98765-4321"
-        };
         
-        // Exibe os dados do cliente antes de salvar
         Swal.fire({
             title: '✅ ID Digitado Confirmado',
             html: `
@@ -402,9 +385,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Status:</strong> Pendente</p>
                     <hr style="border-color: rgba(0,0,0,0.1)">
                     <h4>Dados do Destino (Simulação)</h4>
-                    <p><strong>Nome:</strong> ${clienteSimulado.nome}</p>
-                    <p><strong>Endereço:</strong> ${clienteSimulado.endereco}</p>
-                    <p><strong>Telefone:</strong> ${clienteSimulado.telefone}</p>
+                    <p><strong>Nome:</strong> ${record.clientName}</p>
+                    <p><strong>Endereço:</strong> ${record.clientAddress}</p>
+                    <p><strong>Telefone:</strong> ${record.clientPhone}</p>
                 </div>
             `,
             icon: 'info',
@@ -413,11 +396,10 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Salva o registro se o usuário confirmar
                 scanRecords.unshift(record);
                 localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
                 showFeedback(`Registro Manual ${record.id} Salvo!`, 'var(--success)');
-                dom.manualDeliveryId.value = ''; // Limpa o campo
+                dom.manualDeliveryId.value = '';
             } else {
                 showFeedback(`Registro Manual ${record.id} Cancelado!`, 'var(--danger)');
             }
@@ -436,6 +418,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const numMatch = raw.match(/(\d{8,})/);
         if (numMatch) id = numMatch[1];
+        
+        const clientName = "Cliente " + id.slice(-5).toUpperCase();
+        // Simulação de endereço com Condomínio A para facilitar o agrupamento
+        const clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`; 
+        const clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
 
         return {
             id: id,
@@ -445,7 +432,11 @@ document.addEventListener('DOMContentLoaded', () => {
             date: new Date().toISOString(),
             lat: lat,
             lon: lon,
-            status: 'pending' // Status inicial
+            status: 'pending',
+            clientName: clientName,
+            clientAddress: clientAddress,
+            clientPhone: clientPhone,
+            receivedBy: null // Novo campo para o recebedor
         };
     }
 
@@ -463,10 +454,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e){}
     }
 
-    // Função showFeedback atualizada para aceitar cor
     function showFeedback(text, color = 'var(--accent)') {
         dom.feedback.textContent = text;
-        dom.feedback.style.background = color; // Usa a cor passada
+        dom.feedback.style.background = color;
         dom.feedback.style.opacity = '1';
         setTimeout(() => { dom.feedback.style.opacity = '0'; }, 3000); 
         
@@ -475,7 +465,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
     
-    // Feedback visual para o Dashboard
     function showDashboardFeedback(text) {
         const feedbackDiv = document.createElement('div');
         feedbackDiv.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:20px 40px; background:var(--success); color:white; border-radius:12px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.2); opacity:0; transition:opacity 0.3s; font-family: 'Inter', sans-serif;";
@@ -486,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { 
             feedbackDiv.style.opacity = '0'; 
             setTimeout(() => { document.body.removeChild(feedbackDiv); }, 300);
-            renderDashboard(); // Re-renderiza para mostrar a lista atualizada
+            renderDashboard();
         }, 1500);
     }
 
@@ -506,7 +495,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Função para dar baixa no registro (clicável no dashboard)
     window.markAsDelivered = (recordId) => {
-        // Apenas o usuário que escaneou pode marcar como entregue, a menos que seja um admin/gestor (simplificação: apenas o próprio)
         const record = scanRecords.find(r => r.id === recordId && r.user === currentUser.username); 
         
         if (record) {
@@ -521,15 +509,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).then((result) => {
                     if (result.isConfirmed) {
                         record.status = 'pending';
+                        record.receivedBy = null;
                         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
                         showDashboardFeedback(`Status da entrega ${recordId} revertido para PENDENTE.`);
                     }
                 });
             } else {
-                record.status = 'delivered';
-                localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
                 
-                showDashboardFeedback(`Entrega ${recordId} confirmada como entregue!`);
+                // Solicita o nome do recebedor antes de dar baixa
+                Swal.fire({
+                    title: `Recebedor da Entrega ${recordId}`,
+                    input: 'text',
+                    inputLabel: 'Nome completo do recebedor:',
+                    inputPlaceholder: 'Digite o nome aqui',
+                    showCancelButton: true,
+                    confirmButtonText: 'Confirmar Entrega',
+                    cancelButtonText: 'Cancelar',
+                    inputValidator: (value) => {
+                        if (!value) {
+                            return 'Você precisa digitar o nome do recebedor!'
+                        }
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        record.status = 'delivered';
+                        record.receivedBy = result.value;
+                        localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
+                        showDashboardFeedback(`Entrega ${recordId} confirmada como entregue! Recebedor: ${result.value}`);
+                    }
+                });
             }
         } else {
              Swal.fire({
@@ -539,6 +547,136 @@ document.addEventListener('DOMContentLoaded', () => {
                 confirmButtonText: 'Ok'
             });
         }
+    };
+    
+    // FUNÇÃO: Abre opções de contato (Ligação ou WhatsApp)
+    window.openContactOptions = (phone, id) => {
+        const phoneDigits = phone.replace(/\D/g, ''); // Remove caracteres (11) 9xxxx-xxxx
+        const waLink = `https://wa.me/55${phoneDigits}`; // Assumindo código de país 55 (Brasil)
+
+        Swal.fire({
+            title: `Contato da Entrega ${id}`,
+            text: `Como você deseja contatar o cliente ${phone}?`,
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: '📞 Ligar',
+            denyButtonText: '💬 WhatsApp',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Opção de Ligação
+                window.open(`tel:${phone}`);
+            } else if (result.isDenied) {
+                // Opção de WhatsApp (Abre em nova aba)
+                window.open(waLink, '_blank');
+            }
+        });
+    };
+    
+    // FUNÇÃO AUXILIAR: Agrupa registros por endereço (simulação)
+    function getRecordsByLocation(recordId) {
+        const primaryRecord = scanRecords.find(r => r.id === recordId);
+        if (!primaryRecord) return [];
+
+        // Agrupa por endereço exato para simular condomínio
+        const relatedRecords = scanRecords.filter(r => 
+            r.clientAddress === primaryRecord.clientAddress
+        );
+        
+        return relatedRecords;
+    }
+
+    // NOVA FUNÇÃO: Renderiza a tela de baixa simultânea
+    window.renderMultipleDeliveryForm = (recordIds) => {
+        showContent();
+        
+        const recordsToDeliver = recordIds.map(id => scanRecords.find(r => r.id === id)).filter(r => r && r.status === 'pending');
+        
+        if (recordsToDeliver.length === 0) {
+            dom.contentArea.innerHTML = `<h2>Aviso</h2><p>Nenhuma entrega pendente para dar baixa neste local.</p><button onclick="window.renderDashboard()" class="btn-primary">Voltar</button>`;
+            return;
+        }
+
+        const primaryAddress = recordsToDeliver[0].clientAddress;
+
+        dom.contentArea.innerHTML = `
+            <h2>Baixa Simultânea</h2>
+            <div class="user-form-card" style="padding: 20px;">
+                <p style="font-weight:bold; font-size:18px; margin-bottom:15px; color:var(--accent);">📍 Endereço: ${primaryAddress}</p>
+                
+                <form id="multipleDeliveryForm">
+                    ${recordsToDeliver.map((record, index) => `
+                        <div style="padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background:var(--content-bg-light);">
+                            <div style="font-weight:bold; font-size:16px; margin-bottom:5px;">${index + 1}. ID: ${record.id}</div>
+                            <div style="font-size:14px; color:var(--content-text-dark); margin-bottom:10px;">Cliente: ${record.clientName}</div>
+                            
+                            <input type="text" 
+                                id="recebedor_${record.id}" 
+                                placeholder="Nome do Recebedor (Obrigatório)" 
+                                required 
+                                style="margin-bottom: 0;">
+                        </div>
+                    `).join('')}
+                    
+                    <button type="submit" class="btn-primary" style="width:100%; padding:15px; margin-top:20px;">
+                        Finalizar ${recordsToDeliver.length} Entregas
+                    </button>
+                    
+                    <button type="button" onclick="window.renderDashboard()" style="width:100%; background:#ccc; color:#333; padding:10px; border-radius:10px; margin-top:10px; box-shadow:none;">
+                        Cancelar e Voltar
+                    </button>
+                </form>
+            </div>
+        `;
+        
+        // Adiciona o listener para o formulário
+        document.getElementById('multipleDeliveryForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const allRecordsDelivered = [];
+            let allValid = true;
+
+            recordsToDeliver.forEach(record => {
+                const recebedorInput = form.querySelector(`#recebedor_${record.id}`);
+                const recebedor = recebedorInput ? recebedorInput.value.trim() : '';
+                
+                if (!recebedor) {
+                    allValid = false;
+                    recebedorInput.style.border = '2px solid var(--danger)';
+                    recebedorInput.focus();
+                    return;
+                }
+                
+                allRecordsDelivered.push({ id: record.id, recebedor: recebedor });
+            });
+            
+            if (allValid) {
+                Swal.fire({
+                    title: 'Confirmar Entregas?',
+                    text: `Você irá confirmar a entrega de ${allRecordsDelivered.length} pacotes.`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, Confirmar Todos',
+                    cancelButtonText: 'Voltar e Corrigir'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        allRecordsDelivered.forEach(item => {
+                            const record = scanRecords.find(r => r.id === item.id);
+                            if (record) {
+                                record.status = 'delivered';
+                                record.receivedBy = item.recebedor; 
+                            }
+                        });
+                        localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
+                        showDashboardFeedback(`Baixa simultânea concluída para ${allRecordsDelivered.length} pacotes!`);
+                    }
+                });
+            } else {
+                Swal.fire('Atenção', 'Preencha o nome do recebedor para todos os pacotes antes de finalizar.', 'warning');
+            }
+        });
     };
 
 
@@ -555,17 +693,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const html = `
             <h2>📦 Entregas Realizadas</h2>
-            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
+            <p style="color:var(--content-text-dark)">Clique em um item para ver os detalhes da entrega.</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
                 ${scanRecords.map(r => {
                     const statusColor = r.status === 'delivered' ? 'var(--success)' : 'var(--danger)';
-                    const actionText = r.status === 'delivered' ? 'ENTREGUE ✅' : 'CLIQUE PARA DAR BAIXA 📝';
-                    const cursorStyle = r.status === 'delivered' ? 'default' : 'pointer';
-                    const onclickHandler = r.status === 'delivered' ? '' : `onclick="window.markAsDelivered('${r.id}')"`;
+                    const actionText = r.status === 'delivered' ? 'ENTREGUE ✅' : 'PENDENTE';
                     
                     return `
-                        <div ${onclickHandler} 
-                             style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid ${statusColor}; cursor:${cursorStyle};">
+                        <div onclick="window.renderDeliveryDetails('${r.id}')" 
+                             style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid ${statusColor}; cursor:pointer;">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <div style="font-weight:bold; font-size:16px">${r.id}</div>
                                 <div style="font-size:12px; font-weight:bold; color:${statusColor};">${actionText}</div>
@@ -580,6 +716,121 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         dom.contentArea.innerHTML = html;
     }
+
+    window.renderDeliveryDetails = (recordId) => {
+        showContent();
+        const record = scanRecords.find(r => r.id === recordId);
+        if (!record) {
+             dom.contentArea.innerHTML = `<h2>Erro</h2><p>Registro de entrega não encontrado.</p>`;
+             return;
+        }
+
+        // --- LÓGICA DE AGRUPAMENTO (Baixa Simultânea) ---
+        const relatedRecords = getRecordsByLocation(recordId);
+        if (relatedRecords.length > 1) {
+            const pendingCount = relatedRecords.filter(r => r.status === 'pending').length;
+            
+            if (pendingCount > 0) {
+                 Swal.fire({
+                    title: '📍 Múltiplas Entregas no Local',
+                    html: `
+                        <p style="color:var(--content-text-dark);">
+                            Foram encontradas **${relatedRecords.length}** entregas neste endereço, sendo 
+                            **${pendingCount}** ainda pendentes.
+                        </p>
+                        <p style="margin-top:10px;">Deseja dar baixa simultânea em todos os pacotes pendentes agora?</p>
+                    `,
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: `✅ Sim, Baixa Múltpla (${pendingCount})`,
+                    cancelButtonText: 'Não, Ver Detalhes Deste Item'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const pendingIds = relatedRecords.filter(r => r.status === 'pending').map(r => r.id);
+                        window.renderMultipleDeliveryForm(pendingIds);
+                    } else {
+                        // Se clicar em "Não, Ver Detalhes", renderiza a tela normal
+                        renderSingleDetails(record, recordId);
+                    }
+                });
+                return; // Interrompe a execução para esperar a escolha no modal
+            }
+        }
+        // --- FIM DA LÓGICA DE AGRUPAMENTO ---
+        
+        // Se não houver múltiplos ou o usuário escolheu ver os detalhes
+        renderSingleDetails(record, recordId);
+
+    };
+
+    // Função separada para renderizar os detalhes de um único item (usada após o modal)
+    function renderSingleDetails(record, recordId) {
+        // Simulação de navegação (apenas para a interface, sem lógica real de rota)
+        const allRecords = scanRecords.map(r => r.id);
+        const currentIndex = allRecords.indexOf(recordId);
+        const prevId = currentIndex > 0 ? allRecords[currentIndex - 1] : null;
+        const nextId = currentIndex < allRecords.length - 1 ? allRecords[currentIndex + 1] : null;
+        
+        dom.contentArea.innerHTML = `
+            <h2>Detalhes da Entrega</h2>
+            <div class="user-form-card" style="padding: 20px;">
+                
+                <div id="detailMapObj" style="height:250px; border-radius:12px; margin-bottom:15px;"></div>
+
+                <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom: 20px;">
+                    <button onclick="${prevId ? `window.renderDeliveryDetails('${prevId}')` : ''}" style="flex:1; padding:15px; background:${prevId ? 'var(--accent)' : '#ccc'}; color:${prevId ? 'var(--content-text-dark)' : '#666'}; border-radius:10px; box-shadow:none;" ${!prevId ? 'disabled' : ''}>
+                        ⬅️ Anterior
+                    </button>
+                    <button onclick="${nextId ? `window.renderDeliveryDetails('${nextId}')` : ''}" style="flex:1; padding:15px; background:${nextId ? 'var(--accent)' : '#ccc'}; color:${nextId ? 'var(--content-text-dark)' : '#666'}; border-radius:10px; box-shadow:none;" ${!nextId ? 'disabled' : ''}>
+                        Próximo ➡️
+                    </button>
+                </div>
+
+                <div style="margin-bottom: 20px; padding:15px; border:1px solid #ddd; border-radius:10px; background:var(--content-bg-light); color:var(--content-text-dark);">
+                    <div style="font-weight:bold; font-size:18px; margin-bottom:5px;">${record.id} - ${record.clientName}</div>
+                    <div style="font-size:16px;">${record.clientAddress}</div>
+                    <div style="font-size:14px; color:#6b7280; margin-top:5px;">Tipo: ${record.type} • Status: ${record.status.toUpperCase()} ${record.receivedBy ? `(Recebido por: ${record.receivedBy})` : ''}</div>
+                </div>
+
+                <button onclick="window.openContactOptions('${record.clientPhone}', '${record.id}')" 
+                        style="width:100%; padding:15px; background:var(--success); color:white; font-size:16px; font-weight:bold; border-radius:10px; margin-bottom:15px; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.3);">
+                    📞 Toque para ligar / WhatsApp: ${record.clientPhone}
+                </button>
+                
+                <div style="margin-top: 15px; padding:15px; border:1px solid #ddd; border-radius:10px;">
+                    <p style="font-weight:bold; margin-bottom:10px; color:var(--content-text-dark);">Ação de Transferência/Reajuste</p>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="transferTarget" placeholder="ID do Entregador para Transferir" style="flex:1; margin-bottom:0;">
+                        <button onclick="Swal.fire('Transferir', 'Entrega ${recordId} transferida para ID: ' + document.getElementById('transferTarget').value, 'info')" style="background:var(--accent); color:var(--content-text-dark); padding:10px 15px; border-radius:8px; font-weight:bold; box-shadow:none;">
+                            Transferir
+                        </button>
+                    </div>
+                </div>
+
+
+                <div style="display:flex; justify-content:space-between; gap:10px; margin-top: 20px;">
+                    <button onclick="Swal.fire('Ocorrência', 'Abrir registro de ocorrência para ${recordId}', 'warning')" style="flex:1; padding:15px; background:rgba(239, 68, 68, 0.2); color:var(--danger); font-weight:bold; border-radius:10px; box-shadow:none;">
+                        ⚠️ Ocorrência
+                    </button>
+                    <button onclick="window.markAsDelivered('${recordId}')" style="flex:1; padding:15px; background:var(--success); color:white; font-weight:bold; border-radius:10px; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.3);">
+                        ✅ Entregar
+                    </button>
+                </div>
+
+            </div>
+        `;
+
+        setTimeout(() => {
+            let detailMap = L.map('detailMapObj').setView([record.lat, record.lon], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(detailMap);
+
+            L.marker([record.lat, record.lon]).addTo(detailMap)
+                .bindPopup(`<b>${record.id}</b><br>${record.clientAddress}`).openPopup();
+            
+            detailMap.setView([record.lat, record.lon], 15);
+        }, 100);
+    }
+
 
     function renderRoutes() {
         showContent();
@@ -637,7 +888,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 map.fitBounds(L.polyline(routePoints).getBounds());
             }
 
-            // Lógica de tela cheia
             if (deliveryPoints.length >= 2) {
                 document.getElementById('btnToggleRouteFullscreen').addEventListener('click', () => {
                     const sidebar = document.getElementById('sidebar');
@@ -678,7 +928,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             </div>
             <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-            <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`; // Altura 70vh
+            <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`;
         
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
@@ -691,12 +941,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
-                    .bindPopup(`<b>${r.id}</b><br>${r.type}`);
+                    .bindPopup(`<b>${r.id}</b><br>${r.type}<br><a href="#" onclick="window.renderDeliveryDetails('${r.id}')">Ver Detalhes</a>`);
             });
 
             updateMapLocation();
             
-            // Lógica de tela cheia
             document.getElementById('btnToggleMapFullscreen').addEventListener('click', () => {
                 const sidebar = document.getElementById('sidebar');
                 const appContainer = document.querySelector('.app');
@@ -704,19 +953,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (window.innerWidth > 768) { 
                     if (!sidebar.classList.contains('hidden')) {
-                        // Entra em Tela Cheia
                         sidebar.classList.add('hidden');
                         appContainer.style.gridTemplateColumns = '1fr';
                         button.innerHTML = '◀️ Voltar';
                     } else {
-                        // Sai de Tela Cheia
                         sidebar.classList.remove('hidden');
                         appContainer.style.gridTemplateColumns = '392px 1fr';
                         button.innerHTML = '🖥️ Tela Cheia';
                     }
                 }
                 
-                // Força o redimensionamento do mapa
                 if (mapInstance) {
                     setTimeout(() => {
                         mapInstance.invalidateSize();
@@ -794,7 +1040,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.innerHTML = userListHtml;
     }
 
-    // Deixa funções CRUD no escopo global para serem chamadas pelo HTML
     window.editUser = (userId) => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
@@ -854,7 +1099,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: 'u' + Date.now(),
                 username,
                 password,
-                // Um gestor só pode criar colaborador. Um admin pode criar qualquer um.
                 role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
                 creatorId: currentUser.id
             };
@@ -864,7 +1108,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (password) updatedUser.password = password;
 
-            // Permite que Admin edite a role de qualquer um, e o próprio usuário edite a sua.
             if (currentUser.role === 'admin' || currentUser.id === userId) {
                 updatedUser.role = role; 
             }
@@ -917,17 +1160,20 @@ document.addEventListener('DOMContentLoaded', () => {
             oneMonthAgo.setMonth(today.getMonth() - 1);
             filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
         } else {
-            filteredRecords = scanRecords; // 'all'
+            filteredRecords = scanRecords;
         }
 
         if(!filteredRecords.length) return Swal.fire('Aviso', `Nenhum dado encontrado para o filtro: ${filter}.`, 'warning');
         
-        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS\n'; 
+        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS,NOME_CLIENTE,ENDERECO_CLIENTE,TELEFONE_CLIENTE,RECEBEDOR\n'; 
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
             const timeStr = scanDate.toLocaleTimeString('pt-BR');
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}",${r.status || 'pending'}\n`;
+            // Escapa as vírgulas e aspas duplas nos campos textuais
+            const escape = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+            
+            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${escape(r.raw)},${r.status || 'pending'},${escape(r.clientName)},${escape(r.clientAddress)},${escape(r.clientPhone)},${escape(r.receivedBy)}\n`;
         });
         
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
