@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let mapInstance = null;
     let locationMarker = null;
     
-    let tempScanRecord = null;
-    
+    let tempScanRecord = null; // Variável de estado para a Baixa
+
     /* --- Referências DOM --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error("Falha na TENTATIVA 2 (Genérica):", err2);
                 stopScanner(); 
                 
-                // NOVO: Usa SweetAlert para erro na câmera
+                // Usa SweetAlert para erro na câmera
                 Swal.fire({
                     icon: 'error',
                     title: 'Erro ao Acessar Câmera',
@@ -352,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
 
-        // 1. Cria o registro temporário
+        // 1. Cria o registro temporário (ainda sem finalStatus/observation)
         tempScanRecord = parsePayload(data, scanLat, scanLon);
         
         // 2. Para o scanner e mostra o formulário de baixa
@@ -362,7 +362,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- FUNÇÕES DE BAIXA --- */
 
-    function renderBaixaForm(record) {
+    /** Inicia o formulário de baixa para um registro EXISTENTE no dashboard. */
+    window.startBaixaExisting = (index) => {
+        const record = scanRecords[index];
+        if (!record) {
+             Swal.fire('Erro', 'Registro não encontrado.', 'error');
+             return;
+        }
+        // Cria uma cópia do registro para edição, mantendo a referência do índice
+        tempScanRecord = { ...record }; 
+        renderBaixaForm(tempScanRecord, index);
+    }
+    
+    /** * Renderiza o formulário de baixa. 
+     * indexToUpdate: -1 para nova baixa (scanner), índice para atualização (dashboard).
+     */
+    function renderBaixaForm(record, indexToUpdate = -1) {
         showContent();
         
         const possibleStatus = [
@@ -383,12 +398,16 @@ document.addEventListener('DOMContentLoaded', () => {
             
             <h3 style="color:var(--content-text-dark);">Status Final da Baixa</h3>
             <select id="finalStatus" style="margin-bottom:15px; background:var(--content-card-bg); border:1px solid var(--muted); padding:10px; border-radius:8px;">
-                ${possibleStatus.map(s => `<option value="${s.code}">${s.label}</option>`).join('')}
+                ${possibleStatus.map(s => 
+                    `<option value="${s.code}" ${record.finalStatus === s.code ? 'selected' : ''}>${s.label}</option>`
+                ).join('')}
             </select>
             
-            <textarea id="observation" placeholder="Observações (opcional)" style="width:100%; height:100px; padding:10px; border-radius:8px; border:1px solid var(--muted); margin-bottom:15px; resize:vertical; background:var(--content-card-bg); color:var(--content-text-dark);"></textarea>
+            <textarea id="observation" placeholder="Observações (opcional)" style="width:100%; height:100px; padding:10px; border-radius:8px; border:1px solid var(--muted); margin-bottom:15px; resize:vertical; background:var(--content-card-bg); color:var(--content-text-dark);">${record.observation || ''}</textarea>
             
-            <button class="btn-primary" onclick="window.confirmBaixa()" style="width:100%;">Confirmar Baixa e Salvar Registro</button>
+            <button class="btn-primary" onclick="window.confirmBaixa(${indexToUpdate})" style="width:100%;">
+                ${indexToUpdate !== -1 ? 'Atualizar Status' : 'Confirmar Baixa e Salvar Registro'}
+            </button>
             <button onclick="window.cancelBaixa()" style="width:100%; margin-top:10px; background:#e5e7eb; color:var(--content-text-dark); padding:12px 20px; border:none; border-radius:10px; cursor:pointer;">Cancelar e Voltar</button>
         `;
         
@@ -397,7 +416,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.cancelBaixa = cancelBaixa;
     }
 
-    function confirmBaixa() {
+    /** * Confirma a baixa/atualização. 
+     * indexToUpdate: -1 para nova baixa (scanner), índice para atualização (dashboard).
+     */
+    function confirmBaixa(indexToUpdate = -1) {
         if (!tempScanRecord) return;
 
         const finalStatus = document.getElementById('finalStatus').value;
@@ -409,8 +431,15 @@ document.addEventListener('DOMContentLoaded', () => {
         tempScanRecord.baixaDate = new Date().toISOString(); 
         tempScanRecord.deliveryStatus = finalStatus; // Sobrescreve o status inicial com o final
 
-        // Salva o registro final
-        scanRecords.unshift(tempScanRecord);
+        if (indexToUpdate !== -1) {
+            // Edição de registro existente (vindo do dashboard)
+            scanRecords[indexToUpdate] = { ...tempScanRecord }; // Substitui o registro existente pela cópia atualizada
+        } else {
+            // Nova baixa (vindo do scanner)
+            // Salva o registro final (unshift adiciona ao começo)
+            scanRecords.unshift(tempScanRecord);
+        }
+
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
         
         const finalId = tempScanRecord.id;
@@ -420,10 +449,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showContent(); // Garante a transição visual
         renderDashboard(); // Volta para o dashboard
         
-        // NOVO: Usa SweetAlert para feedback de sucesso
+        // Usa SweetAlert para feedback de sucesso
         Swal.fire({
             icon: 'success',
-            title: 'Baixa Confirmada!',
+            title: indexToUpdate !== -1 ? 'Status Atualizado!' : 'Baixa Confirmada!',
             text: `ID ${finalId} salvo. ${statusDisplay}.`,
             showConfirmButton: false,
             timer: 3000
@@ -528,7 +557,12 @@ document.addEventListener('DOMContentLoaded', () => {
             recipientName: recipientName,
             address: address,
             zipCode: zipCode,
-            collectorId: collectorId
+            collectorId: collectorId,
+            
+            // Campos de Baixa (adicionados)
+            finalStatus: null, // Será preenchido na confirmação
+            observation: null,
+            baixaDate: null 
         };
     }
 
@@ -593,11 +627,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <div style="display:grid; gap:10px; margin-top:20px;">
                 ${scanRecords.map((r, index) => {
                     const isDelivered = r.finalStatus === 'ENTREGUE';
-                    const borderColor = isDelivered ? 'var(--success)' : 'var(--danger)';
+                    // Se não foi feita a baixa, usa o status inicial (PENDENTE/Status Não Encontrado)
+                    const isPending = !r.finalStatus || r.finalStatus === 'Status Não Encontrado'; 
+                    const borderColor = isPending ? 'var(--secondary)' : (isDelivered ? 'var(--success)' : 'var(--danger)');
                     const statusDisplay = r.finalStatus || r.deliveryStatus;
                     const dateDisplay = new Date(r.baixaDate || r.date).toLocaleString();
                     
-                    // HTML dos links de navegação usando a função existente
                     const navigationHtml = getNavigationLinks(r.lat, r.lon, r.id);
 
                     return `
@@ -631,6 +666,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                 <h4 style="margin-top:15px; margin-bottom:5px; font-size:15px;">Iniciar Navegação:</h4>
                                 ${navigationHtml}
+
+                                ${!isDelivered ? `<button class="btn-primary" style="margin-top:15px; width:100%;" onclick="event.stopPropagation(); window.startBaixaExisting(${index})">🔄 Confirmar Baixa/Atualizar Status</button>` : ''}
                             </div>
                         </div>
                     `;
@@ -655,7 +692,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRoutes() {
         showContent();
-        const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
+        // Filtra apenas as entregas que já têm coordenadas de baixa
+        const deliveryPoints = scanRecords.filter(r => r.lat && r.lon).map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
         if (deliveryPoints.length < 2) {
             dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
@@ -721,7 +759,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 attribution: '© OSM'
             }).addTo(mapInstance);
 
-            scanRecords.forEach(r => {
+            // Filtra apenas as entregas que já têm coordenadas de baixa
+            scanRecords.filter(r => r.lat && r.lon).forEach(r => { 
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
                     // Adiciona o popup de navegação
                     .bindPopup(getNavigationLinks(r.lat, r.lon, r.id));
@@ -928,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if(!filteredRecords.length) {
-            // NOVO: Usa SweetAlert para aviso
+            // Usa SweetAlert para aviso
              Swal.fire({
                 icon: 'warning',
                 title: 'Sem Dados',
@@ -938,14 +977,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,STATUS_FINAL,OBSERVACAO,RAW\n';
+        // Colunas adicionadas para o CSV
+        let csv = 'ID,TIPO,DATA_REGISTRO,DATA_BAIXA,USUARIO,LAT,LON,STATUS_FINAL,OBSERVACAO,DESTINATARIO,ENDERECO,CEP,RAW\n';
         filteredRecords.forEach(r => {
-            const scanDate = new Date(r.baixaDate || r.date);
-            const dateStr = scanDate.toLocaleDateString('pt-BR');
-            const timeStr = scanDate.toLocaleTimeString('pt-BR');
+            const scanDate = new Date(r.date);
+            const baixaDate = r.baixaDate ? new Date(r.baixaDate) : null;
+
+            const dateRegStr = scanDate.toLocaleDateString('pt-BR') + ' ' + scanDate.toLocaleTimeString('pt-BR');
+            const dateBaixaStr = baixaDate ? baixaDate.toLocaleDateString('pt-BR') + ' ' + baixaDate.toLocaleTimeString('pt-BR') : 'PENDENTE';
+            
             const status = r.finalStatus || 'PENDENTE';
             const observation = r.observation || '';
-            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${status},"${observation.replace(/"/g, '""')}","${r.raw.replace(/"/g, '""')}"\n`;
+            const recipient = r.recipientName || '';
+            const address = r.address || '';
+            const zipCode = r.zipCode || '';
+            
+            // Tratamento de aspas duplas dentro do campo CSV
+            const escape = (str) => `"${String(str).replace(/"/g, '""')}"`;
+
+            csv += `${escape(r.id)},${escape(r.type)},${escape(dateRegStr)},${escape(dateBaixaStr)},${escape(r.user)},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${escape(status)},${escape(observation)},${escape(recipient)},${escape(address)},${escape(zipCode)},${escape(r.raw)}\n`;
         });
         
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
