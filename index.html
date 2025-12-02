@@ -63,7 +63,7 @@
         }
 
         /* Inputs na área de conteúdo (que agora é dark) */
-        .main input, .main select {
+        .main input, .main select, .user-form-card input, .user-form-card select {
              background: rgba(0,0,0,0.3) !important;
              border: 1px solid rgba(255,255,255,0.1) !important;
              color: white !important;
@@ -194,6 +194,14 @@
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         margin-bottom: 10px;
     }
+    
+    /* Inputs dentro da área de detalhes da entrega */
+    .user-form-card input, .user-form-card select {
+        color: var(--content-text-dark) !important;
+        background: var(--content-bg-light) !important;
+        border: 1px solid #ccc !important;
+    }
+
 
     /* --- LOGIN SCREEN --- */
     .login-container {
