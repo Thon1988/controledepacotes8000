@@ -1,1199 +1,610 @@
-document.addEventListener('DOMContentLoaded', () => {
+/**
+ * Pegazus Logística - app.js
+ * Lógica de Autenticação, Navegação, Scanner (jsQR) e Mapa (Leaflet).
+ */
 
-    /* ========================================================= */
-    /* I. CONFIGURAÇÕES E REFERÊNCIAS DOM                        */
-    /* ========================================================= */
+// --- Variáveis Globais ---
+const userCredentials = [
+    { user: "thon", pass: "882010", role: "deliverer" },
+    { user: "admin", pass: "4321", role: "admin" }
+];
 
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; 
-    const STORAGE_KEY_USERS = 'pegazus_users_v5';
-    const STORAGE_KEY_SCANS = 'pegazus_scans_v5';
+let currentUser = null;
+let currentCameraStream = null;
+let mapInstance = null;
+let tileLayer = null;
+const mapMarkers = {}; // Para armazenar marcadores das entregas
+
+// Elementos HTML principais
+const loginSection = document.getElementById('loginSection');
+const appContainer = document.getElementById('appContainer');
+const cameraView = document.getElementById('cameraView');
+const videoElement = document.getElementById('videoElement');
+const contentArea = document.getElementById('contentArea');
+const sidebar = document.getElementById('sidebar');
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const cameraSelect = document.getElementById('cameraSelect');
+const feedbackMsg = document.getElementById('feedbackMsg');
+const manualInputContainer = document.getElementById('manualInputContainer');
+
+// Botões
+const btnLogin = document.getElementById('btnLogin');
+const btnLogout = document.getElementById('btnLogout');
+const menuItems = document.querySelectorAll('.menu-item');
+
+// --- Funções de Utilitários ---
+
+/** Exibe uma mensagem de feedback temporariamente. */
+function showFeedback(message, type = 'info', duration = 3000) {
+    feedbackMsg.textContent = message;
+    feedbackMsg.style.opacity = '1';
     
-    // Usuários Padrão (Agora gerenciados pelo LocalStore)
-    const DEFAULT_USERS = [
-        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
-        { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
-        { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ]; 
-    
-    // Variáveis de Estado
-    let currentUser = null;
-    let videoStream = null;
-    let isScanning = false;
-    let videoTrack = null;
-    const SCAN_DELAY = 1000;
-    let lastScanCode = '';
-    let lastScanTime = 0;
-    let userLocation = null;
-    let mapInstance = null;
-    let locationMarker = null;
+    // Altera a cor com base no tipo
+    if (type === 'success') {
+        feedbackMsg.style.backgroundColor = 'var(--success)';
+    } else if (type === 'error') {
+        feedbackMsg.style.backgroundColor = 'var(--danger)';
+    } else {
+        feedbackMsg.style.backgroundColor = 'var(--accent)';
+    }
 
-    // Referências DOM
-    const dom = {
-        loginSection: document.getElementById('loginSection'),
-        menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app-container'), // Corrigido para .app-container
-        contentArea: document.getElementById('contentArea'),
-        cameraView: document.getElementById('cameraView'),
-        video: document.getElementById('videoElement'),
-        sidebar: document.getElementById('sidebar'),
-        mobileMenuBtn: document.getElementById('mobileMenuBtn'),
-        feedback: document.getElementById('feedbackMsg'),
-        cameraSelect: document.getElementById('cameraSelect'),
-        exportOptions: document.getElementById('exportOptions'),
-        adminMenuOptions: document.getElementById('adminMenuOptions'),
-        manualInputContainer: document.getElementById('manualInputContainer'),
-        manualDeliveryId: document.getElementById('manualDeliveryId'),
-        btnToggleManualInput: document.getElementById('btnToggleManualInput'),
-        btnManualConfirm: document.getElementById('btnManualConfirm'),
-    };
+    setTimeout(() => {
+        feedbackMsg.style.opacity = '0';
+        feedbackMsg.style.backgroundColor = 'var(--accent)'; // Volta ao padrão
+    }, duration);
+}
 
-    /* ========================================================= */
-    /* II. STORES E ADAPTADORES (CAMADA DE DADOS ISOLADA)        */
-    /* ========================================================= */
-    
-    /**
-     * Adaptador LocalStore: Lida diretamente com o localStorage.
-     */
-    const LocalStore = {
-        loadDeliveries: function() {
-            let records = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-            // Inicialização de dados simulados (adicionada aqui para isolar)
-            records.forEach(r => {
-                if (!r.status) r.status = 'pending';
-                if (!r.clientName) r.clientName = "Cliente Simulado " + r.id.slice(-4);
-                if (!r.clientAddress) r.clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`;
-                if (!r.clientPhone) r.clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-                // Adiciona coordenadas simuladas se não existirem
-                if (!r.lat || !r.lon) {
-                    r.lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.01;
-                    r.lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.01;
-                }
-            });
-            return records;
-        },
-
-        saveDeliveries: function(data) {
-            localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(data));
-        },
-
-        loadUsers: function() {
-            let users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS));
-            if (!users || users.length === 0) {
-                users = DEFAULT_USERS;
-                localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-            }
-            // Garante que o usuário 'thon' de sistema esteja sempre presente.
-            const thonExists = users.some(u => u.username === 'thon');
-            if (!thonExists) {
-                users.push(DEFAULT_USERS.find(u => u.username === 'thon'));
-            }
-            return users;
-        },
-
-        saveUsers: function(data) {
-            localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(data));
+/** Exibe um SweetAlert2 para confirmações e notificações. */
+function showAlert(title, text, icon = 'info') {
+    Swal.fire({
+        title: title,
+        text: text,
+        icon: icon,
+        confirmButtonText: 'Entendi',
+        customClass: {
+            confirmButton: 'btn-primary'
         }
+    });
+}
+
+/** Simula a obtenção de dados de entrega. */
+function getDeliveryData(id) {
+    // Simula dados reais
+    const data = {
+        'BR123456789': { status: 'Aguardando Coleta', location: 'Centro de Distribuição A', coords: [-23.5505, -46.6333], type: 'Coleta' },
+        'BR987654321': { status: 'Em Rota de Entrega', location: 'Av. Paulista, 1000', coords: [-23.5613, -46.6566], type: 'Entrega', recipient: 'João Silva' },
+        'BR555555555': { status: 'Entrega Concluída', location: 'Rua do Teste, 50', coords: [-23.585, -46.687], type: 'Entrega', recipient: 'Maria Santos' }
     };
+    return data[id];
+}
+
+// --- Funções de Navegação e Layout ---
+
+/** Alterna a visibilidade da barra lateral em dispositivos móveis. */
+function toggleSidebar() {
+    sidebar.classList.toggle('active');
+}
+
+/** Alterna entre modos de tela cheia (Mapa/Scanner) e modo Dashboard. */
+function toggleFullScreenMode(enable) {
+    // No layout de Flexbox/Block, o modo tela cheia é menos sobre alterar o container
+    // e mais sobre garantir que o elemento (mapa/scanner) ocupe a viewport
+    if (window.innerWidth <= 768) {
+        // Em mobile, a barra lateral deve ser fechada
+        sidebar.classList.remove('active');
+    }
+}
+
+/** Atualiza a interface (Menu e Rótulos) após o login. */
+function updateUI(user) {
+    document.getElementById('displayUser').textContent = user.user.toUpperCase();
+    document.getElementById('adminMenuOptions').classList.toggle('hidden', user.role !== 'admin');
     
-    // Define o adaptador de dados atual (Fase 1: LocalStore)
-    const DataAdapter = LocalStore; 
+    // Exibe o botão de menu mobile
+    mobileMenuBtn.classList.remove('hidden');
+}
 
-    /**
-     * DeliveryStore: Gerencia o estado da aplicação e as regras de negócio.
-     */
-    const DeliveryStore = {
-        // Estado inicial
-        scanRecords: DataAdapter.loadDeliveries(),
-        users: DataAdapter.loadUsers(),
-        
-        // Métodos de Entregas
-        getDeliveries: function() { return this.scanRecords; },
-        
-        getDeliveryById: function(id) {
-            return this.scanRecords.find(r => r.id === id);
-        },
-        
-        // Novo: Adiciona uma entrega e salva
-        addDelivery: function(record) {
-            this.scanRecords.unshift(record);
-            DataAdapter.saveDeliveries(this.scanRecords);
-        },
-
-        // Novo: Altera status e salva
-        updateDeliveryStatus: function(recordId, status, receivedBy = null) {
-            const record = this.getDeliveryById(recordId);
-            if (record) {
-                record.status = status;
-                record.receivedBy = receivedBy;
-                DataAdapter.saveDeliveries(this.scanRecords);
-                return true;
-            }
-            return false;
-        },
-        
-        // Antiga lógica de agrupamento (Regra de Negócio)
-        getRecordsByLocation: function(recordId) {
-            const primaryRecord = this.getDeliveryById(recordId);
-            if (!primaryRecord) return [];
-            
-            return this.scanRecords.filter(r => 
-                r.clientAddress === primaryRecord.clientAddress
-            );
-        },
-
-        // Métodos de Usuários
-        getUsers: function() { return this.users; },
-        getUserByCredentials: function(username, password) {
-            return this.users.find(u => u.username === username && u.password === password);
-        },
-        
-        updateUsers: function(newUsers) {
-            this.users = newUsers;
-            DataAdapter.saveUsers(this.users);
-        },
-    };
-
-
-    /* ========================================================= */
-    /* III. CONTROLLER E VIEWS (LÓGICA E INTERFACE)              */
-    /* ========================================================= */
+/** Renderiza o conteúdo da seção selecionada. */
+function renderContent(sectionId) {
+    // Remove a classe 'active' de todos os itens do menu
+    menuItems.forEach(item => item.classList.remove('active'));
+    // Adiciona a classe 'active' ao item selecionado
+    document.getElementById(`btn${sectionId}`).classList.add('active');
     
-    /**
-     * AppController: Gerencia o fluxo da aplicação e a interação entre Views e Stores.
-     */
-    const AppController = {
-        init: function() {
-            // Inicialização de Eventos
-            document.getElementById('btnLogin').addEventListener('click', this.handleLogin);
-            document.getElementById('btnLogout').addEventListener('click', this.handleLogout);
-            document.getElementById('btnDashboard').addEventListener('click', () => this.navigateTo('dashboard'));
-            document.getElementById('btnScanMode').addEventListener('click', () => this.navigateTo('scanner'));
-            document.getElementById('btnMap').addEventListener('click', () => this.navigateTo('map'));
-            document.getElementById('btnRoutes').addEventListener('click', () => this.navigateTo('routes'));
-            document.getElementById('btnUsers').addEventListener('click', () => this.navigateTo('users'));
-            dom.cameraSelect.addEventListener('change', (e) => { if(isScanning) this.startScanner(e.target.value); });
-            dom.btnToggleManualInput.addEventListener('click', this.toggleManualInput);
-            dom.btnManualConfirm.addEventListener('click', this.handleManualConfirm);
-            
-            // Exportação
-            document.getElementById('btnExport').addEventListener('click', this.toggleExportOptions);
-            document.getElementById('btnExportDaily').addEventListener('click', () => this.handleExport('daily'));
-            document.getElementById('btnExportWeekly').addEventListener('click', () => this.handleExport('weekly'));
-            document.getElementById('btnExportMonthly').addEventListener('click', () => this.handleExport('monthly'));
-            document.getElementById('btnExportAll').addEventListener('click', () => this.handleExport('all'));
-            
-            // Inicialização da Geolocalização
-            this.startGeolocation();
-        },
-        
-        handleLogin: function() {
-            const u = document.getElementById('loginUser').value.trim();
-            const p = document.getElementById('loginPass').value.trim();
-            const user = DeliveryStore.getUserByCredentials(u, p);
-            
-            if (user) {
-                currentUser = user;
-                document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
-                
-                dom.loginSection.classList.add('hidden');
-                dom.appContainer.classList.remove('hidden'); 
-                if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
-                
-                if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-                    dom.adminMenuOptions.classList.remove('hidden');
-                } else {
-                    dom.adminMenuOptions.classList.add('hidden');
-                }
-
-                AppController.navigateTo('dashboard');
-                document.getElementById('loginError').textContent = '';
-            } else {
-                document.getElementById('loginError').textContent = 'Credenciais inválidas';
-            }
-        },
-
-        handleLogout: function() {
-            currentUser = null;
-            AppController.stopScanner();
-            dom.appContainer.classList.add('hidden');
-            dom.loginSection.classList.remove('hidden'); 
-            dom.mobileMenuBtn.classList.add('hidden');
-            dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
-        },
-
-        navigateTo: function(viewName, params = null) {
-            // Lógica de limpar e parar scanner
-            AppController.showContent();
-
-            // Lógica de roteamento
-            switch(viewName) {
-                case 'dashboard':
-                    Views.renderDashboard();
-                    break;
-                case 'scanner':
-                    dom.contentArea.style.display = 'none';
-                    dom.cameraView.style.display = 'flex'; 
-                    dom.appContainer.style.display = 'none'; // Esconde o app-container para maximizar cameraView
-                    if(window.innerWidth > 768) { dom.sidebar.classList.add('hidden'); } else { dom.sidebar.classList.remove('active'); }
-                    this.startScanner();
-                    break;
-                case 'details':
-                    Views.renderDeliveryDetails(params);
-                    break;
-                case 'multipleDelivery':
-                    Views.renderMultipleDeliveryForm(params);
-                    break;
-                case 'users':
-                    Views.renderUsers();
-                    break;
-                case 'map':
-                    // **MODIFICAÇÃO:** Garante o modo tela cheia para o mapa
-                    dom.contentArea.style.display = 'block';
-                    dom.cameraView.style.display = 'none'; 
-                    dom.appContainer.style.display = 'grid'; 
-                    dom.appContainer.style.gridTemplateColumns = '1fr'; // Ocupa 100%
-                    dom.sidebar.classList.add('hidden'); // Esconde a barra lateral
-                    Views.renderMap();
-                    break;
-                case 'routes':
-                    Views.renderRoutes();
-                    break;
-                default:
-                    Views.renderDashboard();
-            }
-            // Atualiza o menu ativo
-            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-            const btn = document.getElementById('btn' + viewName.charAt(0).toUpperCase() + viewName.slice(1));
-            if(btn) btn.classList.add('active');
-        },
-        
-        // --- Controle do Scanner ---
-        enumerateDevices: async function() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(d => d.kind === 'videoinput');
-                
-                dom.cameraSelect.innerHTML = '';
-                
-                if (videoDevices.length === 0) {
-                    dom.cameraSelect.innerHTML = '<option value="" disabled>Nenhuma câmera encontrada</option>';
-                    return;
-                }
-                
-                videoDevices.forEach((device, index) => {
-                    const label = device.label || `Câmera ${index + 1}`;
-                    const option = new Option(label, device.deviceId);
-                    dom.cameraSelect.add(option);
-                });
-                
-            } catch(e) {
-                console.error("Erro ao enumerar dispositivos:", e);
-                dom.cameraSelect.innerHTML = '<option value="" disabled>Erro ao carregar câmeras</option>';
-            }
-        },
-
-        startScanner: async function(deviceId = null) { 
-            if (isScanning && !deviceId) return;
-            this.stopScanner(); 
-            
-            await this.enumerateDevices(); // ✅ Garante que a lista de câmeras esteja preenchida
-
-            const videoDevices = Array.from(dom.cameraSelect.options);
-            let targetDeviceId = deviceId;
-            
-            if (!targetDeviceId && videoDevices.length > 0) {
-                const preferredCamera = videoDevices.find(opt => 
-                    opt.text.toLowerCase().includes('environment') || 
-                    opt.text.toLowerCase().includes('back') || 
-                    opt.text.toLowerCase().includes('traseira')
-                );
-                
-                if (preferredCamera) {
-                    targetDeviceId = preferredCamera.value;
-                } else {
-                    targetDeviceId = videoDevices[0].value;
-                }
-            }
-
-            if (!targetDeviceId && dom.cameraSelect.value) {
-                targetDeviceId = dom.cameraSelect.value;
-            }
-            
-            if (!targetDeviceId) {
-                 Swal.fire({
-                    icon: 'error',
-                    title: 'Câmera Não Encontrada',
-                    text: 'Nenhum dispositivo de vídeo disponível para escanear.',
-                    confirmButtonText: 'Voltar ao Dashboard'
-                }).then(() => { this.navigateTo('dashboard'); });
-                return;
-            }
-
-            const constraints = {
-                video: targetDeviceId
-                    ? { deviceId: { exact: targetDeviceId } } 
-                    : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-            };
-
-            try {
-                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-                dom.video.srcObject = videoStream;
-                dom.video.setAttribute('playsinline', true);
-                await dom.video.play();
-                isScanning = true;
-                videoTrack = videoStream.getVideoTracks()[0];
-                
-                if (targetDeviceId && dom.cameraSelect.value !== targetDeviceId) {
-                    dom.cameraSelect.value = targetDeviceId;
-                }
-
-                requestAnimationFrame(this.tick);
-            } catch (err) {
-                 Swal.fire({
-                    icon: 'error',
-                    title: 'Erro ao Acessar Câmera',
-                    text: 'Certifique-se de que a câmera está conectada e as permissões foram concedidas.' + (err.message ? ` Mensagem: ${err.message}` : ''),
-                    confirmButtonText: 'Voltar ao Dashboard'
-                }).then(() => {
-                    this.navigateTo('dashboard'); 
-                });
-            }
-        },
-        
-        stopScanner: function() { 
-            isScanning = false;
-            if (videoStream) {
-                videoStream.getTracks().forEach(t => t.stop());
-                videoStream = null;
-            }
-            dom.video.srcObject = null;
-        },
-
-        tick: function() {
-            if (!isScanning) return;
-            if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const w = dom.video.videoWidth;
-                const h = dom.video.videoHeight;
-                canvas.width = w;
-                canvas.height = h;
-                ctx.drawImage(dom.video, 0, 0, w, h); 
-                
-                const size = Math.min(w, h) * 0.9; 
-
-                const sx = (w - size) / 2;
-                const sy = (h - size) / 2;
-                const imageData = ctx.getImageData(sx, sy, size, size);
-                
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "attemptBoth",
-                });
-
-                if (code && code.data) {
-                    AppController.handleScan(code.data);
-                }
-            }
-            requestAnimationFrame(AppController.tick);
-        },
-
-        handleScan: function(data) {
-            const now = Date.now();
-            if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
-            
-            lastScanCode = data;
-            lastScanTime = now;
-
-            Utils.beep();
-            Utils.showFeedback(`Leitura Confirmada: ${data.substring(0, 30)}...`, 'var(--accent)'); 
-
-            const record = Utils.parsePayload(data, userLocation, currentUser);
-            // Chama o Store para persistência
-            DeliveryStore.addDelivery(record);
-        },
-        
-        toggleManualInput: function() {
-            const isVisible = dom.manualInputContainer.style.opacity === '1';
-            dom.manualInputContainer.style.opacity = isVisible ? '0' : '1';
-            dom.manualInputContainer.style.pointerEvents = isVisible ? 'none' : 'auto';
-            if (!isVisible) {
-                dom.manualDeliveryId.focus();
-            }
-        },
-
-        handleManualConfirm: function() {
-            const id = dom.manualDeliveryId.value.trim();
-            if (!id) {
-                Utils.showFeedback('ID de entrega vazio!', 'var(--danger)');
-                return;
-            }
-            
-            const record = Utils.parsePayload(id, userLocation, currentUser);
-            
-            Swal.fire({
-                title: '✅ ID Digitado Confirmado',
-                html: `
-                    <div style="text-align: left; color:var(--content-text-dark);">
-                        <p><strong>ID:</strong> ${record.id}</p>
-                        <p><strong>Tipo:</strong> ${record.type}</p>
-                        <p><strong>Status:</strong> Pendente</p>
-                        <hr style="border-color: rgba(0,0,0,0.1)">
-                        <h4>Dados do Destino (Simulação)</h4>
-                        <p><strong>Nome:</strong> ${record.clientName}</p>
-                        <p><strong>Endereço:</strong> ${record.clientAddress}</p>
-                        <p><strong>Telefone:</strong> ${record.clientPhone}</p>
-                    </div>
-                `,
-                icon: 'info',
-                showCancelButton: true,
-                confirmButtonText: 'Confirmar e Salvar',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    DeliveryStore.addDelivery(record); // Persistência via Store
-                    Utils.showFeedback(`Registro Manual ${record.id} Salvo!`, 'var(--success)');
-                    dom.manualDeliveryId.value = '';
-                } else {
-                    Utils.showFeedback(`Registro Manual ${record.id} Cancelado!`, 'var(--danger)');
-                }
-                dom.manualInputContainer.style.opacity = '0';
-                dom.manualInputContainer.style.pointerEvents = 'none';
-            });
-        },
-
-
-        // --- Ações Globais ---
-        showContent: function() {
-            dom.cameraView.style.display = 'none';
-            dom.contentArea.style.display = 'block';
-            
-            // **CORREÇÃO DE LAYOUT:** Garante que o container volte ao modo normal
-            dom.appContainer.style.display = 'grid'; 
-            
-            if (window.innerWidth > 768) { 
-                dom.sidebar.classList.remove('hidden'); 
-                dom.appContainer.style.gridTemplateColumns = '392px 1fr'; // Layout Sidebar + Conteúdo
-            } else {
-                dom.sidebar.classList.remove('active');
-                // Em mobile, continua 1fr
-                dom.appContainer.style.gridTemplateColumns = '1fr';
-            }
-            
-            this.stopScanner();
-            if (dom.exportOptions.style.display === 'flex') {
-                dom.exportOptions.style.display = 'none'; 
-            }
-            dom.feedback.style.opacity = '0'; 
-            
-            if (dom.contentArea.style.display !== 'none') {
-                dom.manualInputContainer.style.opacity = '0';
-                dom.manualInputContainer.style.pointerEvents = 'none';
-            }
-        },
-
-        // --- Geolocalização ---
-        startGeolocation: function() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        userLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
-                        if (mapInstance) Views.updateMapLocation();
-                    },
-                    (error) => { console.warn('Geolocation error:', error.message); userLocation = null; },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
-            }
-        },
-
-        // --- Exportação ---
-        toggleExportOptions: function() {
-            dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
-        },
-        
-        handleExport: function(filter) {
-            const allRecords = DeliveryStore.getDeliveries();
-            let filteredRecords = [];
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            if (filter === 'daily') {
-                filteredRecords = allRecords.filter(r => new Date(r.date) >= today);
-            } else if (filter === 'weekly') {
-                const oneWeekAgo = new Date(today);
-                oneWeekAgo.setDate(today.getDate() - 7);
-                filteredRecords = allRecords.filter(r => new Date(r.date) >= oneWeekAgo);
-            } else if (filter === 'monthly') {
-                const oneMonthAgo = new Date(today);
-                oneMonthAgo.setMonth(today.getMonth() - 1);
-                filteredRecords = allRecords.filter(r => new Date(r.date) >= oneMonthAgo);
-            } else {
-                filteredRecords = allRecords;
-            }
-
-            if(!filteredRecords.length) return Swal.fire('Aviso', `Nenhum dado encontrado para o filtro: ${filter}.`, 'warning');
-            
-            let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS,NOME_CLIENTE,ENDERECO_CLIENTE,TELEFONE_CLIENTE,RECEBEDOR\n'; 
-            filteredRecords.forEach(r => {
-                const scanDate = new Date(r.date);
-                const dateStr = scanDate.toLocaleDateString('pt-BR');
-                const timeStr = scanDate.toLocaleTimeString('pt-BR');
-                const escape = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
-                
-                csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${escape(r.raw)},${r.status || 'pending'},${escape(r.clientName)},${escape(r.clientAddress)},${escape(r.clientPhone)},${escape(r.receivedBy)}\n`;
-            });
-            
-            const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
-            const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-
-            dom.exportOptions.style.display = 'none';
-            Swal.fire('Sucesso', 'Exportação CSV concluída!', 'success');
-        }
-    };
+    // Oculta a view da câmera e o app container, por padrão
+    cameraView.style.display = 'none';
+    appContainer.classList.remove('hidden');
     
-    /**
-     * Views: Funções de renderização de interface.
-     */
-    const Views = {
-        renderDashboard: function() {
-            AppController.showContent();
+    // Fecha o menu lateral em mobile após seleção
+    if (window.innerWidth <= 768) {
+        toggleSidebar();
+    }
+    
+    // Zera o conteúdo da área principal
+    contentArea.innerHTML = '';
+
+    // Lógica para carregar o conteúdo
+    switch (sectionId) {
+        case 'Dashboard':
+            toggleFullScreenMode(false);
+            stopCamera();
+            loadDashboard();
+            break;
+        case 'ScanMode':
+            // Oculta o appContainer para exibir o scanner em tela cheia
+            appContainer.classList.add('hidden');
+            startCamera();
+            break;
+        case 'Map':
+            toggleFullScreenMode(true);
+            stopCamera();
+            loadMap();
+            break;
+        case 'Routes':
+            toggleFullScreenMode(false);
+            stopCamera();
+            loadRoutes();
+            break;
+        case 'Users':
+            toggleFullScreenMode(false);
+            stopCamera();
+            loadUsersManagement();
+            break;
+        case 'Export':
+            toggleFullScreenMode(false);
+            stopCamera();
+            loadExport();
+            break;
+        default:
+            contentArea.innerHTML = '<h2>Bem-vindo! Selecione uma opção no menu.</h2>';
+    }
+}
+
+// --- Funções Específicas de Conteúdo ---
+
+function loadDashboard() {
+    // Simula dados do dashboard
+    const stats = [
+        { title: "Entregas Pendentes", value: 12, icon: '📦', color: '#f59e0b' },
+        { title: "Coletas de Hoje", value: 5, icon: '📥', color: '#3b82f6' },
+        { title: "Total Concluído", value: 45, icon: '✅', color: '#22c55e' },
+    ];
+
+    let html = `
+        <h2 style="color:var(--primary);">📊 Dashboard do Entregador</h2>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
+    `;
+    
+    stats.forEach(stat => {
+        html += `
+            <div class="user-form-card" style="border-left: 5px solid ${stat.color};">
+                <p style="font-size: 14px; color: #6b7280;">${stat.title}</p>
+                <h3 style="font-size: 32px; font-weight: 700; color:var(--primary);">${stat.icon} ${stat.value}</h3>
+            </div>
+        `;
+    });
+    
+    html += `</div>
+        <h3 style="color:var(--primary); margin-top: 30px;">Próximas Entregas (Amostra)</h3>
+        <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
+            <thead>
+                <tr style="background-color: var(--secondary); color: white;">
+                    <th style="padding: 10px; text-align: left;">ID</th>
+                    <th style="padding: 10px; text-align: left;">Destino</th>
+                    <th style="padding: 10px; text-align: left;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="background-color: var(--content-bg);">
+                    <td style="padding: 10px;">BR987654321</td>
+                    <td style="padding: 10px;">Av. Paulista, 1000</td>
+                    <td style="padding: 10px; color: #f59e0b;">Em Rota</td>
+                </tr>
+                <tr style="background-color: var(--content-bg-light);">
+                    <td style="padding: 10px;">BR112233445</td>
+                    <td style="padding: 10px;">Rua da Consolação, 500</td>
+                    <td style="padding: 10px; color: #3b82f6;">Atrasada</td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+    
+    contentArea.innerHTML = html;
+}
+
+// --- Funções de Mapa (Leaflet) ---
+
+function loadMap() {
+    contentArea.innerHTML = `
+        <h2 style="color:var(--primary);">🗺️ Mapa de Entregas</h2>
+        <div id="deliveryMap" style="height: 600px; width: 100%; margin-top: 20px; border-radius: 10px; box-shadow: var(--shadow);"></div>
+    `;
+
+    // Inicializa o mapa apenas uma vez
+    if (!mapInstance) {
+        // Coordenadas iniciais (São Paulo, Brasil)
+        mapInstance = L.map('deliveryMap').setView([-23.5505, -46.6333], 12);
+
+        // Adiciona a camada de mapa (OpenStreetMap)
+        tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(mapInstance);
+    } else {
+        // Se já existir, apenas reatribui ao novo container
+        mapInstance.setView([-23.5505, -46.6333], 12);
+        mapInstance.invalidateSize(); // Corrige problemas de renderização após mudar a view
+    }
+    
+    // Simula a adição de marcadores
+    addDeliveryMarkers();
+}
+
+function addDeliveryMarkers() {
+    // Dados simulados (os mesmos do getDeliveryData)
+    const deliveries = [
+        { id: 'BR123456789', status: 'Coleta Pendente', location: 'CD A', coords: [-23.5505, -46.6333], color: 'red' },
+        { id: 'BR987654321', status: 'Em Rota', location: 'Av. Paulista', coords: [-23.5613, -46.6566], color: 'blue' },
+        { id: 'BR555555555', status: 'Concluída', location: 'Rua do Teste', coords: [-23.585, -46.687], color: 'green' }
+    ];
+
+    Object.values(mapMarkers).forEach(marker => mapInstance.removeLayer(marker));
+    mapMarkers = {};
+
+    deliveries.forEach(del => {
+        // Ícones simples baseados no status
+        const markerIcon = L.divIcon({
+            className: `custom-marker ${del.color}`,
+            html: `<div style="background-color:${del.color}; width:20px; height:20px; border-radius:50%; border: 3px solid white;"></div>`,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+        });
+
+        const marker = L.marker(del.coords, { icon: markerIcon })
+            .bindPopup(`<b>ID: ${del.id}</b><br>Local: ${del.location}<br>Status: ${del.status}`)
+            .addTo(mapInstance);
             
-            if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-                dom.adminMenuOptions.classList.remove('hidden');
-            } else {
-                dom.adminMenuOptions.classList.add('hidden');
-            }
-            
-            const records = DeliveryStore.getDeliveries(); // Pega os dados do Store
-            
-            const html = `
-                <h2>📦 Entregas Realizadas</h2>
-                <p style="color:var(--content-text-dark)">Clique em um item para ver os detalhes da entrega.</p>
-                <div style="display:grid; gap:10px; margin-top:20px;">
-                    ${records.map(r => {
-                        const statusColor = r.status === 'delivered' ? 'var(--success)' : 'var(--danger)';
-                        const actionText = r.status === 'delivered' ? 'ENTREGUE ✅' : 'PENDENTE';
-                        
-                        return `
-                            <div onclick="AppController.navigateTo('details', '${r.id}')" 
-                                 style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid ${statusColor}; cursor:pointer;">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <div style="font-weight:bold; font-size:16px">${r.id}</div>
-                                    <div style="font-size:12px; font-weight:bold; color:${statusColor};">${actionText}</div>
-                                </div>
-                                <div style="font-size:12px; color:#6b7280; margin-top:5px;">
-                                    ${r.type} • ${new Date(r.date).toLocaleString()} • User: ${r.user}
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            `;
-            dom.contentArea.innerHTML = html;
-        },
+        mapMarkers[del.id] = marker;
+    });
+}
 
-        renderDeliveryDetails: function(recordId) {
-            AppController.showContent();
-            const record = DeliveryStore.getDeliveryById(recordId); 
-            if (!record) { dom.contentArea.innerHTML = `<h2>Erro</h2><p>Registro de entrega não encontrado.</p>`; return; }
+function loadRoutes() {
+    contentArea.innerHTML = `
+        <h2 style="color:var(--primary);">🧭 Rotas Otimizadas</h2>
+        <div class="user-form-card">
+            <p>Esta seção simularia a otimização de rotas usando um algoritmo. Aqui, você veria a ordem ideal de paradas.</p>
+            <ol>
+                <li>Coleta BR123456789 (CD A)</li>
+                <li>Entrega BR112233445 (Consolação)</li>
+                <li>Entrega BR987654321 (Av. Paulista)</li>
+            </ol>
+            <button class="btn-primary" style="margin-top: 15px;">Iniciar Navegação</button>
+        </div>
+    `;
+}
 
-            // Lógica de Agrupamento
-            const relatedRecords = DeliveryStore.getRecordsByLocation(recordId);
-            if (relatedRecords.length > 1) {
-                const pendingCount = relatedRecords.filter(r => r.status === 'pending').length;
-                
-                if (pendingCount > 0) {
-                     Swal.fire({
-                        title: '📍 Múltiplas Entregas no Local',
-                        html: `<p>Foram encontradas **${relatedRecords.length}** entregas neste endereço, sendo **${pendingCount}** ainda pendentes. Deseja dar baixa simultânea?</p>`,
-                        icon: 'info',
-                        showCancelButton: true,
-                        confirmButtonText: `✅ Sim, Baixa Múltpla (${pendingCount})`,
-                        cancelButtonText: 'Não, Ver Detalhes Deste Item'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            const pendingIds = relatedRecords.filter(r => r.status === 'pending').map(r => r.id);
-                            AppController.navigateTo('multipleDelivery', pendingIds);
-                        } else {
-                            Views.renderSingleDetails(record, recordId);
-                        }
-                    });
-                    return; 
-                }
-            }
-            Views.renderSingleDetails(record, recordId);
-        },
+function loadUsersManagement() {
+     if (currentUser.role !== 'admin') {
+        contentArea.innerHTML = '<h2 style="color:var(--danger);">🚫 Acesso Negado</h2><p>Você não tem permissão para acessar esta seção.</p>';
+        return;
+    }
+    
+    // Simula a listagem de usuários
+    const usersHtml = userCredentials.map(u => `
+        <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Usuário: <strong>${u.user}</strong> (Função: ${u.role.toUpperCase()})</span>
+            <button class="btn-primary" style="background:var(--danger); padding: 8px 12px; font-size:14px; box-shadow:none;" onclick="showAlert('Simulação','Ação: Excluir ${u.user}','warning')">Excluir</button>
+        </div>
+    `).join('');
 
-        renderSingleDetails: function(record, recordId) {
-            const allRecords = DeliveryStore.getDeliveries().map(r => r.id);
-            const currentIndex = allRecords.indexOf(recordId);
-            const prevId = currentIndex > 0 ? allRecords[currentIndex - 1] : null;
-            const nextId = currentIndex < allRecords.length - 1 ? allRecords[currentIndex + 1] : null;
-            
-            dom.contentArea.innerHTML = `
-                <h2>Detalhes da Entrega</h2>
-                <div class="user-form-card" style="padding: 20px;">
-                    <div id="detailMapObj" style="height:250px; border-radius:12px; margin-bottom:15px;"></div>
+    contentArea.innerHTML = `
+        <h2 style="color:var(--primary);">👥 Gerenciar Usuários</h2>
+        <div style="margin-bottom: 20px;">
+            <input type="text" placeholder="Novo Usuário">
+            <input type="password" placeholder="Nova Senha">
+            <select>
+                <option value="deliverer">Entregador</option>
+                <option value="admin">Administrador</option>
+            </select>
+            <button class="btn-primary" style="width:100%;" onclick="showAlert('Simulação','Novo usuário adicionado','success')">Adicionar Novo</button>
+        </div>
+        ${usersHtml}
+    `;
+}
 
-                    <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom: 20px;">
-                        <button onclick="${prevId ? `AppController.navigateTo('details', '${prevId}')` : ''}" style="flex:1; padding:15px; background:${prevId ? 'var(--accent)' : '#ccc'}; color:${prevId ? 'var(--content-text-dark)' : '#666'}; border-radius:10px; box-shadow:none;" ${!prevId ? 'disabled' : ''}>
-                            ⬅️ Anterior
-                        </button>
-                        <button onclick="${nextId ? `AppController.navigateTo('details', '${nextId}')` : ''}" style="flex:1; padding:15px; background:${nextId ? 'var(--accent)' : '#ccc'}; color:${nextId ? 'var(--content-text-dark)' : '#666'}; border-radius:10px; box-shadow:none;" ${!nextId ? 'disabled' : ''}>
-                            Próximo ➡️
-                        </button>
-                    </div>
+function loadExport() {
+    // Apenas garante que os botões de exportação sejam visíveis na sidebar
+    // A lógica de exportação real estaria no backend ou seria um download de CSV
+    contentArea.innerHTML = `
+        <h2 style="color:var(--primary);">📤 Exportar Dados</h2>
+        <p>Use o menu lateral esquerdo (Exportar Dados) para selecionar o período de exportação (Diário, Semanal, Mensal, Todos). O arquivo CSV será gerado e baixado.</p>
+        <div class="user-form-card">
+            <p style="font-weight: bold;">Funcionalidade de Exportação (Simulação)</p>
+            <button class="btn-primary" onclick="showAlert('Sucesso','Simulando exportação de todos os dados... Download iniciado.','success')" style="background:#6b7280;">Simular Exportação Completa</button>
+        </div>
+    `;
+}
 
-                    <div style="margin-bottom: 20px; padding:15px; border:1px solid #ddd; border-radius:10px; background:var(--content-bg-light); color:var(--content-text-dark);">
-                        <div style="font-weight:bold; font-size:18px; margin-bottom:5px;">${record.id} - ${record.clientName}</div>
-                        <div style="font-size:16px;">${record.clientAddress}</div>
-                        <div style="font-size:14px; color:#6b7280; margin-top:5px;">Tipo: ${record.type} • Status: ${record.status.toUpperCase()} ${record.receivedBy ? `(Recebido por: ${record.receivedBy})` : ''}</div>
-                    </div>
+// --- Funções do Scanner (jsQR) ---
 
-                    <button onclick="Utils.openContactOptions('${record.clientPhone}', '${record.id}')" 
-                            style="width:100%; padding:15px; background:var(--success); color:white; font-size:16px; font-weight:bold; border-radius:10px; margin-bottom:15px; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.3);">
-                        📞 Toque para ligar / WhatsApp: ${record.clientPhone}
-                    </button>
-                    
-                    <div style="margin-top: 15px; padding:15px; border:1px solid #ddd; border-radius:10px;">
-                        <p style="font-weight:bold; margin-bottom:10px; color:var(--content-text-dark);">Ação de Transferência/Reajuste</p>
-                        <div style="display:flex; gap:10px;">
-                            <input type="text" id="transferTarget" placeholder="ID do Entregador para Transferir" style="flex:1; margin-bottom:0;">
-                            <button onclick="Swal.fire('Transferir', 'Entrega ${recordId} transferida para ID: ' + document.getElementById('transferTarget').value, 'info')" style="background:var(--accent); color:var(--content-text-dark); padding:10px 15px; border-radius:8px; font-weight:bold; box-shadow:none;">
-                                Transferir
-                            </button>
-                        </div>
-                    </div>
+/** Inicia a câmera e o loop de escaneamento. */
+async function startCamera(deviceId = null) {
+    // 1. Oculta o conteúdo principal e mostra a view da câmera
+    cameraView.style.display = 'flex';
 
-                    <div style="display:flex; justify-content:space-between; gap:10px; margin-top: 20px;">
-                        <button onclick="Swal.fire('Ocorrência', 'Abrir registro de ocorrência para ${recordId}', 'warning')" style="flex:1; padding:15px; background:rgba(239, 68, 68, 0.2); color:var(--danger); font-weight:bold; border-radius:10px; box-shadow:none;">
-                            ⚠️ Ocorrência
-                        </button>
-                        <button onclick="Utils.handleMarkAsDelivered('${recordId}')" style="flex:1; padding:15px; background:var(--success); color:white; font-weight:bold; border-radius:10px; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.3);">
-                            ✅ Entregar
-                        </button>
-                    </div>
+    // 2. Busca dispositivos de câmera (se for a primeira vez)
+    if (cameraSelect.options.length <= 1) {
+        await enumerateDevices();
+    }
+    
+    // 3. Para qualquer stream anterior
+    stopCamera();
 
-                </div>
-            `;
-            // Inicialização do mapa no detalhe (mantida na View/DOM)
-            setTimeout(() => {
-                let detailMap = L.map('detailMapObj').setView([record.lat, record.lon], 15);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(detailMap);
-
-                L.marker([record.lat, record.lon]).addTo(detailMap)
-                    .bindPopup(`<b>${record.id}</b><br>${record.clientAddress}`).openPopup();
-                
-                detailMap.setView([record.lat, record.lon], 15);
-            }, 100);
-        },
-
-        renderMultipleDeliveryForm: function(recordIds) {
-            AppController.showContent();
-            
-            const recordsToDeliver = recordIds.map(id => DeliveryStore.getDeliveryById(id)).filter(r => r && r.status === 'pending');
-            
-            if (recordsToDeliver.length === 0) {
-                dom.contentArea.innerHTML = `<h2>Aviso</h2><p>Nenhuma entrega pendente para dar baixa neste local.</p><button onclick="AppController.navigateTo('dashboard')" class="btn-primary">Voltar</button>`;
-                return;
-            }
-
-            const primaryAddress = recordsToDeliver[0].clientAddress;
-
-            dom.contentArea.innerHTML = `
-                <h2>Baixa Simultânea</h2>
-                <div class="user-form-card" style="padding: 20px;">
-                    <p style="font-weight:bold; font-size:18px; margin-bottom:15px; color:var(--accent);">📍 Endereço: ${primaryAddress}</p>
-                    
-                    <form id="multipleDeliveryForm">
-                        ${recordsToDeliver.map((record, index) => `
-                            <div style="padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background:var(--content-bg-light);">
-                                <div style="font-weight:bold; font-size:16px; margin-bottom:5px;">${index + 1}. ID: ${record.id}</div>
-                                <div style="font-size:14px; color:var(--content-text-dark); margin-bottom:10px;">Cliente: ${record.clientName}</div>
-                                
-                                <input type="text" 
-                                    id="recebedor_${record.id}" 
-                                    placeholder="Nome do Recebedor (Obrigatório)" 
-                                    required 
-                                    style="margin-bottom: 0;">
-                            </div>
-                        `).join('')}
-                        
-                        <button type="submit" class="btn-primary" style="width:100%; padding:15px; margin-top:20px;">
-                            Finalizar ${recordsToDeliver.length} Entregas
-                        </button>
-                        
-                        <button type="button" onclick="AppController.navigateTo('dashboard')" style="width:100%; background:#ccc; color:#333; padding:10px; border-radius:10px; margin-top:10px; box-shadow:none;">
-                            Cancelar e Voltar
-                        </button>
-                    </form>
-                </div>
-            `;
-            
-            // Listener para o formulário (Lógica de Ação na View)
-            document.getElementById('multipleDeliveryForm').addEventListener('submit', (e) => {
-                e.preventDefault();
-                
-                const form = e.target;
-                const allRecordsDelivered = [];
-                let allValid = true;
-
-                recordsToDeliver.forEach(record => {
-                    const recebedorInput = form.querySelector(`#recebedor_${record.id}`);
-                    const recebedor = recebedorInput ? recebedorInput.value.trim() : '';
-                    
-                    if (!recebedor) { allValid = false; recebedorInput.style.border = '2px solid var(--danger)'; recebedorInput.focus(); return; }
-                    allRecordsDelivered.push({ id: record.id, recebedor: recebedor });
-                });
-                
-                if (allValid) {
-                    Swal.fire({
-                        title: 'Confirmar Entregas?',
-                        text: `Você irá confirmar a entrega de ${allRecordsDelivered.length} pacotes.`,
-                        icon: 'question',
-                        showCancelButton: true,
-                        confirmButtonText: 'Sim, Confirmar Todos',
-                        cancelButtonText: 'Voltar e Corrigir'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            allRecordsDelivered.forEach(item => {
-                                // Ação de persistência no Store
-                                DeliveryStore.updateDeliveryStatus(item.id, 'delivered', item.recebedor);
-                            });
-                            Utils.showDashboardFeedback(`Baixa simultânea concluída para ${allRecordsDelivered.length} pacotes!`);
-                            AppController.navigateTo('dashboard'); // Volta ao Controller
-                        }
-                    });
-                } else {
-                    Swal.fire('Atenção', 'Preencha o nome do recebedor para todos os pacotes antes de finalizar.', 'warning');
-                }
-            });
-        },
-
-        renderUsers: function() {
-            AppController.showContent();
-            const users = DeliveryStore.getUsers();
-            
-            let userListHtml = `
-                <h2>👥 Gerenciamento de Usuários</h2>
-                <div style="margin-bottom: 20px;">
-                    <button class="btn-primary" onclick="Utils.editUser(null)">+ Novo Usuário</button>
-                </div>
-                <div id="userListContainer">
-            `;
-            
-            const filteredUsers = users.filter(u => {
-                if (currentUser.role === 'admin') return true;
-                if (currentUser.role === 'gestor') { return u.creatorId === currentUser.id || u.id === currentUser.id; }
-                return u.id === currentUser.id;
-            });
-
-            filteredUsers.forEach(u => {
-                const canEdit = currentUser.role === 'admin' || currentUser.id === u.id || (currentUser.role === 'gestor' && u.role === 'colaborador' && u.creatorId === currentUser.id);
-                const canDelete = currentUser.role === 'admin' && currentUser.id !== u.id;
-                
-                userListHtml += `
-                    <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <strong>${u.username}</strong> 
-                            <span style="color:var(--accent); font-size:12px">(${u.role})</span>
-                        </div>
-                        <div>
-                            ${canEdit ? `<button onclick="Utils.editUser('${u.id}')" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:5px 10px; margin-right:5px; font-size:14px; box-shadow:none;" title="Editar">✏️</button>` : ''}
-                            ${canDelete ? `<button onclick="Utils.deleteUser('${u.id}')" style="background:rgba(239, 68, 68, 0.2); color:var(--danger); padding:5px 10px; font-size:14px; box-shadow:none;">Excluir</button>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            userListHtml += `</div><div id="userFormArea"></div>`;
-            dom.contentArea.innerHTML = userListHtml;
-        },
-
-        renderMap: function() {
-            AppController.showContent();
-            mapInstance = null;
-            // **MODIFICAÇÃO:** Botão vermelho flutuante
-            dom.contentArea.innerHTML = `
-                <h2>🗺️ Mapa de Entregas</h2>
-                <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-                <div style="position:relative;">
-                    <div id="mapObj" style="height:90vh; border-radius:12px; margin-top:10px"></div>
-                    <button onclick="Utils.centerMapOnUser()" id="btnCenterMap" style="
-                        position:absolute; bottom:20px; right:20px; z-index:1000;
-                        background:var(--danger); color:white; padding:10px 15px; border:none; border-radius:50%;
-                        font-size:18px; width:50px; height:50px; cursor:pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-                    ">📍</button>
-                </div>`;
-            
-            setTimeout(() => {
-                const records = DeliveryStore.getDeliveries();
-                const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
-                const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
-
-                mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
-
-                // Atualização do Popup para incluir Detalhes e Baixa
-                records.forEach(r => {
-                    const popupContent = `
-                        <b>${r.id}</b><br>${r.clientAddress}<br>
-                        <hr style="border-color: rgba(0,0,0,0.1); margin: 5px 0;">
-                        <a href="#" onclick="AppController.navigateTo('details', '${r.id}'); return false;" style="margin-right:5px; color:var(--accent);">Ver Detalhes</a> |
-                        <a href="#" onclick="Utils.handleMarkAsDelivered('${r.id}'); return false;" style="color:var(--success); font-weight:bold;">Baixar Entrega</a>
-                    `;
-                    L.marker([r.lat, r.lon]).addTo(mapInstance)
-                        .bindPopup(popupContent);
-                });
-                
-                // Centraliza na localização se disponível
-                if (userLocation) {
-                    mapInstance.setView([userLocation.lat, userLocation.lon], 15);
-                } else {
-                    mapInstance.setView([CD_LOCATION.lat, CD_LOCATION.lon], 14);
-                }
-
-                Views.updateMapLocation();
-            }, 100);
-        },
-
-        updateMapLocation: function() {
-            if (!mapInstance || !userLocation) return;
-
-            const currentLocEl = document.getElementById('currentLoc');
-            if (currentLocEl) {
-                currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - Localização Atualizada`;
-            }
-
-            if (locationMarker) {
-                locationMarker.setLatLng([userLocation.lat, userLocation.lon]);
-            } else {
-                locationMarker = L.marker([userLocation.lat, userLocation.lon], {
-                    icon: L.divIcon({
-                        className: 'current-location-marker',
-                        html: '<div style="background:var(--danger); border:3px solid white; border-radius:50%; width:18px; height:18px;"></div>',
-                        iconSize: [18, 18],
-                        iconAnchor: [9, 9]
-                    })
-                }).addTo(mapInstance)
-                .bindPopup("Sua Localização Atual");
-            }
-        },
-
-        renderRoutes: function() {
-            AppController.showContent();
-            const deliveryPoints = DeliveryStore.getDeliveries().map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
-            
-            if (deliveryPoints.length < 2) {
-                dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
-                return;
-            }
-
-            const simplifiedRoute = deliveryPoints
-                .slice(0, 10) 
-                .sort(() => Math.random() - 0.5); 
-            
-            const routeMapHtml = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
-                    ${deliveryPoints.length >= 2 ? `
-                        <button id="btnToggleRouteFullscreen" class="btn-primary" style="padding: 8px 12px; font-size: 14px; box-shadow:none;">
-                            🖥️ Tela Cheia
-                        </button>` : ''}
-                </div>
-                <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
-                <div id="routeMapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>
-                <div style="margin-top:10px">
-                    ${simplifiedRoute.map((p, index) => 
-                        `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
-                            ${index + 1}. ${p.id} 
-                            (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
-                        </div>`
-                    ).join('')}
-                </div>
-            `;
-            dom.contentArea.innerHTML = routeMapHtml;
-
-            setTimeout(() => {
-                const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
-
-                const routePoints = simplifiedRoute.map((p, index) => {
-                    const marker = L.marker([p.lat, p.lon]).addTo(map)
-                        .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
-                    
-                    marker.setIcon(L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div style="background:var(--accent); color:#000; border-radius:50%; width:24px; height:24px; text-align:center; font-weight:bold; line-height:24px;">${index + 1}</div>`,
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 12]
-                    }));
-                    return [p.lat, p.lon];
-                });
-                
-                if (routePoints.length > 1) {
-                    L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
-                    map.fitBounds(L.polyline(routePoints).getBounds());
-                }
-
-                if (deliveryPoints.length >= 2) {
-                    document.getElementById('btnToggleRouteFullscreen').addEventListener('click', () => {
-                        const sidebar = document.getElementById('sidebar');
-                        const appContainer = document.querySelector('.app-container');
-                        const button = document.getElementById('btnToggleRouteFullscreen');
-
-                        if (window.innerWidth > 768) { 
-                            if (!sidebar.classList.contains('hidden')) {
-                                sidebar.classList.add('hidden');
-                                appContainer.style.gridTemplateColumns = '1fr';
-                                button.innerHTML = '◀️ Voltar';
-                            } else {
-                                sidebar.classList.remove('hidden');
-                                appContainer.style.gridTemplateColumns = '392px 1fr';
-                                button.innerHTML = '🖥️ Tela Cheia';
-                            }
-                        }
-                        if (map) { setTimeout(() => { map.invalidateSize(); }, 350); }
-                    });
-                }
-
-            }, 100);
+    // 4. Inicia novo stream
+    const constraints = {
+        video: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+            facingMode: 'environment' // Preferir a câmera traseira em mobile
         }
     };
 
-    /**
-     * Utils: Funções auxiliares (Parser, Beep, Feedback, etc.)
-     */
-    const Utils = {
-        parsePayload: function(raw, location, user) {
-            let id = raw;
-            let type = 'Genérico';
-            if (raw.includes('shopee')) { type = 'Shopee'; } else if (raw.includes('mercadoli')) { type = 'Mercado Livre'; }
-            
-            const numMatch = raw.match(/(\d{8,})/);
-            if (numMatch) id = numMatch[1];
-            
-            const clientName = "Cliente " + id.slice(-5).toUpperCase();
-            const clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`; 
-            const clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-
-            const scanLat = location ? location.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
-            const scanLon = location ? location.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
-
-            return {
-                id: id, raw: raw, type: type, user: user.username,
-                date: new Date().toISOString(), lat: scanLat, lon: scanLon,
-                status: 'pending', clientName: clientName, clientAddress: clientAddress,
-                clientPhone: clientPhone, receivedBy: null
-            };
-        },
-
-        beep: function() { 
-             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.frequency.value = 1200;
-                gain.gain.value = 0.1;
-                osc.start();
-                setTimeout(() => { osc.stop(); audioCtx.close(); }, 100);
-            } catch(e){}
-        },
-
-        showFeedback: function(text, color = 'var(--accent)') { 
-            dom.feedback.textContent = text;
-            dom.feedback.style.background = color;
-            dom.feedback.style.opacity = '1';
-            setTimeout(() => { dom.feedback.style.opacity = '0'; }, 3000); 
-            
-            const overlay = document.querySelector('.scan-overlay');
-            overlay.style.borderColor = color;
-            setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
-        },
-
-        showDashboardFeedback: function(text) {
-             const feedbackDiv = document.createElement('div');
-            feedbackDiv.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:20px 40px; background:var(--success); color:white; border-radius:12px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.2); opacity:0; transition:opacity 0.3s; font-family: 'Inter', sans-serif;";
-            feedbackDiv.innerHTML = `<h3>${text}</h3>`;
-            document.body.appendChild(feedbackDiv);
-            
-            setTimeout(() => { feedbackDiv.style.opacity = '1'; }, 50);
-            setTimeout(() => { 
-                feedbackDiv.style.opacity = '0'; 
-                setTimeout(() => { 
-                    document.body.removeChild(feedbackDiv); 
-                }, 300);
-            }, 1500);
-        },
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentCameraStream = stream;
+        videoElement.srcObject = stream;
+        videoElement.play();
         
-        // **NOVA FUNÇÃO:** Centraliza o mapa na localização atual do usuário
-        centerMapOnUser: function() {
-            if (mapInstance && userLocation) {
-                mapInstance.setView([userLocation.lat, userLocation.lon], 15);
-                if (locationMarker) {
-                    locationMarker.openPopup();
-                }
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'info',
-                    title: 'Mapa centralizado em sua localização',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-            } else if (mapInstance) {
-                Swal.fire('Atenção', 'Aguardando localização GPS. Tente novamente em instantes.', 'warning');
-            } else {
-                 Swal.fire('Atenção', 'O mapa ainda não foi carregado.', 'warning');
-            }
-        },
+        // 5. Inicia o loop de escaneamento após a câmera carregar
+        videoElement.onloadedmetadata = () => {
+            requestAnimationFrame(tick);
+        };
+        showFeedback('Aguardando código de barras/QR...', 'info');
 
-        handleMarkAsDelivered: function(recordId) {
-             const record = DeliveryStore.getDeliveryById(recordId); 
-            
-            if (record) {
-                if (record.status === 'delivered') {
-                    Swal.fire({
-                        title: 'Entrega Já Confirmada', text: `A entrega ${recordId} já foi marcada como entregue. Deseja reverter o status para "Pendente"?`, icon: 'warning',
-                        showCancelButton: true, confirmButtonText: 'Sim, Reverter', cancelButtonText: 'Não, Manter'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            DeliveryStore.updateDeliveryStatus(recordId, 'pending', null);
-                            Utils.showDashboardFeedback(`Status da entrega ${recordId} revertido para PENDENTE.`);
-                            AppController.navigateTo('dashboard');
-                        }
-                    });
-                } else {
-                    Swal.fire({
-                        title: `Recebedor da Entrega ${recordId}`, input: 'text', inputLabel: 'Nome completo do recebedor:',
-                        inputPlaceholder: 'Digite o nome aqui', showCancelButton: true, confirmButtonText: 'Confirmar Entrega',
-                        cancelButtonText: 'Cancelar',
-                        inputValidator: (value) => { if (!value) { return 'Você precisa digitar o nome do recebedor!' } }
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            DeliveryStore.updateDeliveryStatus(recordId, 'delivered', result.value);
-                            Utils.showDashboardFeedback(`Entrega ${recordId} confirmada como entregue! Recebedor: ${result.value}`);
-                            AppController.navigateTo('dashboard');
-                        }
-                    });
-                }
-            } else { Swal.fire({ icon: 'error', title: 'Sem Permissão', text: 'Registro não encontrado ou você não tem permissão para alterar o status desta entrega.', confirmButtonText: 'Ok' }); }
-        },
-        
-        openContactOptions: function(phone, id) {
-            const phoneDigits = phone.replace(/\D/g, ''); 
-            const waLink = `https://wa.me/55${phoneDigits}`; 
+    } catch (err) {
+        console.error("Erro ao acessar a câmera:", err);
+        showFeedback('Erro: Câmera indisponível ou permissão negada.', 'error');
+        cameraView.style.display = 'none';
+        appContainer.classList.remove('hidden');
+    }
+}
 
-            Swal.fire({
-                title: `Contato da Entrega ${id}`, text: `Como você deseja contatar o cliente ${phone}?`, icon: 'question',
-                showCancelButton: true, showDenyButton: true, confirmButtonText: '📞 Ligar', denyButtonText: '💬 WhatsApp', cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) { window.open(`tel:${phone}`); } 
-                else if (result.isDenied) { window.open(waLink, '_blank'); }
-            });
-        },
-        
-        editUser: function(userId) {
-             const users = DeliveryStore.getUsers();
-             const userToEdit = userId ? users.find(u => u.id === userId) : null;
-            
-            if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
-                Swal.fire({ icon: 'error', title: 'Acesso Negado', text: 'Você não tem permissão para editar este usuário.' }); return;
-            }
+/** Para a câmera e o stream. */
+function stopCamera() {
+    if (currentCameraStream) {
+        currentCameraStream.getTracks().forEach(track => track.stop());
+        currentCameraStream = null;
+    }
+}
 
-            const isAdmin = currentUser.role === 'admin';
-            const isSelf = userToEdit && userToEdit.id === currentUser.id;
-            
-            let formHtml = `
-                <div class="user-form-card" style="border:1px solid var(--accent)">
-                    <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
-                    <input type="text" id="formUsername" placeholder="Usuário" value="${userToEdit ? userToEdit.username : ''}" ${userToEdit ? 'readonly' : ''} style="margin-bottom:8px;">
-                    <input type="password" id="formPassword" placeholder="Nova Senha (deixe em branco para manter)" value="">
-                    <select id="formRole" style="margin-bottom:8px;" ${isAdmin || isSelf ? '' : 'disabled'}>
-                        <option value="colaborador" ${userToEdit && userToEdit.role === 'colaborador' ? 'selected' : ''}>Colaborador</option>
-                        <option value="gestor" ${userToEdit && userToEdit.role === 'gestor' ? 'selected' : ''} ${!isAdmin && !isSelf ? 'hidden' : ''}>Gestor</option>
-                        <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''} ${!isAdmin && !isSelf ? 'hidden' : ''}>Administrador</option>
-                    </select>
-                    <div style="display:flex;gap:8px;margin-top:10px">
-                        <button class="btn-primary" onclick="Utils.saveUser('${userId || ''}')" style="flex:1">Salvar</button>
-                        <button onclick="AppController.navigateTo('users')" style="background:#e5e7eb; color:var(--content-text-dark); box-shadow:none;">Cancelar</button>
-                    </div>
-                    ${!isAdmin && !isSelf ? `<p style="color:var(--danger); font-size:12px; margin-top:10px;">Apenas Admins/Você podem alterar o Nível de Acesso.</p>` : ''}
-                </div>
-            `;
-            document.getElementById('userFormArea').innerHTML = formHtml;
-            document.getElementById('userFormArea').scrollIntoView({ behavior: 'smooth' });
-        },
-        
-        saveUser: function(userId) {
-            const users = DeliveryStore.getUsers();
-            const username = document.getElementById('formUsername').value.trim();
-            const password = document.getElementById('formPassword').value.trim();
-            const role = document.getElementById('formRole').value;
-            const isNew = !userId;
+/** Enumera as câmeras disponíveis e preenche o select. */
+async function enumerateDevices() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-            if (!username) { Swal.fire('Erro', 'Usuário é obrigatório.', 'error'); return; }
-            if (isNew && !password) { Swal.fire('Erro', 'Senha é obrigatória para novo usuário.', 'error'); return; }
+    cameraSelect.innerHTML = '';
+    if (videoDevices.length === 0) {
+        cameraSelect.innerHTML = '<option value="">Nenhuma Câmera Encontrada</option>';
+        return;
+    }
 
-            let userIndex = -1;
-            if (userId) userIndex = users.findIndex(u => u.id === userId);
+    videoDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `Câmera ${index + 1}`;
+        cameraSelect.appendChild(option);
+    });
+}
 
-            if (isNew && users.some(u => u.username === username)) { Swal.fire('Erro', 'Nome de usuário já existe.', 'error'); return; }
-            
-            let updatedUser;
-            if (isNew) {
-                updatedUser = {
-                    id: 'u' + Date.now(),
-                    username, password,
-                    role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
-                    creatorId: currentUser.id
-                };
-                users.push(updatedUser);
-            } else {
-                updatedUser = users[userIndex]; 
-                if (password) updatedUser.password = password;
-                if (currentUser.role === 'admin' || currentUser.id === userId) { updatedUser.role = role; }
-            }
+/** Loop principal de escaneamento de QR Code. */
+function tick() {
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+        // Cria um canvas para processar o frame do vídeo
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.height = videoElement.videoHeight;
+        canvas.width = videoElement.videoWidth;
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-            DeliveryStore.updateUsers(users); // Persistência no Store
-            document.getElementById('userFormArea').innerHTML = '';
-            AppController.navigateTo('users');
-            Swal.fire('Sucesso', 'Usuário salvo com sucesso!', 'success');
-        },
+        // Usa jsQR para escanear o código
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+        });
 
-        deleteUser: function(userId) {
-            if (userId === currentUser.id) { Swal.fire('Erro', 'Você não pode excluir seu próprio perfil enquanto estiver logado.', 'error'); return; }
-            Swal.fire({
-                title: 'Tem certeza?', text: "Você não poderá reverter isso!", icon: 'warning',
-                showCancelButton: true, confirmButtonColor: 'var(--danger)', cancelButtonColor: '#aaa',
-                confirmButtonText: 'Sim, excluir!'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    let users = DeliveryStore.getUsers().filter(u => u.id !== userId);
-                    DeliveryStore.updateUsers(users); // Persistência no Store
-                    AppController.navigateTo('users');
-                    Swal.fire('Excluído!', 'O usuário foi excluído.', 'success');
-                }
-            });
+        if (code) {
+            // Código encontrado
+            handleScanResult(code.data);
+            return; // Sai do loop para não escanear o mesmo código repetidamente
         }
-    };
-    
-    // --- Funções de Escopo Global (para chamadas inline no HTML) ---
-    window.AppController = AppController;
-    window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
-    
-    // Exportando funções Utils necessárias no HTML (como markAsDelivered, editUser, etc.)
-    window.Utils = Utils;
-    window.renderDashboard = () => AppController.navigateTo('dashboard');
-    window.renderDeliveryDetails = (id) => AppController.navigateTo('details', id);
+    }
 
+    // Continua o loop se a câmera ainda estiver ativa
+    if (currentCameraStream) {
+        requestAnimationFrame(tick);
+    }
+}
 
-    // Inicia a aplicação
-    AppController.init();
+/** Processa o resultado do scan/entrada manual. */
+function handleScanResult(deliveryId) {
+    stopCamera();
+    
+    const data = getDeliveryData(deliveryId);
+
+    if (data) {
+        showFeedback(`ID de Entrega Encontrado: ${deliveryId}`, 'success', 5000);
+        
+        const actionButton = data.status === 'Entrega Concluída' ? 
+            `<button class="btn-primary" style="background:var(--secondary); width:100%; margin-top:10px;" disabled>Entrega Concluída</button>` :
+            `<button class="btn-primary" style="background:var(--success); width:100%; margin-top:10px;" onclick="confirmDelivery('${deliveryId}')">Confirmar ${data.type}</button>`;
+            
+        showAlert(
+            `${data.type} Encontrada!`,
+            `
+            <div style="text-align:left; font-size:16px;">
+                <p><b>ID:</b> ${deliveryId}</p>
+                <p><b>Status:</b> ${data.status}</p>
+                <p><b>Local:</b> ${data.location}</p>
+                ${data.recipient ? `<p><b>Recebedor:</b> ${data.recipient}</p>` : ''}
+                ${actionButton}
+            </div>
+            `,
+            'success'
+        ).then(() => {
+            // Volta para o dashboard após fechar o alerta
+            renderContent('Dashboard');
+        });
+
+    } else {
+        showFeedback(`ID de Entrega Inválido: ${deliveryId}`, 'error', 5000);
+        // Volta a escanear
+        setTimeout(() => startCamera(cameraSelect.value), 3000); 
+    }
+}
+
+/** Simula a confirmação de uma entrega/coleta. */
+function confirmDelivery(deliveryId) {
+    Swal.fire({
+        title: 'Confirmar Ação',
+        text: `Você tem certeza que deseja confirmar a entrega/coleta do ID ${deliveryId}?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sim, Confirmar!',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            confirmButton: 'btn-primary',
+            cancelButton: 'btn-primary'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            showAlert('Sucesso!', `ID ${deliveryId} confirmado com sucesso.`, 'success');
+            // Simulação: Atualizaria o status no backend aqui
+            renderContent('Dashboard');
+        } else {
+            // Volta para o dashboard se cancelar
+            renderContent('Dashboard');
+        }
+    });
+}
+
+// --- Funções de Eventos ---
+
+// 1. Login
+btnLogin.addEventListener('click', () => {
+    const user = document.getElementById('loginUser').value;
+    const pass = document.getElementById('loginPass').value;
+    const errorMsg = document.getElementById('loginError');
+
+    const matchedUser = userCredentials.find(c => c.user === user && c.pass === pass);
+
+    if (matchedUser) {
+        currentUser = matchedUser;
+        errorMsg.textContent = '';
+        loginSection.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+        updateUI(currentUser);
+        renderContent('Dashboard'); // Inicia no Dashboard
+    } else {
+        errorMsg.textContent = 'Usuário ou senha inválidos.';
+    }
 });
+
+// 2. Logout
+btnLogout.addEventListener('click', () => {
+    stopCamera();
+    currentUser = null;
+    appContainer.classList.add('hidden');
+    loginSection.classList.remove('hidden');
+    mobileMenuBtn.classList.add('hidden');
+    document.getElementById('loginPass').value = ''; // Limpa a senha
+    showAlert('Desconectado', 'Você saiu do sistema com sucesso.', 'info');
+});
+
+// 3. Navegação
+menuItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+        const id = e.currentTarget.id.replace('btn', '');
+        if (id === 'Export') {
+            // Lógica especial para Exportar: exibe sub-botões
+            const exportOptions = document.getElementById('exportOptions');
+            const isVisible = exportOptions.style.display === 'flex';
+            exportOptions.style.display = isVisible ? 'none' : 'flex';
+            
+            // Se for Administrador, renderiza o painel de exportação.
+            if (currentUser.role === 'admin' && !isVisible) {
+                 renderContent(id);
+            }
+            // Não renderiza conteúdo se for apenas para abrir/fechar o menu
+            return; 
+        }
+        
+        // Se for Users, verifica permissão
+        if (id === 'Users' && currentUser.role !== 'admin') {
+            showAlert('Acesso Negado', 'Apenas administradores podem gerenciar usuários.', 'error');
+            return;
+        }
+
+        renderContent(id);
+    });
+});
+
+// 4. Exportação (Sub-botões)
+document.getElementById('btnExportDaily').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação diária...', 'success'));
+document.getElementById('btnExportWeekly').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação semanal...', 'success'));
+document.getElementById('btnExportMonthly').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação mensal...', 'success'));
+document.getElementById('btnExportAll').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação de todos os dados...', 'success'));
+
+
+// 5. Troca de Câmera
+cameraSelect.addEventListener('change', (e) => {
+    stopCamera();
+    startCamera(e.target.value);
+});
+
+// 6. Entrada Manual do Scanner
+document.getElementById('btnToggleManualInput').addEventListener('click', () => {
+    const isVisible = manualInputContainer.style.opacity === '1';
+    if (isVisible) {
+        manualInputContainer.style.opacity = '0';
+        manualInputContainer.style.pointerEvents = 'none';
+    } else {
+        manualInputContainer.style.opacity = '1';
+        manualInputContainer.style.pointerEvents = 'auto';
+        document.getElementById('manualDeliveryId').focus();
+    }
+});
+
+document.getElementById('btnManualConfirm').addEventListener('click', () => {
+    const id = document.getElementById('manualDeliveryId').value.trim();
+    if (id) {
+        manualInputContainer.style.opacity = '0';
+        manualInputContainer.style.pointerEvents = 'none';
+        handleScanResult(id);
+    } else {
+        showFeedback('Por favor, insira um ID.', 'error');
+    }
+});
+
+// --- Inicialização ---
+
+/** Verifica se há algum usuário logado ao carregar (para fins de desenvolvimento). */
+function initialize() {
+    // Configura o evento do botão de menu mobile
+    mobileMenuBtn.onclick = toggleSidebar;
+    
+    // Configura o formulário de login para enviar com Enter
+    document.getElementById('loginPass').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            btnLogin.click();
+        }
+    });
+
+    // Tenta simular o login automático para agilizar o desenvolvimento
+    // Remova este bloco em produção
+    const autoLogin = userCredentials[0];
+    document.getElementById('loginUser').value = autoLogin.user;
+    document.getElementById('loginPass').value = autoLogin.pass;
+    btnLogin.click();
+}
+
+// Inicia a aplicação
+initialize();
