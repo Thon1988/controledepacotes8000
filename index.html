@@ -50,7 +50,7 @@
             background: var(--background);
         }
 
-        /* Oculta a barra lateral e maximiza o conteúdo */
+        /* Oculta a barra lateral e maximiza o conteúdo (usado no modo mapa/scanner) */
         .app-container[style*="grid-template-columns: 1fr"] #sidebar {
             display: none;
         }
@@ -154,7 +154,7 @@
             z-index: 100;
         }
 
-        /* ✏️ Entrada Manual (NOVO) */
+        /* ✏️ Entrada Manual */
         #manualInputContainer {
             position: absolute;
             bottom: 120px;
@@ -250,6 +250,7 @@
             .content-area {
                 padding-top: 60px; /* Espaço para o botão do menu */
             }
+            /* Garante que o grid de coluna única permaneça em mobile */
             .app-container[style*="grid-template-columns: 1fr"] {
                 grid-template-columns: 1fr !important;
             }
