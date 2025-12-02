@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'),
+        appContainer: document.querySelector('.app-container'), // Corrigido para .app-container
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -53,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     /**
      * Adaptador LocalStore: Lida diretamente com o localStorage.
-     * Esta é a camada que será trocada na migração (Fase 2).
      */
     const LocalStore = {
         loadDeliveries: function() {
@@ -64,8 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!r.clientName) r.clientName = "Cliente Simulado " + r.id.slice(-4);
                 if (!r.clientAddress) r.clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`;
                 if (!r.clientPhone) r.clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-                if (!r.lat) r.lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.01;
-                if (!r.lon) r.lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.01;
+                // Adiciona coordenadas simuladas se não existirem
+                if (!r.lat || !r.lon) {
+                    r.lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.01;
+                    r.lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.01;
+                }
             });
             return records;
         },
@@ -98,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * DeliveryStore: Gerencia o estado da aplicação e as regras de negócio.
-     * Ele chama o DataAdapter (LocalStore ou ExternalStore) para persistência.
      */
     const DeliveryStore = {
         // Estado inicial
@@ -159,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     /**
      * AppController: Gerencia o fluxo da aplicação e a interação entre Views e Stores.
-     * Todas as funções globais (window.*) que controlam a navegação serão movidas para cá.
      */
     const AppController = {
         init: function() {
@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'scanner':
                     dom.contentArea.style.display = 'none';
                     dom.cameraView.style.display = 'flex'; 
-                    dom.appContainer.style.display = 'none';
+                    dom.appContainer.style.display = 'none'; // Esconde o app-container para maximizar cameraView
                     if(window.innerWidth > 768) { dom.sidebar.classList.add('hidden'); } else { dom.sidebar.classList.remove('active'); }
                     this.startScanner();
                     break;
@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     Views.renderUsers();
                     break;
                 case 'map':
-                    // **NOVO:** Garante o modo tela cheia para o mapa
+                    // **MODIFICAÇÃO:** Garante o modo tela cheia para o mapa
                     dom.contentArea.style.display = 'block';
                     dom.cameraView.style.display = 'none'; 
                     dom.appContainer.style.display = 'grid'; 
@@ -268,13 +268,35 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         // --- Controle do Scanner ---
+        enumerateDevices: async function() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                
+                dom.cameraSelect.innerHTML = '';
+                
+                if (videoDevices.length === 0) {
+                    dom.cameraSelect.innerHTML = '<option value="" disabled>Nenhuma câmera encontrada</option>';
+                    return;
+                }
+                
+                videoDevices.forEach((device, index) => {
+                    const label = device.label || `Câmera ${index + 1}`;
+                    const option = new Option(label, device.deviceId);
+                    dom.cameraSelect.add(option);
+                });
+                
+            } catch(e) {
+                console.error("Erro ao enumerar dispositivos:", e);
+                dom.cameraSelect.innerHTML = '<option value="" disabled>Erro ao carregar câmeras</option>';
+            }
+        },
+
         startScanner: async function(deviceId = null) { 
-            // Implementação da inicialização do scanner (igual a antes)
-            // ... (código startScanner anterior) ...
             if (isScanning && !deviceId) return;
             this.stopScanner(); 
             
-            await this.enumerateDevices(); 
+            await this.enumerateDevices(); // ✅ Garante que a lista de câmeras esteja preenchida
 
             const videoDevices = Array.from(dom.cameraSelect.options);
             let targetDeviceId = deviceId;
@@ -295,6 +317,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!targetDeviceId && dom.cameraSelect.value) {
                 targetDeviceId = dom.cameraSelect.value;
+            }
+            
+            if (!targetDeviceId) {
+                 Swal.fire({
+                    icon: 'error',
+                    title: 'Câmera Não Encontrada',
+                    text: 'Nenhum dispositivo de vídeo disponível para escanear.',
+                    confirmButtonText: 'Voltar ao Dashboard'
+                }).then(() => { this.navigateTo('dashboard'); });
+                return;
             }
 
             const constraints = {
@@ -329,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         stopScanner: function() { 
-            // Implementação da parada do scanner (igual a antes)
             isScanning = false;
             if (videoStream) {
                 videoStream.getTracks().forEach(t => t.stop());
@@ -339,7 +370,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         tick: function() {
-            // Implementação da leitura do QR code (igual a antes)
             if (!isScanning) return;
             if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
                 const canvas = document.createElement('canvas');
@@ -364,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     AppController.handleScan(code.data);
                 }
             }
-            requestAnimationFrame(AppController.tick); // Chama o método do objeto
+            requestAnimationFrame(AppController.tick);
         },
 
         handleScan: function(data) {
@@ -434,17 +464,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Ações Globais ---
         showContent: function() {
-            // Implementação da exibição de conteúdo (igual a antes)
             dom.cameraView.style.display = 'none';
             dom.contentArea.style.display = 'block';
             
+            // **CORREÇÃO DE LAYOUT:** Garante que o container volte ao modo normal
             dom.appContainer.style.display = 'grid'; 
             
             if (window.innerWidth > 768) { 
                 dom.sidebar.classList.remove('hidden'); 
-                dom.appContainer.style.gridTemplateColumns = '392px 1fr';
+                dom.appContainer.style.gridTemplateColumns = '392px 1fr'; // Layout Sidebar + Conteúdo
             } else {
                 dom.sidebar.classList.remove('active');
+                // Em mobile, continua 1fr
+                dom.appContainer.style.gridTemplateColumns = '1fr';
             }
             
             this.stopScanner();
@@ -453,7 +485,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             dom.feedback.style.opacity = '0'; 
             
-            // Só esconde a entrada manual se estivermos saindo do scanner
             if (dom.contentArea.style.display !== 'none') {
                 dom.manualInputContainer.style.opacity = '0';
                 dom.manualInputContainer.style.pointerEvents = 'none';
@@ -480,7 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         handleExport: function(filter) {
-            // Lógica de exportação (igual a antes, mas pega dados do Store)
             const allRecords = DeliveryStore.getDeliveries();
             let filteredRecords = [];
             const today = new Date();
@@ -502,7 +532,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if(!filteredRecords.length) return Swal.fire('Aviso', `Nenhum dado encontrado para o filtro: ${filter}.`, 'warning');
             
-            // ... (Restante da lógica de geração de CSV) ...
             let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS,NOME_CLIENTE,ENDERECO_CLIENTE,TELEFONE_CLIENTE,RECEBEDOR\n'; 
             filteredRecords.forEach(r => {
                 const scanDate = new Date(r.date);
@@ -528,7 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     /**
      * Views: Funções de renderização de interface.
-     * Elas pegam dados do Store e chamam o Controller para ações.
      */
     const Views = {
         renderDashboard: function() {
@@ -601,7 +629,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         renderSingleDetails: function(record, recordId) {
-            // Implementação da tela de detalhes de uma única entrega (igual a antes)
             const allRecords = DeliveryStore.getDeliveries().map(r => r.id);
             const currentIndex = allRecords.indexOf(recordId);
             const prevId = currentIndex > 0 ? allRecords[currentIndex - 1] : null;
@@ -668,7 +695,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMultipleDeliveryForm: function(recordIds) {
             AppController.showContent();
             
-            // Pega APENAS os registros PENDENTES do Store
             const recordsToDeliver = recordIds.map(id => DeliveryStore.getDeliveryById(id)).filter(r => r && r.status === 'pending');
             
             if (recordsToDeliver.length === 0) {
@@ -749,7 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         renderUsers: function() {
-            // Lógica de listagem e CRUD de usuários (igual a antes, mas usando DeliveryStore.getUsers())
             AppController.showContent();
             const users = DeliveryStore.getUsers();
             
@@ -792,11 +817,18 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMap: function() {
             AppController.showContent();
             mapInstance = null;
-            // **MODIFICAÇÃO:** Removido o botão de tela cheia, pois o mapa já abre em tela cheia na navegação
+            // **MODIFICAÇÃO:** Botão vermelho flutuante
             dom.contentArea.innerHTML = `
                 <h2>🗺️ Mapa de Entregas</h2>
                 <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-                <div id="mapObj" style="height:90vh; border-radius:12px; margin-top:10px"></div>`;
+                <div style="position:relative;">
+                    <div id="mapObj" style="height:90vh; border-radius:12px; margin-top:10px"></div>
+                    <button onclick="Utils.centerMapOnUser()" id="btnCenterMap" style="
+                        position:absolute; bottom:20px; right:20px; z-index:1000;
+                        background:var(--danger); color:white; padding:10px 15px; border:none; border-radius:50%;
+                        font-size:18px; width:50px; height:50px; cursor:pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+                    ">📍</button>
+                </div>`;
             
             setTimeout(() => {
                 const records = DeliveryStore.getDeliveries();
@@ -806,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
 
-                // **MODIFICAÇÃO:** Atualização do Popup para incluir Detalhes e Baixa
+                // Atualização do Popup para incluir Detalhes e Baixa
                 records.forEach(r => {
                     const popupContent = `
                         <b>${r.id}</b><br>${r.clientAddress}<br>
@@ -817,20 +849,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     L.marker([r.lat, r.lon]).addTo(mapInstance)
                         .bindPopup(popupContent);
                 });
+                
+                // Centraliza na localização se disponível
+                if (userLocation) {
+                    mapInstance.setView([userLocation.lat, userLocation.lon], 15);
+                } else {
+                    mapInstance.setView([CD_LOCATION.lat, CD_LOCATION.lon], 14);
+                }
 
                 Views.updateMapLocation();
-                
-                // O código de toggle fullscreen foi removido daqui e transferido para AppController.navigateTo('map')
             }, 100);
         },
 
         updateMapLocation: function() {
-            // Lógica de atualização de localização (igual a antes)
             if (!mapInstance || !userLocation) return;
 
             const currentLocEl = document.getElementById('currentLoc');
             if (currentLocEl) {
-                currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
+                currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - Localização Atualizada`;
             }
 
             if (locationMarker) {
@@ -849,7 +885,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         renderRoutes: function() {
-            // Lógica de rotas (igual a antes, usando DeliveryStore)
             AppController.showContent();
             const deliveryPoints = DeliveryStore.getDeliveries().map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
             
@@ -862,7 +897,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .slice(0, 10) 
                 .sort(() => Math.random() - 0.5); 
             
-            // ... (Restante do HTML de Rotas) ...
             const routeMapHtml = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
@@ -884,7 +918,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             dom.contentArea.innerHTML = routeMapHtml;
 
-            // ... (Inicialização do mapa de rotas) ...
             setTimeout(() => {
                 const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
@@ -910,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (deliveryPoints.length >= 2) {
                     document.getElementById('btnToggleRouteFullscreen').addEventListener('click', () => {
                         const sidebar = document.getElementById('sidebar');
-                        const appContainer = document.querySelector('.app');
+                        const appContainer = document.querySelector('.app-container');
                         const button = document.getElementById('btnToggleRouteFullscreen');
 
                         if (window.innerWidth > 768) { 
@@ -934,7 +967,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Utils: Funções auxiliares (Parser, Beep, Feedback, etc.)
-     * Essas funções não têm estado nem controlam o fluxo principal.
      */
     const Utils = {
         parsePayload: function(raw, location, user) {
@@ -960,7 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         },
 
-        beep: function() { /* ... (Implementação do beep) ... */
+        beep: function() { 
              try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
@@ -974,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch(e){}
         },
 
-        showFeedback: function(text, color = 'var(--accent)') { /* ... (Implementação do feedback) ... */
+        showFeedback: function(text, color = 'var(--accent)') { 
             dom.feedback.textContent = text;
             dom.feedback.style.background = color;
             dom.feedback.style.opacity = '1';
@@ -1000,6 +1032,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 1500);
         },
         
+        // **NOVA FUNÇÃO:** Centraliza o mapa na localização atual do usuário
+        centerMapOnUser: function() {
+            if (mapInstance && userLocation) {
+                mapInstance.setView([userLocation.lat, userLocation.lon], 15);
+                if (locationMarker) {
+                    locationMarker.openPopup();
+                }
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Mapa centralizado em sua localização',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+            } else if (mapInstance) {
+                Swal.fire('Atenção', 'Aguardando localização GPS. Tente novamente em instantes.', 'warning');
+            } else {
+                 Swal.fire('Atenção', 'O mapa ainda não foi carregado.', 'warning');
+            }
+        },
+
         handleMarkAsDelivered: function(recordId) {
              const record = DeliveryStore.getDeliveryById(recordId); 
             
@@ -1012,7 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (result.isConfirmed) {
                             DeliveryStore.updateDeliveryStatus(recordId, 'pending', null);
                             Utils.showDashboardFeedback(`Status da entrega ${recordId} revertido para PENDENTE.`);
-                            AppController.navigateTo('dashboard'); // Volta para a dashboard após a ação
+                            AppController.navigateTo('dashboard');
                         }
                     });
                 } else {
@@ -1023,10 +1077,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         inputValidator: (value) => { if (!value) { return 'Você precisa digitar o nome do recebedor!' } }
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            // Persistência no Store
                             DeliveryStore.updateDeliveryStatus(recordId, 'delivered', result.value);
                             Utils.showDashboardFeedback(`Entrega ${recordId} confirmada como entregue! Recebedor: ${result.value}`);
-                            AppController.navigateTo('dashboard'); // Volta para a dashboard após a ação
+                            AppController.navigateTo('dashboard');
                         }
                     });
                 }
@@ -1047,7 +1100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         
         editUser: function(userId) {
-            // Lógica de edição de usuário (igual a antes, usando DeliveryStore)
              const users = DeliveryStore.getUsers();
              const userToEdit = userId ? users.find(u => u.id === userId) : null;
             
