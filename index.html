@@ -560,24 +560,32 @@
       
       <div style="
         position: absolute; 
-        top: 0; 
-        left: 0; 
+        top: 10px; 
+        right: 10px; 
         z-index: 10;
-        background: rgba(255, 255, 255, 0.8);
-        padding: 10px 15px;
-        border-radius: 12px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         display: flex;
         align-items: center;
         gap: 15px;
         color: var(--content-text-dark);
       ">
+        <div style="
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-weight: 500;
+        ">
+            🗺️ <span id="currentLocMap">Carregando...</span>
+        </div>
+        
         <button onclick="window.renderDashboard()" style="
-            background: var(--danger);
+            background: rgba(0,0,0,0.5); /* Fundo preto semi-transparente como no scanner */
             color: white;
             border: none;
-            padding: 5px 8px;
+            padding: 10px;
             border-radius: 50%;
+            width: 45px;
+            height: 45px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -586,8 +594,6 @@
             font-weight: bold;
             line-height: 1;
         ">✕</button>
-        <div style="font-size: 18px; font-weight: bold;">🗺️ Mapa de Entregas</div>
-        <p style="font-size:14px; color:var(--content-text-dark); margin:0;">Localização: <span id="currentLocMap">Carregando...</span></p>
       </div>
 
       <div id="mapObjFullscreen" style="
