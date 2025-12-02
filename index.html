@@ -1,419 +1,154 @@
-<!DOCTYPE html>
+<!DOCTYPE HTML>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pegazus Logística - Sistema de Rastreio</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin=""/>
-        
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="content-type" content="charset=utf-8" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta name="google" content="notranslate" />
+    <meta name="viewport" content="width=device-width, initial-2.0, maximum-scale=1.0, user-scalable=no">
+    <link REL="SHORTCUT ICON" HREF="/moto/moto.dll/m/cache/moto_exe/n66/66_G7qBGUhBKd11223D414/favicon.ico">
+    <title>Pex - Mapa de Entregas</title>
+    <meta charset="utf-8">
+    <meta name="theme-color" content="#aeeabc">
+    <meta name="screen-orientation" content="portrait">
+    <meta name="x5-orientation" content="portrait">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-    <style>
-        :root {
-            --primary: #1F2937; /* Cinza Escuro */
-            --secondary: #374151; /* Cinza Médio */
-            --accent: #3b82f6; /* Azul Claro */
-            --success: #22c55e; /* Verde */
-            --danger: #ef4444; /* Vermelho */
-            --background: #f3f4f6; /* Fundo Leve */
-            --content-bg: #ffffff; /* Fundo de Conteúdo */
-            --content-bg-light: #f9fafb; /* Fundo de Card Claro */
-            --content-card-bg: #fff;
-            --content-text-dark: #374151;
-            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--background);
-            color: var(--content-text-dark);
-            margin: 0;
-            padding: 0;
-            /* Centraliza a tela de login inicialmente */
-            display: flex; 
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
+    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/modern/theme-triton/resources/theme-triton-all.css" />
+    <link rel=stylesheet href="/moto/moto.dll/m/uni-1.95.0.1600/css/uni-ext-common.css" />
+    <link rel=stylesheet href="/moto/moto.dll/m/unim-1.95.0.1600/css/uni-ext.css" />
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600//uni-init-min.js"></script>
+    <script src="/moto/moto.dll/m/ext-7.8.0/build/ext-modern-all.js"></script>
+    <script src="/moto/moto.dll/m/ext-7.8.0/build/modern/theme-triton/theme-triton.js"></script>
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-unicommon-min.js"></script>
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-sync-min.js"></script>
+    <script src="/moto/moto.dll/m/ext-7.8.0/build/modern/locale/locale-pt_BR.js"></script>
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600/jQuery/jquery-3.6.4.min.js"></script>
+    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/packages/font-awesome-4.7.0/resources/font-awesome-all.css" />
+    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/packages/font-pictos/resources/font-pictos-all.css" />
+    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/packages/font-awesome/resources/font-awesome-all.css" />
+    <script src="./files/dsa/qrcode_reader/js/qrcode_library.js"></script>
+    <script src="/moto/moto.dll/m/files/sweetalert2/sweetalert2.min.js"></script>
+    <link rel=stylesheet href="/moto/moto.dll/m/files/sweetalert2/sweetalert2.css" />
+    <link rel=stylesheet href="/moto/moto.dll/m/files/sweetalert2/unisweetalert2.css" />
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600/unicanvas-min.js"></script>
+    <link rel=stylesheet href="/moto/moto.dll/m/unim-1.95.0.1600/css/uni-triton.css" />
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-unicommon-min.js"></script>
+    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-sync-min.js"></script>
+    <script src="/moto/moto.dll/m/unim-1.95.0.1600/touch-unigui-min.js"></script>
+    <script src="/moto/moto.dll/files/leaflet/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
-        /* 📱 Layout Principal CLÁSSICO (Desktop/Tablet) */
-        .app-container {
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style type="text/css">
+        .sombra_texto { text-shadow: 0px 0px 5px white;}
+        .sombra_texto_preto { text-shadow: 0px 0px 5px black, 0px 0px 5px black, 0px 0px 5px black; }
+        .sombra { box-shadow: 0px 0px 5px grey;}
+        .semi_transparente{ background: rgba(255,255,255,0.5);}
+        .semi_transparente_sombra{ background: rgba(255,255,255,0.5); box-shadow: 0px 0px 5px grey;}
+        .botao_rounded .x-inner-el{ border-radius: 6px!important; background:#F2F2F2!important; box-shadow: 0px 0px 4px grey; -webkit-transition: background 0.5s ease-in-out; transition: background 0.5s ease-in-out;}
+        .edit_rounded .x-input-wrap-el{ border-radius: 6px!important;}
+        .rounded{ border-radius: 6px!important;}
+        
+        /* Estilo fundamental para o mapa e o painel de filtros */
+        #mapid {
+            height: 100%; /* Ajuste a altura conforme seu layout UniGUI */
             width: 100%;
-            max-width: 1400px; /* Limite de largura para telas grandes */
-            min-height: 100vh;
-            display: flex; /* Novo: Usa Flexbox para sidebar e conteúdo */
-            overflow: hidden;
-            background: var(--background);
-            margin: 0 auto; /* Centraliza o container principal */
-        }
-        
-        /* Ajuste para quando o login sumir, o appContainer ocupar a tela toda */
-        #appContainer:not(.hidden) {
-            position: absolute; /* Para sobrescrever a centralização do body */
+            position: absolute;
             top: 0;
             left: 0;
-            right: 0;
-            bottom: 0;
-            height: 100vh;
-            width: 100vw;
-            max-width: none;
+            z-index: 1; /* Fica abaixo do painel de filtros */
         }
-
-        /* 🚪 Login */
-        .login-section {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            padding: 40px;
-            background: var(--content-bg);
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            width: 90%;
-            max-width: 400px;
-        }
-        
-        /* ⚙️ Sidebar */
-        .sidebar {
-            background: var(--primary);
-            color: white;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-            overflow-y: auto;
-            position: relative;
-            z-index: 10;
-            width: 392px; /* Largura fixa para a sidebar em desktop */
-            flex-shrink: 0; /* Impede que a sidebar diminua */
-        }
-        
-        .logo { font-size: 24px; font-weight: 700; margin-bottom: 20px; text-align: center; }
-
-        .menu-item {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            margin: 5px 0;
+        #painel-filtros {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000; /* Fica acima do mapa */
+            background-color: white;
+            padding: 15px;
             border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-            font-size: 16px;
-        }
-
-        .menu-item:hover, .menu-item.active {
-            background: var(--secondary);
-        }
-        
-        .menu-item span { margin-left: 10px; }
-
-        /* Sub-menu de Exportação */
-        #exportOptions {
-            display: none; /* Controlado por JS */
-            flex-direction: column;
-            padding-left: 20px;
-            margin-bottom: 10px;
-        }
-
-        #exportOptions button {
-            margin: 5px 0;
-            padding: 8px;
-            background: var(--secondary);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            text-align: left;
-            transition: background 0.2s;
-        }
-        #exportOptions button:hover {
-            background: #4b5563;
-        }
-
-        /* 🖥️ Área de Conteúdo */
-        .content-area {
-            padding: 20px;
-            overflow-y: auto;
-            background: var(--background);
-            flex-grow: 1; /* Permite que o conteúdo preencha o espaço restante */
-        }
-
-        /* 📷 Scanner - Posicionamento em Tela Cheia */
-        .camera-view {
-            display: none; /* Controlado por JS */
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-            width: 100vw; /* Ocupa a largura total */
-            height: 100vh; /* Ocupa a altura total */
-            position: fixed; /* Fixa sobre tudo */
-            top: 0;
-            left: 0;
-            z-index: 1000; /* Garante que fique acima de todos os outros elementos */
-        }
-        
-        #videoElement {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .scan-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            height: 80%;
-            max-width: 500px;
-            max-height: 500px;
-            border: 4px dashed rgba(255, 255, 255, 0.5);
-            border-radius: 10px;
-            pointer-events: none;
-            box-sizing: border-box;
-            transition: border-color 0.3s;
-        }
-
-        #feedbackMsg {
-            position: absolute;
-            bottom: 60px;
-            padding: 10px 20px;
-            background: var(--accent);
-            color: white;
-            border-radius: 8px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 100;
-        }
-
-        /* ✏️ Entrada Manual */
-        #manualInputContainer {
-            position: absolute;
-            bottom: 120px;
-            width: 90%;
-            max-width: 400px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 250px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.85);
-            border-radius: 10px;
-            box-shadow: var(--shadow);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-            z-index: 99;
         }
-
-        #manualInputContainer input {
-            background: #333;
-            border: 1px solid #555;
-            color: white;
-            padding: 10px;
-            border-radius: 6px;
+        #painel-filtros label, #painel-filtros select, #painel-filtros input {
             width: 100%;
-            box-sizing: border-box;
-        }
-
-        /* 📱 Layout Responsivo e Utilitários */
-        .hidden { display: none !important; }
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s, box-shadow 0.2s;
-            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
-        }
-        .btn-primary:hover {
-            background: #2563eb; 
-        }
-
-        input[type="text"], input[type="password"], select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            box-sizing: border-box;
-        }
-
-        .user-form-card {
-            background: var(--content-card-bg);
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 10px;
-            box-shadow: var(--shadow);
-        }
-
-        /* Menu Mobile */
-        .mobile-menu-btn {
-            position: fixed;
-            top: 15px;
-            left: 15px;
-            z-index: 20;
-            background: var(--primary);
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 8px;
-            font-size: 20px;
-            cursor: pointer;
-            box-shadow: var(--shadow);
-        }
-        /* Mobile: Menu lateral escondido por padrão */
-        @media (max-width: 768px) {
-            .app-container {
-                /* Em mobile, a barra lateral é escondida e o conteúdo ocupa tudo */
-                display: block; 
-                width: 100vw;
-            }
-            .sidebar {
-                position: fixed;
-                width: 70%;
-                height: 100%;
-                transform: translateX(-100%);
-                transition: transform 0.3s ease-in-out;
-                z-index: 50; /* Z-index alto para ficar sobre o conteúdo */
-            }
-            .sidebar.active {
-                transform: translateX(0);
-            }
-            .content-area {
-                padding-top: 60px; /* Espaço para o botão do menu */
-            }
-        }
-        
-        /* ⚙️ Opções do Scanner (Posicionamento dentro da view da Câmera) */
-        .scanner-options {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.6);
-            border-radius: 8px;
-        }
-
-        .scanner-options select, .scanner-options button {
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: none;
-            font-size: 14px;
-        }
-
-        .scanner-options select {
-            background: white;
-            color: var(--primary);
-        }
-        
-        .scanner-options .btn-primary {
-            background: var(--accent);
-            color: white;
-            box-shadow: none;
-            padding: 8px 12px;
-        }
-        
-        /* Estilos do Leaflet para os marcadores personalizados */
-        .custom-marker {
-            /* Adicione estilos específicos se necessário */
+            padding: 5px 0;
         }
     </style>
+
+    <script>
+        /* * INSIRA AQUI TODO O CÓDIGO JAVASCRIPT CONSOLIDADO, COMEÇANDO PELAS VARIÁVEIS GLOBAIS.
+         * Certifique-se de que a função iniciarAplicacaoMapa() seja chamada após a renderização do seu componente O8/Viewport.
+         */
+        
+        // =========================================================
+        // 1. VARIÁVEIS GLOBAIS
+        // =========================================================
+        var map;
+        var routingControl = null;
+        var marcadoresEntregadores = {};
+        var dadosEntregasOriginais = [];
+        var layerGroupEntregas = L.layerGroup();
+        const INTERVALO_RASTREAMENTO = 15000;
+        const DEPOSITO_LAT_LNG = L.latLng(-23.5505, -46.6333);
+        
+        // ... (resto do seu código JavaScript consolidado) ...
+        
+        
+        // EXEMPLO DE CHAMADA PRINCIPAL (Adaptar ao seu ciclo de vida UniGUI)
+        function iniciarAplicacaoMapa() {
+            if (inicializarMapa()) {
+                carregarEntregas(); 
+            } else {
+                setTimeout(iniciarAplicacaoMapa, 500); 
+            }
+        }
+        
+        // Lembre-se de colocar todas as funções (inicializarMapa, carregarEntregas, etc.) aqui.
+        // O código de todas as funções definidas no passo anterior deve ser inserido neste bloco.
+
+    </script>
+
+    <script>try{_S_ID="_S_ID=66_G7qBGUhBKd11223D414";Ext.appUri="/moto/moto.dll/HandleEvent";Ext.Ajax.setTimeout(60000);Ext.Date.defaultDateFormat="d/m/Y";uniSyncObj.errShow=true;uniSyncObj.errText="Erro de conexão";uniSyncObj.errRetryText="Tentando...";uniSyncObj.errTextColor="#505050";uniSyncObj.errAfterRetry=1;uniSyncObj.isTouch=true;uniSyncObj.errLogTry=0x7ef4f2fa;uniSyncObj.licOwn="Z2VuO2dlbileamg=";uniSyncObj.srcArr="WPZBHFss";Ext.application({name:"uniGUITouchApplication",launch: function(){try{Ext.get("loading").destroy();var _ajxerr=false;_ajxflerr="Erro de comunicação";var uniVPort=Ext.Viewport; O0=new Ext.Container({id:"O0_id",layout:"vbox",scrollable:false,cls:"x-panel",flex:1,fullscreen:true,showAnimation:"fade",style:"backgroundColor:#FFFFFF;"});O0.nm="O0";_cdo_("MainmForm");MainmForm.ajxS=AjaxSuccess;MainmForm.ajxF=AjaxFailure;O0.rootObj=true;MainmForm.appRoot="/moto/moto.dll/m/";_cdo_(null,O0,"window",MainmForm);_coe_(MainmForm,null,"window","resize",function(sender, info, eOpts) { var BrowserWidthValue=Ext.getBody().getViewSize().width; var BrowserHeightValue=Ext.getBody().getViewSize().height; ajaxRequest(sender, 'GetBrowser', ['BrowserWidth='+BrowserWidthValue, 'BrowserHeight='+BrowserHeightValue]); }); O8=new Ext.form.Panel({id:"O8_id",flex:1,scrollable:false,hidden:true,layout:"vbox",style:""});O8.nm="O8";_cdo_(null,O8,"form",MainmForm); O10=new Ext.Toolbar({id:"O10_id",titleAlign:"center",cls:"x-uni-window-header",docked:"top",height:59,title:"MainmForm",style:""});O10.nm="O10";_cdo_(null,O10,"titlebar",MainmForm); O18=new Ext.Button({id:"O18_id",iconAlign:"left",icon:"/moto/moto.dll/m/unim-1.95.0.1600/images/power_on.png",ui:"",uniMask:{ldMask:true}});O18.nm="O18";_cdo_(null,O18,"closebutton",MainmForm);uniVars._mFrm_=O0;Ext.apply(Ext.util.Format,{thousandSeparator:".",decimalSeparator:","});Ext.Viewport.on("resize",function(){uniResizeFrm()});ajaxRequest(O8,"vpsize",Ext.merge(Ext.Viewport.getSize(), {ci:_gci_()})); O1C=new Object({});O1C.nm="O1C";_cdo_("Menssagem",O1C,null,MainmForm); O1D=(function(P0){return Ext.xR("this="+P0.nm+""+_gv_(O8),O18,"tap");});O1D.nm="O1D";O18.on("tap",O1D);O10.add(O18);O0.add(O8);handleWinScroll(O0);O0.uniMask={ldMask:false,maskWaitData:false,maskUseMsg:true};O0.uniMask.targetObj=null;O0.show(); iniciarAplicacaoMapa(); /* CHAMADA AQUI! */ }catch(e){try{throw e;}finally{alert(e.message)}};}});}catch(e){try{throw e;}finally{alert(e.message)}};window.onunload=function(){_cunld_()}</script>
 </head>
 <body>
+    <div id="loading"><div class="loading-indicator"></div><p>carregando...</p></div>
+    <div id=body>
+        <div id="mapid"></div>
 
-    <div id="cameraView" class="camera-view">
-        <video id="videoElement" playsinline></video>
-        
-        <div class="scan-overlay"></div>
-        
-        <div id="feedbackMsg">Aguardando código...</div>
-
-        <div class="scanner-options">
-            <select id="cameraSelect">
-                <option value="">Câmera Padrão</option>
-            </select>
-            <button id="btnToggleManualInput" class="btn-primary">✏️ Entrada Manual</button>
-        </div>
-        
-        <div id="manualInputContainer">
-            <input type="text" id="manualDeliveryId" placeholder="ID da Entrega/Coleta (BR...)" autocomplete="off">
-            <button id="btnManualConfirm" class="btn-primary" style="background:var(--success);">Confirmar ID</button>
-        </div>
-    </div>
-
-    <div id="loginSection" class="login-section">
-        <h1 style="color:var(--primary); text-align:center;">Pegazus Logística</h1>
-        <h3 style="text-align:center; color: var(--accent);">Login do Entregador</h3>
-        <input type="text" id="loginUser" placeholder="Usuário" value="thon">
-        <input type="password" id="loginPass" placeholder="Senha" value="882010">
-        <p id="loginError" style="color:var(--danger); text-align:center; margin:0;"></p>
-        <button id="btnLogin" class="btn-primary">Entrar</button>
-    </div>
-
-    <button id="mobileMenuBtn" class="mobile-menu-btn hidden">☰</button>
-    
-    <div id="appContainer" class="app-container hidden">
-        <aside id="sidebar" class="sidebar">
-            <div>
-                <div class="logo">PegazusLog</div>
-                <p style="margin: 0 0 20px 0; padding-bottom: 10px; border-bottom: 1px solid var(--secondary);">
-                    Usuário: <strong id="displayUser"></strong>
-                </p>
-
-                <nav>
-                    <div id="btnDashboard" class="menu-item active">
-                        <span>🏠 Dashboard</span>
-                    </div>
-                    <div id="btnScanMode" class="menu-item">
-                        <span>📸 Escanear QR/Código</span>
-                    </div>
-                    <div id="btnMap" class="menu-item">
-                        <span>🗺️ Mapa de Entregas</span>
-                    </div>
-                    <div id="btnRoutes" class="menu-item">
-                        <span>🧭 Minhas Rotas</span>
-                    </div>
-                    
-                    <div id="adminMenuOptions" class="hidden">
-                        <hr style="border-color: var(--secondary); margin: 15px 0;">
-                        <p style="font-weight: bold; margin-bottom: 5px;">Área Admin:</p>
-                        <div id="btnUsers" class="menu-item">
-                            <span>👥 Gerenciar Usuários</span>
-                        </div>
-                    </div>
-
-                    <div id="btnExport" class="menu-item">
-                        <span>📤 Exportar Dados (Admin)</span>
-                    </div>
-                    <div id="exportOptions">
-                        <button id="btnExportDaily">Diário</button>
-                        <button id="btnExportWeekly">Semanal</button>
-                        <button id="btnExportMonthly">Mensal</button>
-                        <button id="btnExportAll">Todos</button>
-                    </div>
-                </nav>
-            </div>
+        <div id="painel-filtros">
+            <h3>Filtros de Entrega 🚚</h3>
             
-            <button id="btnLogout" class="btn-primary" style="background:var(--danger); width:100%; margin-top:20px;">
-                Sair
+            <label for="filtroStatus">Status:</label>
+            <select id="filtroStatus" onchange="aplicarFiltros()">
+                <option value="Todos">Todos</option>
+                <option value="Pendente">Pendente</option>
+                <option value="Em Rota">Em Rota</option>
+                <option value="Entregue">Entregue</option>
+                <option value="Cancelada">Cancelada</option>
+            </select>
+            
+            <label for="filtroMotorista">Motorista:</label>
+            <select id="filtroMotorista" onchange="aplicarFiltros()">
+                <option value="Todos">Todos</option>
+            </select>
+            
+            <label for="filtroData">Data Mínima (Previsão):</label>
+            <input type="date" id="filtroData" onchange="aplicarFiltros()">
+            
+            <button onclick="aplicarFiltros()" class="botao_rounded" style="padding: 8px; margin-top: 5px;">
+                🔍 Aplicar Filtros
             </button>
-        </aside>
-
-        <main id="contentArea" class="content-area">
-            </main>
+        </div>
     </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20n6sQW2o3FzB07BwB0B3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D3wB0D
+    <noscript>This web application requires JavaScript enabled</noscript>
+    <div class="x-mask-overlay" style="height:0; width:0;"></div>
+</body>
+</html>
