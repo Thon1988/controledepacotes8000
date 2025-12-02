@@ -24,13 +24,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let mapInstance = null;
     let locationMarker = null;
     
-    let tempScanRecord = null; // NOVO: Armazena o registro escaneado antes da baixa
+    let tempScanRecord = null;
     
     /* --- Referências DOM --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'), // Adicionado
+        appContainer: document.querySelector('.app'), 
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastScanTime = now;
 
         beep();
-        showFeedback("QR Code lido. Processando baixa..."); // MENSAGEM ATUALIZADA
+        showFeedback("QR Code lido. Processando baixa..."); 
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.video.srcObject = null;
     }
 
-    /* --- FUNÇÕES DE BAIXA (NOVO) --- */
+    /* --- FUNÇÕES DE BAIXA --- */
 
     function renderBaixaForm(record) {
         showContent();
@@ -408,37 +408,53 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDashboard(); // Volta para o dashboard
     }
 
-    /* --- Parsers e Helpers --- */
+    /* --- Parsers e Helpers (Corrigido) --- */
     function parsePayload(raw, lat, lon) {
-        // Divide o conteúdo do QR code em linhas para extração
+        // Divide o conteúdo do QR code em linhas para extração, filtrando linhas vazias
         const lines = raw.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
         
-        // --- 1. Extração de campos (Baseado no formato de exemplo) ---
+        // --- 1. Extração de campos (Metadata - Linhas 0 a 4) ---
         
         // Linha 0: ID e Data (e.g., "1- 45975475892-01/12/2025")
         let deliveryId = 'N/A';
         let scheduledDate = 'N/A';
         const idDateMatch = lines[0] ? lines[0].match(/(\d+-\s?)?(\d+)-(\d{2}\/\d{2}\/\d{4})/) : null;
         if (idDateMatch) {
-            deliveryId = idDateMatch[2] || lines[0]; // Captura o ID numérico (tracking number)
-            scheduledDate = idDateMatch[3];         // Captura a data
+            deliveryId = idDateMatch[2] || lines[0]; 
+            scheduledDate = idDateMatch[3];         
         } else {
-             // Fallback para IDs simples (se o formato de QR code mudar)
             const numMatch = raw.match(/(\d{8,})/);
             if (numMatch) deliveryId = numMatch[1];
         }
 
-        // Outros campos (baseado na ordem das linhas)
-        const carrier = lines[1] || 'Genérico';                   // e.g., IM EXPRESS
-        const deliveryType = lines[2] || 'Tipo Não Encontrado';  // e.g., Residencial
+        const carrier = lines[1] || 'Genérico';                   
+        const deliveryType = lines[2] || 'Tipo Não Encontrado';  
         // lines[3] é 'NORMAL'
-        const status = lines[4] || 'Status Não Encontrado';      // e.g., Endereço Comercial Fechado
-        // lines[5] é 'Gerência: PEX'
-        const recipientName = lines[6] || 'Destinatário Não Encontrado'; // e.g., José Carlos de Oliveira
-        const address = lines[7] || 'Endereço Não Encontrado';     // e.g., Rua Douglas Pellegrino, 87
-        const zipCode = lines[8] || 'CEP Não Encontrado';         // e.g., 08042-260
+        const status = lines[4] || 'Status Não Encontrado';      
         
-        // Campo com prefixo: Coletado: MSS019
+        // --- 2. Ajuste do Índice de Destinatário (FIX CORREÇÃO DE SHIFT) ---
+        
+        // Por padrão, o Destinatário está na linha 6 se a linha 5 (Gerência: PEX) estiver presente.
+        let recipientStart = 6;
+        
+        // Se a linha 5 não existe ou não começa com 'Gerência:', assume que a linha 5 é o Destinatário.
+        if (!lines[5] || !lines[5].startsWith('Gerência:')) {
+            recipientStart = 5;
+        }
+
+        // Garante que o array tenha espaço suficiente antes de tentar extrair
+        if (lines.length <= recipientStart) {
+             console.warn("Payload curto demais para extrair destinatário/endereço/cep.");
+             recipientStart = lines.length; // Garante que a extração falhe graciosamente
+        }
+        
+        // --- 3. Extração dos Dados de Entrega (Ajustada) ---
+        const recipientName = lines[recipientStart] || 'Destinatário Não Encontrado'; 
+        const address = lines[recipientStart + 1] || 'Endereço Não Encontrado';     
+        const zipCode = lines[recipientStart + 2] || 'CEP Não Encontrado';
+        
+        
+        // Campo com prefixo: Coletado: MSS019 (Extração dinâmica, já robusta)
         let collectorId = 'N/A';
         const collectorLine = lines.find(l => l.startsWith('Coletado:'));
         const collectorMatch = collectorLine ? collectorLine.match(/Coletado:\s*(.*)/) : null;
@@ -446,31 +462,24 @@ document.addEventListener('DOMContentLoaded', () => {
             collectorId = collectorMatch[1].trim();
         }
         
-        // --- 2. Estrutura do Registro de Retorno ---
+        // --- 4. Estrutura do Registro de Retorno ---
 
         return {
-            // Campos Chave (usados nas views existentes)
-            id: deliveryId, // Tracking Number principal
+            id: deliveryId, 
             raw: raw,
-            type: carrier,  // Usando a Transportadora como 'type'
+            type: carrier,  
             user: currentUser.username,
-            date: new Date().toISOString(), // Data/Hora da leitura
+            date: new Date().toISOString(), 
             lat: lat,
             lon: lon,
 
-            // Campos Detalhados (para nova exibição)
             scheduledDate: scheduledDate,
             deliveryType: deliveryType,
-            deliveryStatus: status, // Status inicial (do QR Code)
+            deliveryStatus: status, 
             recipientName: recipientName,
             address: address,
             zipCode: zipCode,
             collectorId: collectorId
-            
-            // Campos de Baixa (adicionados em confirmBaixa)
-            // finalStatus: '...',
-            // observation: '...',
-            // baixaDate: '...'
         };
     }
 
