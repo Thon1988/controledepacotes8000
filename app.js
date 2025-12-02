@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let videoStream = null;
     let isScanning = false;
-    let videoTrack = null; // GARANTIDO QUE ESTÁ AQUI
+    let videoTrack = null; 
     const SCAN_DELAY = 1000;
     let lastScanCode = '';
     let lastScanTime = 0;
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner (CORRIGIDO PARA REINICIALIZAÇÃO DA CÂMERA) --- */
+    /* --- Lógica do Scanner --- */
     
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
@@ -260,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.video.setAttribute('playsinline', true);
             await dom.video.play();
             isScanning = true;
-            // ATUALIZAÇÃO IMPORTANTE: Garante que videoTrack seja definido corretamente
             videoTrack = videoStream.getVideoTracks()[0]; 
             
             // Atualiza o seletor para o dispositivo que realmente foi aberto
@@ -280,7 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
             videoStream.getTracks().forEach(t => t.stop());
             videoStream = null;
         }
-        // ATUALIZAÇÃO IMPORTANTE: Garante que videoTrack seja sempre limpo
         videoTrack = null; 
         dom.video.srcObject = null;
     }
@@ -334,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         stopScanner();
         renderBaixaForm(tempScanRecord); 
     }
-
 
     /* --- FUNÇÕES DE BAIXA --- */
 
@@ -402,7 +399,30 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDashboard(); // Volta para o dashboard
     }
 
-    /* --- Parsers e Helpers (CORRIGIDO PARA O SHIFT DE LINHAS) --- */
+    /* --- Parsers e Helpers --- */
+
+    /**
+     * Função auxiliar para gerar os links de navegação para o Leaflet popup.
+     * @param {number} lat - Latitude do destino.
+     * @param {number} lon - Longitude do destino.
+     * @param {string} id - ID ou nome de exibição do destino.
+     * @returns {string} HTML com os botões de navegação.
+     */
+    function getNavigationLinks(lat, lon, id) {
+        // Links formatados para abrir o aplicativo diretamente em dispositivos móveis
+        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+        const wazeUrl = `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+        
+        return `
+            <div style="font-size: 14px; padding: 5px; text-align: center;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--content-text-dark);">Navegar até ${id}?</p>
+                <a href="${googleMapsUrl}" target="_blank" style="display: block; margin-bottom: 8px; background: #4285F4; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🗺️ Google Maps</a>
+                <a href="${wazeUrl}" target="_blank" style="display: block; background: #6E0E6E; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚕 Waze</a>
+            </div>
+        `;
+    }
+
+
     function parsePayload(raw, lat, lon) {
         // Divide o conteúdo do QR code em linhas para extração, filtrando linhas vazias
         const lines = raw.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -443,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // --- 3. Extração dos Dados de Entrega (Ajustada) ---
-        // A busca é feita a partir do índice ajustado (recipientStart)
         const recipientName = lines[recipientStart] || 'Destinatário Não Encontrado'; 
         const address = lines[recipientStart + 1] || 'Endereço Não Encontrado';     
         const zipCode = lines[recipientStart + 2] || 'CEP Não Encontrado';
@@ -508,7 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const caps = videoTrack.getCapabilities();
                 if(caps.torch) {
                     const settings = videoTrack.getSettings();
-                    // O `videoTrack` deve estar ativo para aplicar as constraints
                     await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
                 } else {
                     alert('Flash não suportado neste dispositivo/navegador');
@@ -597,7 +615,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const routePoints = simplifiedRoute.map((p, index) => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
-                    .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
+                    // NOVO: Adiciona o popup de navegação
+                    .bindPopup(getNavigationLinks(p.lat, p.lon, `Ponto ${index + 1} (${p.id})`));
                 
                 marker.setIcon(L.divIcon({
                     className: 'custom-div-icon',
@@ -632,7 +651,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
-                    .bindPopup(`<b>${r.id}</b><br>${r.type}`);
+                    // NOVO: Adiciona o popup de navegação
+                    .bindPopup(getNavigationLinks(r.lat, r.lon, r.id));
             });
 
             updateMapLocation();
