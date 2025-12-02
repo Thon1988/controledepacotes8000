@@ -247,6 +247,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     Views.renderUsers();
                     break;
                 case 'map':
+                    // **NOVO:** Garante o modo tela cheia para o mapa
+                    dom.contentArea.style.display = 'block';
+                    dom.cameraView.style.display = 'none'; 
+                    dom.appContainer.style.display = 'grid'; 
+                    dom.appContainer.style.gridTemplateColumns = '1fr'; // Ocupa 100%
+                    dom.sidebar.classList.add('hidden'); // Esconde a barra lateral
                     Views.renderMap();
                     break;
                 case 'routes':
@@ -447,8 +453,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             dom.feedback.style.opacity = '0'; 
             
-            dom.manualInputContainer.style.opacity = '0';
-            dom.manualInputContainer.style.pointerEvents = 'none';
+            // Só esconde a entrada manual se estivermos saindo do scanner
+            if (dom.contentArea.style.display !== 'none') {
+                dom.manualInputContainer.style.opacity = '0';
+                dom.manualInputContainer.style.pointerEvents = 'none';
+            }
         },
 
         // --- Geolocalização ---
@@ -781,18 +790,13 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         renderMap: function() {
-            // Lógica de renderização do mapa (igual a antes, mas usando DeliveryStore)
             AppController.showContent();
             mapInstance = null;
+            // **MODIFICAÇÃO:** Removido o botão de tela cheia, pois o mapa já abre em tela cheia na navegação
             dom.contentArea.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>🗺️ Mapa de Entregas</h2>
-                    <button id="btnToggleMapFullscreen" class="btn-primary" style="padding: 8px 12px; font-size: 14px; box-shadow:none;">
-                        🖥️ Tela Cheia
-                    </button>
-                </div>
+                <h2>🗺️ Mapa de Entregas</h2>
                 <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-                <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`;
+                <div id="mapObj" style="height:90vh; border-radius:12px; margin-top:10px"></div>`;
             
             setTimeout(() => {
                 const records = DeliveryStore.getDeliveries();
@@ -802,34 +806,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
 
+                // **MODIFICAÇÃO:** Atualização do Popup para incluir Detalhes e Baixa
                 records.forEach(r => {
+                    const popupContent = `
+                        <b>${r.id}</b><br>${r.clientAddress}<br>
+                        <hr style="border-color: rgba(0,0,0,0.1); margin: 5px 0;">
+                        <a href="#" onclick="AppController.navigateTo('details', '${r.id}'); return false;" style="margin-right:5px; color:var(--accent);">Ver Detalhes</a> |
+                        <a href="#" onclick="Utils.handleMarkAsDelivered('${r.id}'); return false;" style="color:var(--success); font-weight:bold;">Baixar Entrega</a>
+                    `;
                     L.marker([r.lat, r.lon]).addTo(mapInstance)
-                        .bindPopup(`<b>${r.id}</b><br>${r.type}<br><a href="#" onclick="AppController.navigateTo('details', '${r.id}')">Ver Detalhes</a>`);
+                        .bindPopup(popupContent);
                 });
 
                 Views.updateMapLocation();
                 
-                // ... (Lógica do botão de tela cheia) ...
-                document.getElementById('btnToggleMapFullscreen').addEventListener('click', () => {
-                    const sidebar = document.getElementById('sidebar');
-                    const appContainer = document.querySelector('.app');
-                    const button = document.getElementById('btnToggleMapFullscreen');
-
-                    if (window.innerWidth > 768) { 
-                        if (!sidebar.classList.contains('hidden')) {
-                            sidebar.classList.add('hidden');
-                            appContainer.style.gridTemplateColumns = '1fr';
-                            button.innerHTML = '◀️ Voltar';
-                        } else {
-                            sidebar.classList.remove('hidden');
-                            appContainer.style.gridTemplateColumns = '392px 1fr';
-                            button.innerHTML = '🖥️ Tela Cheia';
-                        }
-                    }
-                    if (mapInstance) { setTimeout(() => { mapInstance.invalidateSize(); }, 350); }
-                });
-
-
+                // O código de toggle fullscreen foi removido daqui e transferido para AppController.navigateTo('map')
             }, 100);
         },
 
@@ -1021,6 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (result.isConfirmed) {
                             DeliveryStore.updateDeliveryStatus(recordId, 'pending', null);
                             Utils.showDashboardFeedback(`Status da entrega ${recordId} revertido para PENDENTE.`);
+                            AppController.navigateTo('dashboard'); // Volta para a dashboard após a ação
                         }
                     });
                 } else {
@@ -1034,6 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             // Persistência no Store
                             DeliveryStore.updateDeliveryStatus(recordId, 'delivered', result.value);
                             Utils.showDashboardFeedback(`Entrega ${recordId} confirmada como entregue! Recebedor: ${result.value}`);
+                            AppController.navigateTo('dashboard'); // Volta para a dashboard após a ação
                         }
                     });
                 }
