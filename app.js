@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner --- */
+    /* --- Lógica do Scanner (Com correção de stopScanner) --- */
     
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Parsers e Helpers --- */
 
     /**
-     * Função auxiliar para gerar os links de navegação para o Leaflet popup.
+     * Função auxiliar para gerar os links de navegação para o Leaflet popup ou dashboard.
      * @param {number} lat - Latitude do destino.
      * @param {number} lon - Longitude do destino.
      * @param {string} id - ID ou nome de exibição do destino.
@@ -410,12 +410,12 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function getNavigationLinks(lat, lon, id) {
         // Links formatados para abrir o aplicativo diretamente em dispositivos móveis
-        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+        // Nota: O Google Maps usa o formato "daddr" ou simplesmente as coordenadas para navegação.
+        const googleMapsUrl = `https://maps.google.com/?daddr=${lat},${lon}&travelmode=driving`;
         const wazeUrl = `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
         
         return `
             <div style="font-size: 14px; padding: 5px; text-align: center;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: var(--content-text-dark);">Navegar até ${id}?</p>
                 <a href="${googleMapsUrl}" target="_blank" style="display: block; margin-bottom: 8px; background: #4285F4; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🗺️ Google Maps</a>
                 <a href="${wazeUrl}" target="_blank" style="display: block; background: #6E0E6E; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚕 Waze</a>
             </div>
@@ -537,6 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Views (Renderização) --- */
     
+    // FUNÇÃO RENDERDASHBOARD CORRIGIDA: Torna os cards expansíveis com navegação GPS
     function renderDashboard() {
         showContent();
         
@@ -550,28 +551,46 @@ document.addEventListener('DOMContentLoaded', () => {
             <h2>📦 Entregas Realizadas</h2>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
-                ${scanRecords.map(r => {
+                ${scanRecords.map((r, index) => {
                     const isDelivered = r.finalStatus === 'ENTREGUE';
                     const borderColor = isDelivered ? 'var(--success)' : 'var(--danger)';
                     const statusDisplay = r.finalStatus || r.deliveryStatus;
                     const dateDisplay = new Date(r.baixaDate || r.date).toLocaleString();
                     
+                    // HTML dos links de navegação usando a função existente
+                    const navigationHtml = getNavigationLinks(r.lat, r.lon, r.id);
+
                     return `
-                        <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid ${borderColor}">
+                        <div class="dashboard-card" 
+                             style="background:var(--content-card-bg); 
+                                    padding:15px; 
+                                    border-radius:10px; 
+                                    border-left:4px solid ${borderColor}; 
+                                    cursor:pointer;"
+                             onclick="document.getElementById('details-${index}').classList.toggle('expanded');">
+                            
                             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                                 <div style="font-weight:bold; font-size:16px">${r.id}</div>
                                 <div style="font-size:12px; font-weight:600; color:var(--accent);">${r.type}</div>
                             </div>
                             <div style="font-size:14px; margin-top:5px; color:var(--content-text-dark);">
                                 <p style="margin:0;">Destino: <strong>${r.recipientName}</strong></p>
-                                <p style="margin:2px 0;">Endereço: ${r.address} (${r.zipCode})</p>
                                 <p style="margin:2px 0; font-size:12px; color:var(--muted);">
                                     Status: <strong>${statusDisplay}</strong> | Coleta: ${r.collectorId}
                                 </p>
-                                ${r.observation ? `<p style="margin:2px 0; font-size:11px; color:var(--danger);">Obs: ${r.observation}</p>` : ''}
+                            </div>
+                            
+                            <div id="details-${index}" class="detail-content" style="max-height:0; overflow:hidden; transition:max-height 0.3s ease-in-out; margin-top:10px;">
+                                <hr style="border-color:var(--muted); opacity:0.3; margin:10px 0;">
+                                
+                                <p style="margin:2px 0;">Endereço: ${r.address} (${r.zipCode})</p>
+                                ${r.observation ? `<p style="margin:2px 0; font-size:13px; color:var(--danger);">Obs: ${r.observation}</p>` : ''}
                                 <p style="margin:2px 0; font-size:11px; color:#94a3b8;">
                                     Registrado por ${r.user} em ${dateDisplay} | Previsto: ${r.scheduledDate}
                                 </p>
+
+                                <h4 style="margin-top:15px; margin-bottom:5px; font-size:15px;">Iniciar Navegação:</h4>
+                                ${navigationHtml}
                             </div>
                         </div>
                     `;
@@ -579,6 +598,19 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         dom.contentArea.innerHTML = html;
+
+        // Injeção de CSS para lidar com o estado "expandido"
+        const styleId = 'dashboard-css-styles';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .detail-content.expanded {
+                    max-height: 500px; /* Suficiente para caber o conteúdo */
+                }
+            `;
+            document.head.appendChild(style);
+        }
     }
 
     function renderRoutes() {
@@ -611,11 +643,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => {
             const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
 
             const routePoints = simplifiedRoute.map((p, index) => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
-                    // NOVO: Adiciona o popup de navegação
+                    // Adiciona o popup de navegação
                     .bindPopup(getNavigationLinks(p.lat, p.lon, `Ponto ${index + 1} (${p.id})`));
                 
                 marker.setIcon(L.divIcon({
@@ -646,12 +678,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OSM'
+                attribution: '© OSM'
             }).addTo(mapInstance);
 
             scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
-                    // NOVO: Adiciona o popup de navegação
+                    // Adiciona o popup de navegação
                     .bindPopup(getNavigationLinks(r.lat, r.lon, r.id));
             });
 
