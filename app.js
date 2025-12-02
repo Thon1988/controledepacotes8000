@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let videoStream = null;
     let isScanning = false;
-    let videoTrack = null;
+    let videoTrack = null; // GARANTIDO QUE ESTÁ AQUI
     const SCAN_DELAY = 1000;
     let lastScanCode = '';
     let lastScanTime = 0;
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner --- */
+    /* --- Lógica do Scanner (CORRIGIDO PARA REINICIALIZAÇÃO DA CÂMERA) --- */
     
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
@@ -244,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetDeviceId = preferredCamera.value;
             } else {
                 // 2. Se não encontrar pelo label, usa a primeira (índice 0)
-                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
                 targetDeviceId = videoDevices[0].value;
             }
         }
@@ -261,7 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.video.setAttribute('playsinline', true);
             await dom.video.play();
             isScanning = true;
-            videoTrack = videoStream.getVideoTracks()[0];
+            // ATUALIZAÇÃO IMPORTANTE: Garante que videoTrack seja definido corretamente
+            videoTrack = videoStream.getVideoTracks()[0]; 
             
             // Atualiza o seletor para o dispositivo que realmente foi aberto
             if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
@@ -280,6 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
             videoStream.getTracks().forEach(t => t.stop());
             videoStream = null;
         }
+        // ATUALIZAÇÃO IMPORTANTE: Garante que videoTrack seja sempre limpo
+        videoTrack = null; 
         dom.video.srcObject = null;
     }
 
@@ -333,14 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBaixaForm(tempScanRecord); 
     }
 
-    function stopScanner() {
-        isScanning = false;
-        if (videoStream) {
-            videoStream.getTracks().forEach(t => t.stop());
-            videoStream = null;
-        }
-        dom.video.srcObject = null;
-    }
 
     /* --- FUNÇÕES DE BAIXA --- */
 
@@ -408,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderDashboard(); // Volta para o dashboard
     }
 
-    /* --- Parsers e Helpers (Corrigido) --- */
+    /* --- Parsers e Helpers (CORRIGIDO PARA O SHIFT DE LINHAS) --- */
     function parsePayload(raw, lat, lon) {
         // Divide o conteúdo do QR code em linhas para extração, filtrando linhas vazias
         const lines = raw.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -449,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // --- 3. Extração dos Dados de Entrega (Ajustada) ---
+        // A busca é feita a partir do índice ajustado (recipientStart)
         const recipientName = lines[recipientStart] || 'Destinatário Não Encontrado'; 
         const address = lines[recipientStart + 1] || 'Endereço Não Encontrado';     
         const zipCode = lines[recipientStart + 2] || 'CEP Não Encontrado';
@@ -513,6 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const caps = videoTrack.getCapabilities();
                 if(caps.torch) {
                     const settings = videoTrack.getSettings();
+                    // O `videoTrack` deve estar ativo para aplicar as constraints
                     await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
                 } else {
                     alert('Flash não suportado neste dispositivo/navegador');
