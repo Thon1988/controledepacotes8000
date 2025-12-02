@@ -8,11 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
     ]; 
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
+    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; // Localização simulada do CD
     
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-    // CORREÇÃO: Garante que registros antigos tenham um status padrão
+    // Garante que registros antigos tenham um status padrão
     scanRecords.forEach(r => {
         if (!r.status) r.status = 'pending';
     });
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'), // Adicionado
+        appContainer: document.querySelector('.app'),
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         dom.appContainer.style.display = 'grid'; 
         
-        // CORREÇÃO: Garante o layout padrão (sidebar + content) ao sair do scanner/mapa full screen
+        // Garante o layout padrão (sidebar + content) ao sair do scanner/mapa full screen
         if (window.innerWidth > 768) { 
             dom.sidebar.classList.remove('hidden'); 
             dom.appContainer.style.gridTemplateColumns = '392px 1fr';
@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Lógica do Scanner --- */
     
-    /** Função para forçar a permissão e preencher a lista de câmeras */
+    /** Função para forçar a permissão e preencher a lista de câmeras (CORRIGIDA) */
     async function enumerateDevices() {
         try {
             // Tenta obter uma stream para forçar a permissão do usuário
@@ -209,7 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
             
             dom.cameraSelect.innerHTML = '';
-            if (videoDevices.length > 0) {
+            
+            if (videoDevices.length > 1) { // Só mostra o seletor se houver MAIS DE UMA opção
                  // Preenche o seletor com todas as câmeras
                 videoDevices.forEach(d => {
                     const opt = document.createElement('option');
@@ -219,11 +220,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 dom.cameraSelect.classList.remove('hidden');
             } else {
-                dom.cameraSelect.classList.add('hidden');
+                dom.cameraSelect.classList.add('hidden'); // Esconde se for 1 ou 0 câmeras
             }
         } catch (err) {
             console.error("Erro ao enumerar dispositivos:", err);
-            // Se houver erro, a lista de câmeras ficará vazia/escondida
         }
     }
     
@@ -231,13 +231,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScanning && !deviceId) return;
         stopScanner(); 
         
+        // Chamada de enumeração AQUI para garantir que a lista esteja atualizada
+        await enumerateDevices(); 
+
         const videoDevices = Array.from(dom.cameraSelect.options);
         
         let targetDeviceId = deviceId;
         
-        // Lógica de seleção automática da câmera 0 (traseira/environment)
+        // Lógica de seleção automática da câmera 
         if (!targetDeviceId && videoDevices.length > 0) {
-            // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
             const preferredCamera = videoDevices.find(opt => 
                 opt.text.toLowerCase().includes('environment') || 
                 opt.text.toLowerCase().includes('back') || 
@@ -247,10 +249,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (preferredCamera) {
                 targetDeviceId = preferredCamera.value;
             } else {
-                // 2. Se não encontrar pelo label, usa a primeira (índice 0)
-                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
                 targetDeviceId = videoDevices[0].value;
             }
+        }
+
+        // Se o targetDeviceId ainda for nulo e tivermos opções no seletor, usa o valor atual
+        if (!targetDeviceId && dom.cameraSelect.value) {
+            targetDeviceId = dom.cameraSelect.value;
         }
 
         const constraints = {
@@ -268,13 +273,21 @@ document.addEventListener('DOMContentLoaded', () => {
             videoTrack = videoStream.getVideoTracks()[0];
             
             // Atualiza o seletor para o dispositivo que realmente foi aberto
-            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
+            if (targetDeviceId && dom.cameraSelect.value !== targetDeviceId) {
+                dom.cameraSelect.value = targetDeviceId;
+            }
 
             requestAnimationFrame(tick);
         } catch (err) {
             console.error(err);
-            alert('Erro ao acessar câmera: ' + err.message);
-            window.renderDashboard(); 
+             Swal.fire({
+                icon: 'error',
+                title: 'Erro ao Acessar Câmera',
+                text: 'Certifique-se de que a câmera está conectada e as permissões foram concedidas.' + (err.message ? ` Mensagem: ${err.message}` : ''),
+                confirmButtonText: 'Voltar ao Dashboard'
+            }).then(() => {
+                window.renderDashboard(); 
+            });
         }
     }
 
@@ -298,14 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = h;
             ctx.drawImage(dom.video, 0, 0, w, h); 
             
-            // Lógica de corte para varrer uma área maior (mantida em 90%)
             const size = Math.min(w, h) * 0.9; 
 
             const sx = (w - size) / 2;
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
             
-            // jsQR está no index.html via CDN
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "attemptBoth",
             });
@@ -353,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
             date: new Date().toISOString(),
             lat: lat,
             lon: lon,
-            status: 'pending' // ADICIONADO: Status inicial
+            status: 'pending' // Status inicial
         };
     }
 
@@ -381,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
     
-    // ADICIONADO: Feedback visual para o Dashboard
+    // Feedback visual para o Dashboard
     function showDashboardFeedback(text) {
         const feedbackDiv = document.createElement('div');
         feedbackDiv.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:20px 40px; background:var(--success); color:white; border-radius:12px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.2); opacity:0; transition:opacity 0.3s; font-family: 'Inter', sans-serif;";
@@ -410,15 +421,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // ADICIONADO: Função para dar baixa no registro
+    // Função para dar baixa no registro (clicável no dashboard)
     window.markAsDelivered = (recordId) => {
         // Apenas o usuário que escaneou pode marcar como entregue, a menos que seja um admin/gestor (simplificação: apenas o próprio)
         const record = scanRecords.find(r => r.id === recordId && r.user === currentUser.username); 
         
         if (record) {
             if (record.status === 'delivered') {
-                alert(`Entrega ${recordId} já está marcada como entregue.`);
-                return;
+                Swal.fire({
+                    title: 'Entrega Já Confirmada',
+                    text: `A entrega ${recordId} já foi marcada como entregue. Deseja reverter o status para "Pendente"?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, Reverter',
+                    cancelButtonText: 'Não, Manter'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        record.status = 'pending';
+                        localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
+                        showDashboardFeedback(`Status da entrega ${recordId} revertido para PENDENTE.`);
+                    }
+                });
             } else {
                 record.status = 'delivered';
                 localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
@@ -426,7 +449,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 showDashboardFeedback(`Entrega ${recordId} confirmada como entregue!`);
             }
         } else {
-             alert('Registro não encontrado ou você não tem permissão para alterar o status desta entrega.');
+             Swal.fire({
+                icon: 'error',
+                title: 'Sem Permissão',
+                text: 'Registro não encontrado ou você não tem permissão para alterar o status desta entrega.',
+                confirmButtonText: 'Ok'
+            });
         }
     };
 
@@ -526,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 map.fitBounds(L.polyline(routePoints).getBounds());
             }
 
-            // ADICIONADO: Lógica de tela cheia
+            // Lógica de tela cheia
             if (deliveryPoints.length >= 2) {
                 document.getElementById('btnToggleRouteFullscreen').addEventListener('click', () => {
                     const sidebar = document.getElementById('sidebar');
@@ -567,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             </div>
             <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-            <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`; // Aumentado para 70vh
+            <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`; // Altura 70vh
         
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
@@ -585,7 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             updateMapLocation();
             
-            // ADICIONADO: Lógica de tela cheia
+            // Lógica de tela cheia
             document.getElementById('btnToggleMapFullscreen').addEventListener('click', () => {
                 const sidebar = document.getElementById('sidebar');
                 const appContainer = document.querySelector('.app');
@@ -688,7 +716,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
-            alert('Você não tem permissão para editar este usuário.');
+            Swal.fire({
+                icon: 'error',
+                title: 'Acesso Negado',
+                text: 'Você não tem permissão para editar este usuário.'
+            });
             return;
         }
 
@@ -722,14 +754,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const role = document.getElementById('formRole').value;
         const isNew = !userId;
 
-        if (!username) { alert('Usuário é obrigatório.'); return; }
-        if (isNew && !password) { alert('Senha é obrigatória para novo usuário.'); return; }
+        if (!username) { Swal.fire('Erro', 'Usuário é obrigatório.', 'error'); return; }
+        if (isNew && !password) { Swal.fire('Erro', 'Senha é obrigatória para novo usuário.', 'error'); return; }
 
         let userIndex = -1;
         if (userId) userIndex = users.findIndex(u => u.id === userId);
 
         if (isNew && users.some(u => u.username === username)) {
-            alert('Nome de usuário já existe.');
+            Swal.fire('Erro', 'Nome de usuário já existe.', 'error');
             return;
         }
         
@@ -745,7 +777,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             users.push(updatedUser);
         } else {
-            // CORREÇÃO: Usa o userIndex para obter a referência correta
             updatedUser = users[userIndex]; 
 
             if (password) updatedUser.password = password;
@@ -759,18 +790,30 @@ document.addEventListener('DOMContentLoaded', () => {
         saveUsers();
         document.getElementById('userFormArea').innerHTML = '';
         renderUsers();
+        Swal.fire('Sucesso', 'Usuário salvo com sucesso!', 'success');
     };
 
     window.deleteUser = (userId) => {
         if (userId === currentUser.id) {
-            alert('Você não pode excluir seu próprio perfil enquanto estiver logado.');
+            Swal.fire('Erro', 'Você não pode excluir seu próprio perfil enquanto estiver logado.', 'error');
             return;
         }
-        if (confirm('Tem certeza que deseja excluir este usuário?')) {
-            users = users.filter(u => u.id !== userId);
-            saveUsers();
-            renderUsers();
-        }
+        Swal.fire({
+            title: 'Tem certeza?',
+            text: "Você não poderá reverter isso!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: 'var(--danger)',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: 'Sim, excluir!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                users = users.filter(u => u.id !== userId);
+                saveUsers();
+                renderUsers();
+                Swal.fire('Excluído!', 'O usuário foi excluído.', 'success');
+            }
+        });
     };
 
 
@@ -794,9 +837,9 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredRecords = scanRecords; // 'all'
         }
 
-        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
+        if(!filteredRecords.length) return Swal.fire('Aviso', `Nenhum dado encontrado para o filtro: ${filter}.`, 'warning');
         
-        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS\n'; // ADICIONADO: Coluna STATUS
+        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS\n'; 
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
             const dateStr = scanDate.toLocaleDateString('pt-BR');
@@ -813,8 +856,6 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
 
         dom.exportOptions.style.display = 'none';
+        Swal.fire('Sucesso', 'Exportação CSV concluída!', 'success');
     }
-    
-    // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
-    enumerateDevices();
 });
