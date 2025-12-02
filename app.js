@@ -43,6 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
+        // NOVAS REFERÊNCIAS PARA INPUT MANUAL
+        manualInputContainer: document.getElementById('manualInputContainer'),
+        manualDeliveryId: document.getElementById('manualDeliveryId'),
+        btnToggleManualInput: document.getElementById('btnToggleManualInput'),
+        btnManualConfirm: document.getElementById('btnManualConfirm'),
     };
 
     /* --- Inicialização e Storage --- */
@@ -155,6 +160,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.exportOptions.style.display = 'none'; 
         }
         dom.feedback.style.opacity = '0'; 
+        
+        // Esconde o input manual ao sair da tela da câmera
+        dom.manualInputContainer.style.opacity = '0';
+        dom.manualInputContainer.style.pointerEvents = 'none';
     }
 
     document.getElementById('btnScanMode').addEventListener('click', () => {
@@ -195,6 +204,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
+    
+    // NOVO EVENTO: Alternar input manual (Ícone de Lápis)
+    dom.btnToggleManualInput.addEventListener('click', () => {
+        const isVisible = dom.manualInputContainer.style.opacity === '1';
+        dom.manualInputContainer.style.opacity = isVisible ? '0' : '1';
+        dom.manualInputContainer.style.pointerEvents = isVisible ? 'none' : 'auto';
+        if (!isVisible) {
+            dom.manualDeliveryId.focus();
+        }
+    });
+
+    // NOVO EVENTO: Confirmar input manual
+    dom.btnManualConfirm.addEventListener('click', () => {
+        const id = dom.manualDeliveryId.value.trim();
+        if (id) {
+            handleScanManual(id);
+        } else {
+            showFeedback('ID de entrega vazio!', 'var(--danger)');
+        }
+    });
 
     /* --- Lógica do Scanner --- */
     
@@ -336,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastScanTime = now;
 
         beep();
-        showFeedback(data); 
+        showFeedback(`Leitura Confirmada: ${data.substring(0, 30)}...`, 'var(--accent)'); 
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
@@ -345,6 +374,58 @@ document.addEventListener('DOMContentLoaded', () => {
         scanRecords.unshift(record);
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
     }
+    
+    // NOVO: Função para lidar com o input manual do ID
+    function handleScanManual(data) {
+        const id = data.trim();
+        if (!id) return;
+        
+        const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
+        const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
+
+        const record = parsePayload(id, scanLat, scanLon);
+
+        // Simulação de busca de dados do cliente
+        const clienteSimulado = {
+            nome: "Cliente " + id.slice(-5).toUpperCase(),
+            endereco: "Rua Alameda, " + Math.floor(Math.random() * 900) + " - Bairro Simulado",
+            telefone: "(11) 98765-4321"
+        };
+        
+        // Exibe os dados do cliente antes de salvar
+        Swal.fire({
+            title: '✅ ID Digitado Confirmado',
+            html: `
+                <div style="text-align: left; color:var(--content-text-dark);">
+                    <p><strong>ID:</strong> ${record.id}</p>
+                    <p><strong>Tipo:</strong> ${record.type}</p>
+                    <p><strong>Status:</strong> Pendente</p>
+                    <hr style="border-color: rgba(0,0,0,0.1)">
+                    <h4>Dados do Destino (Simulação)</h4>
+                    <p><strong>Nome:</strong> ${clienteSimulado.nome}</p>
+                    <p><strong>Endereço:</strong> ${clienteSimulado.endereco}</p>
+                    <p><strong>Telefone:</strong> ${clienteSimulado.telefone}</p>
+                </div>
+            `,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Confirmar e Salvar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Salva o registro se o usuário confirmar
+                scanRecords.unshift(record);
+                localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
+                showFeedback(`Registro Manual ${record.id} Salvo!`, 'var(--success)');
+                dom.manualDeliveryId.value = ''; // Limpa o campo
+            } else {
+                showFeedback(`Registro Manual ${record.id} Cancelado!`, 'var(--danger)');
+            }
+            dom.manualInputContainer.style.opacity = '0';
+            dom.manualInputContainer.style.pointerEvents = 'none';
+        });
+    }
+
 
     /* --- Parsers e Helpers --- */
     function parsePayload(raw, lat, lon) {
@@ -382,13 +463,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(e){}
     }
 
-    function showFeedback(text) {
-        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
+    // Função showFeedback atualizada para aceitar cor
+    function showFeedback(text, color = 'var(--accent)') {
+        dom.feedback.textContent = text;
+        dom.feedback.style.background = color; // Usa a cor passada
         dom.feedback.style.opacity = '1';
-        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
+        setTimeout(() => { dom.feedback.style.opacity = '0'; }, 3000); 
         
         const overlay = document.querySelector('.scan-overlay');
-        overlay.style.borderColor = 'var(--success)';
+        overlay.style.borderColor = color;
         setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
     }
     
