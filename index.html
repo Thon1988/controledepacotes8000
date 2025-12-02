@@ -389,6 +389,9 @@
 
     /* --- UTILIDADES --- */
     .hidden { display: none !important; }
+    
+    /* Adicionado: Oculta o botão de menu mobile por padrão (desktop) */
+    #mobileMenuBtn { display: none; }
 
     /* --- MEDIA QUERIES (RESPONSIVIDADE) --- */
     @media (max-width: 768px) {
@@ -408,7 +411,7 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
             padding: 30px 20px;
             overflow-y: auto;
-            background: var(--panel); /* Garante que a sidebar seja opaca em mobile */
+            background: var(--panel);
         }
         
         .sidebar.active {
@@ -420,7 +423,7 @@
             height: 100%;
         }
 
-        /* Botão de menu mobile */
+        /* Botão de menu mobile - AGORA VISÍVEL! */
         #mobileMenuBtn {
             position: fixed;
             top: 10px;
@@ -432,10 +435,9 @@
             height: 40px;
             border-radius: 50%;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            display: block; /* Visível em mobile */
+            display: flex; /* Tornando visível e flexível para centralizar */
             border: none;
             cursor: pointer;
-            display: flex;
             justify-content: center;
             align-items: center;
             font-size: 20px;
@@ -446,7 +448,7 @@
 </head>
 <body>
 
-  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
+  <button id="mobileMenuBtn" onclick="window.toggleSidebar()">☰</button>
 
   <section id="loginSection" class="login-container">
     <div class="login-card">
@@ -562,7 +564,7 @@
         position: absolute; 
         top: 10px; 
         right: 10px; 
-        z-index: 1000; /* Aumentado o z-index para garantir visibilidade */
+        z-index: 1000;
         display: flex;
         align-items: center;
         gap: 15px;
