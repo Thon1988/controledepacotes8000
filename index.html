@@ -39,116 +39,306 @@
     <script src="/moto/moto.dll/m/unim-1.95.0.1600/touch-unigui-min.js"></script>
     <script src="/moto/moto.dll/files/leaflet/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-
+    
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <style type="text/css">
-        .sombra_texto { text-shadow: 0px 0px 5px white;}
-        .sombra_texto_preto { text-shadow: 0px 0px 5px black, 0px 0px 5px black, 0px 0px 5px black; }
-        .sombra { box-shadow: 0px 0px 5px grey;}
-        .semi_transparente{ background: rgba(255,255,255,0.5);}
-        .semi_transparente_sombra{ background: rgba(255,255,255,0.5); box-shadow: 0px 0px 5px grey;}
-        .botao_rounded .x-inner-el{ border-radius: 6px!important; background:#F2F2F2!important; box-shadow: 0px 0px 4px grey; -webkit-transition: background 0.5s ease-in-out; transition: background 0.5s ease-in-out;}
-        .edit_rounded .x-input-wrap-el{ border-radius: 6px!important;}
-        .rounded{ border-radius: 6px!important;}
-        
-        /* Estilo fundamental para o mapa e o painel de filtros */
-        #mapid {
-            height: 100%; /* Ajuste a altura conforme seu layout UniGUI */
-            width: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1; /* Fica abaixo do painel de filtros */
+        :root {
+            --primary: #4f46e5;
+            --accent: #38bdf8;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --content-text-dark: #374151;
+            --content-card-bg: #ffffff;
+            --content-bg-light: #f3f4f6;
         }
-        #painel-filtros {
+
+        /* Estrutura da Aplicação */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: var(--content-bg-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        .app {
+            display: none; /* Escondido até o login */
+            grid-template-columns: 392px 1fr;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app.hidden { display: none !important; }
+
+        /* Sidebar (Menu) */
+        #sidebar {
+            background-color: var(--content-card-bg);
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            position: relative;
+        }
+        @media (max-width: 768px) {
+            #sidebar {
+                position: fixed;
+                left: -392px;
+                top: 0;
+                bottom: 0;
+                width: 392px;
+                z-index: 1001;
+                transition: left 0.3s ease;
+            }
+            #sidebar.active { left: 0; }
+        }
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            color: var(--content-text-dark);
+            font-weight: 500;
+        }
+        .menu-item:hover, .menu-item.active {
+            background-color: var(--content-bg-light);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .menu-item.active { border-left: 4px solid var(--primary); }
+
+        /* Área de Conteúdo */
+        #contentArea {
+            padding: 20px;
+            overflow-y: auto;
+            background-color: var(--content-bg-light);
+            position: relative;
+        }
+        
+        /* Câmera / Scanner View */
+        #cameraView {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background-color: black;
+            position: relative;
+        }
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .scan-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vmin; 
+            height: 80vmin;
+            max-width: 500px;
+            max-height: 500px;
+            border: 4px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 15px;
+            pointer-events: none;
+            z-index: 10;
+            transition: border-color 0.3s;
+        }
+        #feedbackMsg {
+            position: absolute;
+            bottom: 20px;
+            background: var(--accent);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 15;
+        }
+        
+        /* Botões e Input Padrão */
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-weight: bold;
+        }
+        .btn-primary:hover { background-color: #3730a3; }
+        
+        input[type="text"], input[type="password"], input[type="date"], select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        
+        /* Mobile Menu Button */
+        #mobileMenuBtn {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1002;
+            padding: 10px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: none;
+        }
+        @media (max-width: 768px) {
+            #mobileMenuBtn { display: block; }
+        }
+        
+        /* Utilidades */
+        .hidden { display: none !important; }
+        .user-form-card {
+            background-color: var(--content-card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .leaflet-container {
+            border-radius: 12px;
+        }
+        
+        /* Manual Input */
+        #manualInputContainer {
             position: absolute;
             top: 10px;
             right: 10px;
-            z-index: 1000; /* Fica acima do mapa */
-            background-color: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            width: 250px;
+            z-index: 20;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
             display: flex;
-            flex-direction: column;
-            gap: 10px;
+            gap: 5px;
+            width: 300px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
         }
-        #painel-filtros label, #painel-filtros select, #painel-filtros input {
-            width: 100%;
-            padding: 5px 0;
+        #manualDeliveryId {
+            flex-grow: 1;
+            padding: 8px;
+            margin: 0;
+            font-size: 14px;
         }
+        #btnManualConfirm {
+            padding: 8px 12px;
+            margin: 0;
+            font-size: 14px;
+            background: var(--primary);
+        }
+        #btnToggleManualInput {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 25;
+            background: var(--accent);
+            color: white;
+            padding: 10px;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
     </style>
 
-    <script>
-        /* * INSIRA AQUI TODO O CÓDIGO JAVASCRIPT CONSOLIDADO, COMEÇANDO PELAS VARIÁVEIS GLOBAIS.
-         * Certifique-se de que a função iniciarAplicacaoMapa() seja chamada após a renderização do seu componente O8/Viewport.
-         */
-        
-        // =========================================================
-        // 1. VARIÁVEIS GLOBAIS
-        // =========================================================
-        var map;
-        var routingControl = null;
-        var marcadoresEntregadores = {};
-        var dadosEntregasOriginais = [];
-        var layerGroupEntregas = L.layerGroup();
-        const INTERVALO_RASTREAMENTO = 15000;
-        const DEPOSITO_LAT_LNG = L.latLng(-23.5505, -46.6333);
-        
-        // ... (resto do seu código JavaScript consolidado) ...
-        
-        
-        // EXEMPLO DE CHAMADA PRINCIPAL (Adaptar ao seu ciclo de vida UniGUI)
-        function iniciarAplicacaoMapa() {
-            if (inicializarMapa()) {
-                carregarEntregas(); 
-            } else {
-                setTimeout(iniciarAplicacaoMapa, 500); 
-            }
-        }
-        
-        // Lembre-se de colocar todas as funções (inicializarMapa, carregarEntregas, etc.) aqui.
-        // O código de todas as funções definidas no passo anterior deve ser inserido neste bloco.
+    <script>try{_S_ID="_S_ID=66_G7qBGUhBKd11223D414";Ext.appUri="/moto/moto.dll/HandleEvent";Ext.Ajax.setTimeout(60000);Ext.Date.defaultDateFormat="d/m/Y";uniSyncObj.errShow=true;uniSyncObj.errText="Erro de conexão";uniSyncObj.errRetryText="Tentando...";uniSyncObj.errTextColor="#505050";uniSyncObj.errAfterRetry=1;uniSyncObj.isTouch=true;uniSyncObj.errLogTry=0x7ef4f2fa;uniSyncObj.licOwn="Z2VuO2dlbileamg=";uniSyncObj.srcArr="WPZBHFss";Ext.application({name:"uniGUITouchApplication",launch: function(){try{Ext.get("loading").destroy();var _ajxerr=false;_ajxflerr="Erro de comunicação";var uniVPort=Ext.Viewport; O0=new Ext.Container({id:"O0_id",layout:"vbox",scrollable:false,cls:"x-panel",flex:1,fullscreen:true,showAnimation:"fade",style:"backgroundColor:#FFFFFF;"});O0.nm="O0";_cdo_("MainmForm");MainmForm.ajxS=AjaxSuccess;MainmForm.ajxF=AjaxFailure;O0.rootObj=true;MainmForm.appRoot="/moto/moto.dll/m/";_cdo_(null,O0,"window",MainmForm);_coe_(MainmForm,null,"window","resize",function(sender, info, eOpts) { var BrowserWidthValue=Ext.getBody().getViewSize().width; var BrowserHeightValue=Ext.getBody().getViewSize().height; ajaxRequest(sender, 'GetBrowser', ['BrowserWidth='+BrowserWidthValue, 'BrowserHeight='+BrowserHeightValue]); }); O8=new Ext.form.Panel({id:"O8_id",flex:1,scrollable:false,hidden:true,layout:"vbox",style:""});O8.nm="O8";_cdo_(null,O8,"form",MainmForm); O10=new Ext.Toolbar({id:"O10_id",titleAlign:"center",cls:"x-uni-window-header",docked:"top",height:59,title:"MainmForm",style:""});O10.nm="O10";_cdo_(null,O10,"titlebar",MainmForm); O18=new Ext.Button({id:"O18_id",iconAlign:"left",icon:"/moto/moto.dll/m/unim-1.95.0.1600/images/power_on.png",ui:"",uniMask:{ldMask:true}});O18.nm="O18";_cdo_(null,O18,"closebutton",MainmForm);uniVars._mFrm_=O0;Ext.apply(Ext.util.Format,{thousandSeparator:".",decimalSeparator:","});Ext.Viewport.on("resize",function(){uniResizeFrm()});ajaxRequest(O8,"vpsize",Ext.merge(Ext.Viewport.getSize(), {ci:_gci_()})); O1C=new Object({});O1C.nm="O1C";_cdo_("Menssagem",O1C,null,MainmForm); O1D=(function(P0){return Ext.xR("this="+P0.nm+""+_gv_(O8),O18,"tap");});O1D.nm="O1D";O18.on("tap",O1D);O10.add(O18);O0.add(O8);handleWinScroll(O0);O0.uniMask={ldMask:false,maskWaitData:false,maskUseMsg:true};O0.uniMask.targetObj=null;O0.show(); }}catch(e){try{throw e;}finally{alert(e.message)}};}});}catch(e){try{throw e;}finally{alert(e.message)}};window.onunload=function(){_cunld_()}</script>
+    
+    <script src="app.js"></script>
 
-    </script>
-
-    <script>try{_S_ID="_S_ID=66_G7qBGUhBKd11223D414";Ext.appUri="/moto/moto.dll/HandleEvent";Ext.Ajax.setTimeout(60000);Ext.Date.defaultDateFormat="d/m/Y";uniSyncObj.errShow=true;uniSyncObj.errText="Erro de conexão";uniSyncObj.errRetryText="Tentando...";uniSyncObj.errTextColor="#505050";uniSyncObj.errAfterRetry=1;uniSyncObj.isTouch=true;uniSyncObj.errLogTry=0x7ef4f2fa;uniSyncObj.licOwn="Z2VuO2dlbileamg=";uniSyncObj.srcArr="WPZBHFss";Ext.application({name:"uniGUITouchApplication",launch: function(){try{Ext.get("loading").destroy();var _ajxerr=false;_ajxflerr="Erro de comunicação";var uniVPort=Ext.Viewport; O0=new Ext.Container({id:"O0_id",layout:"vbox",scrollable:false,cls:"x-panel",flex:1,fullscreen:true,showAnimation:"fade",style:"backgroundColor:#FFFFFF;"});O0.nm="O0";_cdo_("MainmForm");MainmForm.ajxS=AjaxSuccess;MainmForm.ajxF=AjaxFailure;O0.rootObj=true;MainmForm.appRoot="/moto/moto.dll/m/";_cdo_(null,O0,"window",MainmForm);_coe_(MainmForm,null,"window","resize",function(sender, info, eOpts) { var BrowserWidthValue=Ext.getBody().getViewSize().width; var BrowserHeightValue=Ext.getBody().getViewSize().height; ajaxRequest(sender, 'GetBrowser', ['BrowserWidth='+BrowserWidthValue, 'BrowserHeight='+BrowserHeightValue]); }); O8=new Ext.form.Panel({id:"O8_id",flex:1,scrollable:false,hidden:true,layout:"vbox",style:""});O8.nm="O8";_cdo_(null,O8,"form",MainmForm); O10=new Ext.Toolbar({id:"O10_id",titleAlign:"center",cls:"x-uni-window-header",docked:"top",height:59,title:"MainmForm",style:""});O10.nm="O10";_cdo_(null,O10,"titlebar",MainmForm); O18=new Ext.Button({id:"O18_id",iconAlign:"left",icon:"/moto/moto.dll/m/unim-1.95.0.1600/images/power_on.png",ui:"",uniMask:{ldMask:true}});O18.nm="O18";_cdo_(null,O18,"closebutton",MainmForm);uniVars._mFrm_=O0;Ext.apply(Ext.util.Format,{thousandSeparator:".",decimalSeparator:","});Ext.Viewport.on("resize",function(){uniResizeFrm()});ajaxRequest(O8,"vpsize",Ext.merge(Ext.Viewport.getSize(), {ci:_gci_()})); O1C=new Object({});O1C.nm="O1C";_cdo_("Menssagem",O1C,null,MainmForm); O1D=(function(P0){return Ext.xR("this="+P0.nm+""+_gv_(O8),O18,"tap");});O1D.nm="O1D";O18.on("tap",O1D);O10.add(O18);O0.add(O8);handleWinScroll(O0);O0.uniMask={ldMask:false,maskWaitData:false,maskUseMsg:true};O0.uniMask.targetObj=null;O0.show(); iniciarAplicacaoMapa(); /* CHAMADA AQUI! */ }catch(e){try{throw e;}finally{alert(e.message)}};}});}catch(e){try{throw e;}finally{alert(e.message)}};window.onunload=function(){_cunld_()}</script>
 </head>
 <body>
     <div id="loading"><div class="loading-indicator"></div><p>carregando...</p></div>
-    <div id=body>
-        <div id="mapid"></div>
-
-        <div id="painel-filtros">
-            <h3>Filtros de Entrega 🚚</h3>
-            
-            <label for="filtroStatus">Status:</label>
-            <select id="filtroStatus" onchange="aplicarFiltros()">
-                <option value="Todos">Todos</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Em Rota">Em Rota</option>
-                <option value="Entregue">Entregue</option>
-                <option value="Cancelada">Cancelada</option>
-            </select>
-            
-            <label for="filtroMotorista">Motorista:</label>
-            <select id="filtroMotorista" onchange="aplicarFiltros()">
-                <option value="Todos">Todos</option>
-            </select>
-            
-            <label for="filtroData">Data Mínima (Previsão):</label>
-            <input type="date" id="filtroData" onchange="aplicarFiltros()">
-            
-            <button onclick="aplicarFiltros()" class="botao_rounded" style="padding: 8px; margin-top: 5px;">
-                🔍 Aplicar Filtros
-            </button>
+    
+    <section id="loginSection" style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: var(--content-bg-light);">
+        <div class="user-form-card" style="width: 350px; text-align: center; padding: 30px;">
+            <h1 style="color:var(--primary);">PEGASUS</h1>
+            <p style="color:var(--content-text-dark);">Sistema de Gestão de Entregas</p>
+            <input type="text" id="loginUser" placeholder="Usuário" value="thon" required>
+            <input type="password" id="loginPass" placeholder="Senha" value="882010" required>
+            <p id="loginError" style="color:var(--danger); margin-bottom: 15px;"></p>
+            <button id="btnLogin" class="btn-primary" style="width: 100%;">Entrar</button>
         </div>
+    </section>
+
+    <button id="mobileMenuBtn" onclick="toggleSidebar()" class="hidden">☰</button>
+
+    <div class="app hidden">
+        
+        <aside id="sidebar">
+            <h3 style="margin-top: 0; color:var(--primary);">Menu</h3>
+            <p style="font-size:14px; color:var(--content-text-dark);">Usuário: <span id="displayUser"></span></p>
+            <hr style="border-color: #eee; margin-bottom: 15px;">
+            
+            <div id="menuSection">
+                <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
+                <div id="btnScanMode" class="menu-item">📸 Scanner</div>
+                <div id="btnMap" class="menu-item">🗺️ Mapa</div>
+                <div id="btnRoutes" class="menu-item">🧭 Rotas</div>
+                
+                <div id="adminMenuOptions" class="hidden">
+                    <hr style="border-color: #eee; margin-top: 15px; margin-bottom: 15px;">
+                    <div id="btnUsers" class="menu-item">👥 Usuários</div>
+                    <div id="btnExport" class="menu-item">⬇️ Exportar Dados</div>
+                    
+                    <div id="exportOptions" style="display:none; flex-direction:column; padding-left:20px; border-left:2px solid var(--accent); margin-top:5px; margin-bottom:15px;">
+                        <button id="btnExportDaily" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark); margin-bottom:5px;">Diário</button>
+                        <button id="btnExportWeekly" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark); margin-bottom:5px;">Semanal</button>
+                        <button id="btnExportMonthly" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark); margin-bottom:5px;">Mensal</button>
+                        <button id="btnExportAll" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark);">Tudo</button>
+                    </div>
+                </div>
+                
+                <hr style="border-color: #eee; margin-top: 15px; margin-bottom: 15px;">
+                <div id="btnLogout" class="menu-item" style="color:var(--danger);">🚪 Sair</div>
+            </div>
+        </aside>
+
+        <main id="contentArea">
+            <div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)">
+                <h2>Bem-vindo ao Pegasus</h2>
+            </div>
+        </main>
+        
+        <section id="cameraView">
+            <video id="videoElement" playsinline autoplay></video>
+            <div class="scan-overlay"></div>
+            <div id="feedbackMsg"></div>
+            
+            <button id="btnToggleManualInput" style="position: absolute; top: 10px; right: 10px; z-index: 25; background: var(--accent); color: white; padding: 10px; border-radius: 50%; border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                ⌨️
+            </button>
+            
+            <div id="manualInputContainer">
+                <input type="text" id="manualDeliveryId" placeholder="ID Manual" style="width: 100%;" />
+                <button id="btnManualConfirm">OK</button>
+            </div>
+
+            <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; width: 80%; max-width: 300px;">
+                <select id="cameraSelect" style="padding: 5px; margin: 0; font-size: 14px; background: rgba(255,255,255,0.8); border: none;"></select>
+            </div>
+            
+        </section>
+
     </div>
+
     <noscript>This web application requires JavaScript enabled</noscript>
-    <div class="x-mask-overlay" style="height:0; width:0;"></div>
 </body>
 </html>
