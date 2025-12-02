@@ -1,610 +1,542 @@
-/**
- * Pegazus Logística - app.js
- * Lógica de Autenticação, Navegação, Scanner (jsQR) e Mapa (Leaflet).
- */
+// Importações de Bibliotecas
+// Importa QuaggaJS dinamicamente para leitura de código de barras/QR (não está no HTML, mas é essencial para o scanner)
+// Nota: QuaggaJS precisa ser importado. Se não estiver usando um bundler, adicione a tag <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script> no HTML, antes do script.js
+// Para este exemplo, vou simular as funções de scanner sem a biblioteca real.
 
-// --- Variáveis Globais ---
-const userCredentials = [
-    { user: "thon", pass: "882010", role: "deliverer" },
-    { user: "admin", pass: "4321", role: "admin" }
-];
-
-let currentUser = null;
-let currentCameraStream = null;
+// --- Variáveis de Estado Global ---
 let mapInstance = null;
-let tileLayer = null;
-const mapMarkers = {}; // Para armazenar marcadores das entregas
+let currentView = 'dashboard';
+let userRole = 'entregador'; // 'entregador' ou 'admin'
+let scannerRunning = false;
+let videoStream = null; // Para armazenar o stream de vídeo da câmera
 
-// Elementos HTML principais
-const loginSection = document.getElementById('loginSection');
-const appContainer = document.getElementById('appContainer');
-const cameraView = document.getElementById('cameraView');
-const videoElement = document.getElementById('videoElement');
-const contentArea = document.getElementById('contentArea');
-const sidebar = document.getElementById('sidebar');
-const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-const cameraSelect = document.getElementById('cameraSelect');
-const feedbackMsg = document.getElementById('feedbackMsg');
-const manualInputContainer = document.getElementById('manualInputContainer');
+// Simulação de Dados de Usuários
+const USERS = {
+    "thon": { pass: "882010", role: "entregador" },
+    "admin": { pass: "admin123", role: "admin" }
+};
 
-// Botões
-const btnLogin = document.getElementById('btnLogin');
-const btnLogout = document.getElementById('btnLogout');
-const menuItems = document.querySelectorAll('.menu-item');
-
-// --- Funções de Utilitários ---
-
-/** Exibe uma mensagem de feedback temporariamente. */
-function showFeedback(message, type = 'info', duration = 3000) {
-    feedbackMsg.textContent = message;
-    feedbackMsg.style.opacity = '1';
-    
-    // Altera a cor com base no tipo
-    if (type === 'success') {
-        feedbackMsg.style.backgroundColor = 'var(--success)';
-    } else if (type === 'error') {
-        feedbackMsg.style.backgroundColor = 'var(--danger)';
-    } else {
-        feedbackMsg.style.backgroundColor = 'var(--accent)';
+// Simulação de Dados de Rastreio (Geolocalização e Status)
+const RASTREIOS = {
+    "BR123456789": { 
+        status: "Em Rota de Entrega", 
+        destinatario: "Alice Silva",
+        coordenadas: [-23.55052, -46.63330], // São Paulo
+        historico: ["Coleta Realizada", "Em Trânsito", "Em Rota de Entrega"]
+    },
+    "BR987654321": { 
+        status: "Coletado", 
+        destinatario: "Bruno Costa",
+        coordenadas: [-15.7801, -47.9292], // Brasília
+        historico: ["Coleta Realizada"]
     }
+};
 
-    setTimeout(() => {
-        feedbackMsg.style.opacity = '0';
-        feedbackMsg.style.backgroundColor = 'var(--accent)'; // Volta ao padrão
-    }, duration);
-}
+// --- Funções de Utilitário ---
 
-/** Exibe um SweetAlert2 para confirmações e notificações. */
-function showAlert(title, text, icon = 'info') {
+/**
+ * Função para mostrar notificações usando SweetAlert2
+ * @param {string} title Título da notificação
+ * @param {string} text Conteúdo da notificação
+ * @param {('success'|'error'|'warning'|'info'|'question')} icon Ícone
+ */
+const showAlert = (title, text, icon) => {
     Swal.fire({
-        title: title,
-        text: text,
-        icon: icon,
-        confirmButtonText: 'Entendi',
-        customClass: {
-            confirmButton: 'btn-primary'
-        }
+        title,
+        text,
+        icon,
+        confirmButtonColor: '#3b82f6',
+        timer: icon === 'success' ? 3000 : null
     });
-}
+};
 
-/** Simula a obtenção de dados de entrega. */
-function getDeliveryData(id) {
-    // Simula dados reais
-    const data = {
-        'BR123456789': { status: 'Aguardando Coleta', location: 'Centro de Distribuição A', coords: [-23.5505, -46.6333], type: 'Coleta' },
-        'BR987654321': { status: 'Em Rota de Entrega', location: 'Av. Paulista, 1000', coords: [-23.5613, -46.6566], type: 'Entrega', recipient: 'João Silva' },
-        'BR555555555': { status: 'Entrega Concluída', location: 'Rua do Teste, 50', coords: [-23.585, -46.687], type: 'Entrega', recipient: 'Maria Santos' }
-    };
-    return data[id];
-}
+/**
+ * Altera a seção visível da aplicação (Dashboard, Mapa, Scanner, Usuários)
+ * @param {string} viewName Nome da view (dashboard, scan, map, routes, users)
+ */
+const switchView = (viewName) => {
+    if (viewName === currentView) return;
 
-// --- Funções de Navegação e Layout ---
-
-/** Alterna a visibilidade da barra lateral em dispositivos móveis. */
-function toggleSidebar() {
-    sidebar.classList.toggle('active');
-}
-
-/** Alterna entre modos de tela cheia (Mapa/Scanner) e modo Dashboard. */
-function toggleFullScreenMode(enable) {
-    // No layout de Flexbox/Block, o modo tela cheia é menos sobre alterar o container
-    // e mais sobre garantir que o elemento (mapa/scanner) ocupe a viewport
-    if (window.innerWidth <= 768) {
-        // Em mobile, a barra lateral deve ser fechada
-        sidebar.classList.remove('active');
-    }
-}
-
-/** Atualiza a interface (Menu e Rótulos) após o login. */
-function updateUI(user) {
-    document.getElementById('displayUser').textContent = user.user.toUpperCase();
-    document.getElementById('adminMenuOptions').classList.toggle('hidden', user.role !== 'admin');
-    
-    // Exibe o botão de menu mobile
-    mobileMenuBtn.classList.remove('hidden');
-}
-
-/** Renderiza o conteúdo da seção selecionada. */
-function renderContent(sectionId) {
-    // Remove a classe 'active' de todos os itens do menu
-    menuItems.forEach(item => item.classList.remove('active'));
-    // Adiciona a classe 'active' ao item selecionado
-    document.getElementById(`btn${sectionId}`).classList.add('active');
-    
-    // Oculta a view da câmera e o app container, por padrão
-    cameraView.style.display = 'none';
-    appContainer.classList.remove('hidden');
-    
-    // Fecha o menu lateral em mobile após seleção
-    if (window.innerWidth <= 768) {
-        toggleSidebar();
+    // Desliga o scanner se estiver ativo
+    if (scannerRunning && currentView === 'scan') {
+        stopScanner();
     }
     
-    // Zera o conteúdo da área principal
-    contentArea.innerHTML = '';
+    // Esconde o botão mobile se não for a view principal
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    if (viewName === 'scan') {
+        mobileMenuBtn.classList.add('hidden');
+    } else {
+        mobileMenuBtn.classList.remove('hidden');
+    }
 
-    // Lógica para carregar o conteúdo
-    switch (sectionId) {
-        case 'Dashboard':
-            toggleFullScreenMode(false);
-            stopCamera();
-            loadDashboard();
+    // Gerencia a classe 'active' do menu
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = ''; // Limpa o conteúdo
+    currentView = viewName;
+    
+    // Lógica para cada view
+    switch (viewName) {
+        case 'dashboard':
+            document.getElementById('btnDashboard').classList.add('active');
+            renderDashboard();
             break;
-        case 'ScanMode':
-            // Oculta o appContainer para exibir o scanner em tela cheia
-            appContainer.classList.add('hidden');
-            startCamera();
+        case 'scan':
+            document.getElementById('btnScanMode').classList.add('active');
+            startScanner();
             break;
-        case 'Map':
-            toggleFullScreenMode(true);
-            stopCamera();
-            loadMap();
+        case 'map':
+            document.getElementById('btnMap').classList.add('active');
+            renderMap();
             break;
-        case 'Routes':
-            toggleFullScreenMode(false);
-            stopCamera();
-            loadRoutes();
+        case 'routes':
+            document.getElementById('btnRoutes').classList.add('active');
+            renderRoutes();
             break;
-        case 'Users':
-            toggleFullScreenMode(false);
-            stopCamera();
-            loadUsersManagement();
-            break;
-        case 'Export':
-            toggleFullScreenMode(false);
-            stopCamera();
-            loadExport();
+        case 'users':
+            document.getElementById('btnUsers').classList.add('active');
+            renderUserManagement();
             break;
         default:
-            contentArea.innerHTML = '<h2>Bem-vindo! Selecione uma opção no menu.</h2>';
+            renderDashboard();
     }
-}
-
-// --- Funções Específicas de Conteúdo ---
-
-function loadDashboard() {
-    // Simula dados do dashboard
-    const stats = [
-        { title: "Entregas Pendentes", value: 12, icon: '📦', color: '#f59e0b' },
-        { title: "Coletas de Hoje", value: 5, icon: '📥', color: '#3b82f6' },
-        { title: "Total Concluído", value: 45, icon: '✅', color: '#22c55e' },
-    ];
-
-    let html = `
-        <h2 style="color:var(--primary);">📊 Dashboard do Entregador</h2>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
-    `;
     
-    stats.forEach(stat => {
-        html += `
-            <div class="user-form-card" style="border-left: 5px solid ${stat.color};">
-                <p style="font-size: 14px; color: #6b7280;">${stat.title}</p>
-                <h3 style="font-size: 32px; font-weight: 700; color:var(--primary);">${stat.icon} ${stat.value}</h3>
+    // Esconde a sidebar em mobile após a troca de view
+    const sidebar = document.getElementById('sidebar');
+    if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+    }
+};
+
+/**
+ * Renderiza o Dashboard principal
+ */
+const renderDashboard = () => {
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = `
+        <h2 style="color: var(--primary);">Olá, ${document.getElementById('displayUser').textContent}!</h2>
+        <p>Bem-vindo(a) ao sistema de gestão Pegazus Logística.</p>
+        
+        <div style="display:flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+            <div class="user-form-card" style="width: 300px; text-align: center;">
+                <h3 style="color: var(--accent);">Entregas Pendentes</h3>
+                <p style="font-size: 48px; font-weight: bold; color: var(--danger);">5</p>
             </div>
-        `;
-    });
-    
-    html += `</div>
-        <h3 style="color:var(--primary); margin-top: 30px;">Próximas Entregas (Amostra)</h3>
-        <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
-            <thead>
-                <tr style="background-color: var(--secondary); color: white;">
-                    <th style="padding: 10px; text-align: left;">ID</th>
-                    <th style="padding: 10px; text-align: left;">Destino</th>
-                    <th style="padding: 10px; text-align: left;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr style="background-color: var(--content-bg);">
-                    <td style="padding: 10px;">BR987654321</td>
-                    <td style="padding: 10px;">Av. Paulista, 1000</td>
-                    <td style="padding: 10px; color: #f59e0b;">Em Rota</td>
-                </tr>
-                <tr style="background-color: var(--content-bg-light);">
-                    <td style="padding: 10px;">BR112233445</td>
-                    <td style="padding: 10px;">Rua da Consolação, 500</td>
-                    <td style="padding: 10px; color: #3b82f6;">Atrasada</td>
-                </tr>
-            </tbody>
-        </table>
-    `;
-    
-    contentArea.innerHTML = html;
-}
-
-// --- Funções de Mapa (Leaflet) ---
-
-function loadMap() {
-    contentArea.innerHTML = `
-        <h2 style="color:var(--primary);">🗺️ Mapa de Entregas</h2>
-        <div id="deliveryMap" style="height: 600px; width: 100%; margin-top: 20px; border-radius: 10px; box-shadow: var(--shadow);"></div>
-    `;
-
-    // Inicializa o mapa apenas uma vez
-    if (!mapInstance) {
-        // Coordenadas iniciais (São Paulo, Brasil)
-        mapInstance = L.map('deliveryMap').setView([-23.5505, -46.6333], 12);
-
-        // Adiciona a camada de mapa (OpenStreetMap)
-        tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(mapInstance);
-    } else {
-        // Se já existir, apenas reatribui ao novo container
-        mapInstance.setView([-23.5505, -46.6333], 12);
-        mapInstance.invalidateSize(); // Corrige problemas de renderização após mudar a view
-    }
-    
-    // Simula a adição de marcadores
-    addDeliveryMarkers();
-}
-
-function addDeliveryMarkers() {
-    // Dados simulados (os mesmos do getDeliveryData)
-    const deliveries = [
-        { id: 'BR123456789', status: 'Coleta Pendente', location: 'CD A', coords: [-23.5505, -46.6333], color: 'red' },
-        { id: 'BR987654321', status: 'Em Rota', location: 'Av. Paulista', coords: [-23.5613, -46.6566], color: 'blue' },
-        { id: 'BR555555555', status: 'Concluída', location: 'Rua do Teste', coords: [-23.585, -46.687], color: 'green' }
-    ];
-
-    Object.values(mapMarkers).forEach(marker => mapInstance.removeLayer(marker));
-    mapMarkers = {};
-
-    deliveries.forEach(del => {
-        // Ícones simples baseados no status
-        const markerIcon = L.divIcon({
-            className: `custom-marker ${del.color}`,
-            html: `<div style="background-color:${del.color}; width:20px; height:20px; border-radius:50%; border: 3px solid white;"></div>`,
-            iconSize: [26, 26],
-            iconAnchor: [13, 13]
-        });
-
-        const marker = L.marker(del.coords, { icon: markerIcon })
-            .bindPopup(`<b>ID: ${del.id}</b><br>Local: ${del.location}<br>Status: ${del.status}`)
-            .addTo(mapInstance);
-            
-        mapMarkers[del.id] = marker;
-    });
-}
-
-function loadRoutes() {
-    contentArea.innerHTML = `
-        <h2 style="color:var(--primary);">🧭 Rotas Otimizadas</h2>
-        <div class="user-form-card">
-            <p>Esta seção simularia a otimização de rotas usando um algoritmo. Aqui, você veria a ordem ideal de paradas.</p>
-            <ol>
-                <li>Coleta BR123456789 (CD A)</li>
-                <li>Entrega BR112233445 (Consolação)</li>
-                <li>Entrega BR987654321 (Av. Paulista)</li>
-            </ol>
-            <button class="btn-primary" style="margin-top: 15px;">Iniciar Navegação</button>
+            <div class="user-form-card" style="width: 300px; text-align: center;">
+                <h3 style="color: var(--success);">Entregas Concluídas Hoje</h3>
+                <p style="font-size: 48px; font-weight: bold; color: var(--success);">12</p>
+            </div>
+            <div class="user-form-card" style="width: 300px; text-align: center;">
+                <h3 style="color: var(--primary);">Próximo Destino</h3>
+                <p style="font-size: 18px; font-weight: 600;">BR123456789 - Alice Silva</p>
+            </div>
         </div>
     `;
-}
+};
 
-function loadUsersManagement() {
-     if (currentUser.role !== 'admin') {
-        contentArea.innerHTML = '<h2 style="color:var(--danger);">🚫 Acesso Negado</h2><p>Você não tem permissão para acessar esta seção.</p>';
+/**
+ * Renderiza a tela de gestão de rotas
+ */
+const renderRoutes = () => {
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = `
+        <h2 style="color: var(--primary);">🧭 Minhas Rotas de Hoje</h2>
+        <p>Lista de encomendas para entrega/coleta no seu itinerário.</p>
+        
+        <div class="user-form-card">
+            <h4 style="color: var(--accent);">Rota 1: 08:00 - 12:00 (5 Entregas)</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 5px 0; border-bottom: 1px dashed #eee;">BR123456789 - Alice S. (Status: Em Rota)</li>
+                <li style="padding: 5px 0; border-bottom: 1px dashed #eee;">BR101010101 - João P. (Status: Pendente)</li>
+                <li style="padding: 5px 0;">BR202020202 - Maria G. (Status: Pendente)</li>
+            </ul>
+        </div>
+        
+        <button class="btn-primary" style="margin-top: 15px;">Otimizar Próxima Rota</button>
+    `;
+};
+
+/**
+ * Renderiza o mapa de entregas usando Leaflet
+ */
+const renderMap = () => {
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = `
+        <h2 style="color: var(--primary);">🗺️ Mapa de Entregas Ativas</h2>
+        <div id="mapid" style="height: 600px; width: 100%; border-radius: 10px; box-shadow: var(--shadow); margin-top: 20px;"></div>
+    `;
+
+    // Inicializa o mapa (precisa ser feito APÓS o elemento 'mapid' estar no DOM)
+    if (mapInstance) {
+        mapInstance.remove(); // Limpa a instância anterior, se houver
+    }
+    
+    // Centraliza em uma localização padrão (Ex: São Paulo)
+    mapInstance = L.map('mapid').setView([-23.5505, -46.6333], 10);
+
+    // Adiciona o Tile Layer (Mapa base)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(mapInstance);
+
+    // Adiciona marcadores (Mock Data)
+    Object.keys(RASTREIOS).forEach(id => {
+        const item = RASTREIOS[id];
+        const marker = L.marker(item.coordenadas).addTo(mapInstance)
+            .bindPopup(`<b>${id}</b><br>${item.destinatario}<br>Status: ${item.status}`);
+        
+        // Exemplo de ícone personalizado (simples)
+        const customIcon = L.divIcon({
+            className: 'custom-marker',
+            html: item.status === 'Em Rota de Entrega' ? 
+                `<span style="font-size: 24px; color: var(--accent);">📍</span>` : 
+                `<span style="font-size: 24px; color: var(--success);">✅</span>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 30]
+        });
+        marker.setIcon(customIcon);
+    });
+
+    // Ajusta o zoom para caber todos os marcadores, se houver
+    if (Object.keys(RASTREIOS).length > 0) {
+        const bounds = Object.values(RASTREIOS).map(item => item.coordenadas);
+        mapInstance.fitBounds(L.latLngBounds(bounds), { padding: [50, 50] });
+    }
+};
+
+/**
+ * Renderiza a tela de gerenciamento de usuários (apenas para Admin)
+ */
+const renderUserManagement = () => {
+    if (userRole !== 'admin') {
+        contentArea.innerHTML = `<h2 style="color: var(--danger);">🛑 Acesso Negado</h2><p>Você não tem permissão para acessar esta área.</p>`;
         return;
     }
     
-    // Simula a listagem de usuários
-    const usersHtml = userCredentials.map(u => `
-        <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Usuário: <strong>${u.user}</strong> (Função: ${u.role.toUpperCase()})</span>
-            <button class="btn-primary" style="background:var(--danger); padding: 8px 12px; font-size:14px; box-shadow:none;" onclick="showAlert('Simulação','Ação: Excluir ${u.user}','warning')">Excluir</button>
-        </div>
-    `).join('');
-
+    const contentArea = document.getElementById('contentArea');
     contentArea.innerHTML = `
-        <h2 style="color:var(--primary);">👥 Gerenciar Usuários</h2>
-        <div style="margin-bottom: 20px;">
-            <input type="text" placeholder="Novo Usuário">
-            <input type="password" placeholder="Nova Senha">
-            <select>
-                <option value="deliverer">Entregador</option>
-                <option value="admin">Administrador</option>
+        <h2 style="color: var(--primary);">👥 Gerenciar Usuários</h2>
+        <p>Criação e edição de contas de entregadores e administradores.</p>
+        
+        <div class="user-form-card" style="margin-top: 20px;">
+            <h4 style="color: var(--accent);">Criar Novo Usuário</h4>
+            <input type="text" id="newUserUsername" placeholder="Nome de Usuário">
+            <input type="password" id="newUserPassword" placeholder="Senha">
+            <select id="newUserRole">
+                <option value="entregador">Entregador</option>
+                <option value="admin">Admin</option>
             </select>
-            <button class="btn-primary" style="width:100%;" onclick="showAlert('Simulação','Novo usuário adicionado','success')">Adicionar Novo</button>
+            <button id="btnCreateUser" class="btn-primary" style="background: var(--success);">Criar Usuário</button>
         </div>
-        ${usersHtml}
-    `;
-}
-
-function loadExport() {
-    // Apenas garante que os botões de exportação sejam visíveis na sidebar
-    // A lógica de exportação real estaria no backend ou seria um download de CSV
-    contentArea.innerHTML = `
-        <h2 style="color:var(--primary);">📤 Exportar Dados</h2>
-        <p>Use o menu lateral esquerdo (Exportar Dados) para selecionar o período de exportação (Diário, Semanal, Mensal, Todos). O arquivo CSV será gerado e baixado.</p>
-        <div class="user-form-card">
-            <p style="font-weight: bold;">Funcionalidade de Exportação (Simulação)</p>
-            <button class="btn-primary" onclick="showAlert('Sucesso','Simulando exportação de todos os dados... Download iniciado.','success')" style="background:#6b7280;">Simular Exportação Completa</button>
+        
+        <div class="user-form-card" style="margin-top: 20px;">
+            <h4 style="color: var(--primary);">Usuários Existentes</h4>
+            <ul id="userList" style="list-style: none; padding: 0;">
+                </ul>
         </div>
     `;
-}
-
-// --- Funções do Scanner (jsQR) ---
-
-/** Inicia a câmera e o loop de escaneamento. */
-async function startCamera(deviceId = null) {
-    // 1. Oculta o conteúdo principal e mostra a view da câmera
-    cameraView.style.display = 'flex';
-
-    // 2. Busca dispositivos de câmera (se for a primeira vez)
-    if (cameraSelect.options.length <= 1) {
-        await enumerateDevices();
-    }
     
-    // 3. Para qualquer stream anterior
-    stopCamera();
-
-    // 4. Inicia novo stream
-    const constraints = {
-        video: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            facingMode: 'environment' // Preferir a câmera traseira em mobile
+    // Popula a lista de usuários (apenas os nomes)
+    const userList = document.getElementById('userList');
+    Object.keys(USERS).forEach(username => {
+        const role = USERS[username].role;
+        const listItem = document.createElement('li');
+        listItem.style.padding = '5px 0';
+        listItem.style.borderBottom = '1px dashed #eee';
+        listItem.innerHTML = `<strong>${username}</strong> - ${role}`;
+        userList.appendChild(listItem);
+    });
+    
+    // Adiciona o evento de criação (simulado)
+    document.getElementById('btnCreateUser').addEventListener('click', () => {
+        const username = document.getElementById('newUserUsername').value;
+        const password = document.getElementById('newUserPassword').value;
+        const role = document.getElementById('newUserRole').value;
+        
+        if (username && password) {
+            USERS[username] = { pass: password, role: role };
+            showAlert('Sucesso', `Usuário ${username} (${role}) criado!`, 'success');
+            renderUserManagement(); // Recarrega a lista
+        } else {
+            showAlert('Erro', 'Preencha todos os campos.', 'error');
         }
-    };
+    });
+};
+
+// --- Funções de Scanner e Câmera ---
+
+/**
+ * Inicia a visualização da câmera e o scanner (simulação QuaggaJS)
+ */
+const startScanner = async () => {
+    const cameraView = document.getElementById('cameraView');
+    cameraView.style.display = 'flex';
+    scannerRunning = true;
+    document.getElementById('feedbackMsg').style.opacity = '1';
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        currentCameraStream = stream;
-        videoElement.srcObject = stream;
+        // Solicita acesso à câmera
+        videoStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: "environment" // Preferência pela câmera traseira em mobile
+            } 
+        });
+        
+        const videoElement = document.getElementById('videoElement');
+        videoElement.srcObject = videoStream;
         videoElement.play();
         
-        // 5. Inicia o loop de escaneamento após a câmera carregar
-        videoElement.onloadedmetadata = () => {
-            requestAnimationFrame(tick);
-        };
-        showFeedback('Aguardando código de barras/QR...', 'info');
+        // Atualiza a lista de câmeras disponíveis
+        await updateCameraList();
+        
+        // --- INICIALIZAÇÃO DO QUAGGAJS (SIMULADA) ---
+        // Aqui é onde o QuaggaJS seria realmente inicializado.
+        // Como o QuaggaJS não está incluído no script, vamos simular a leitura
+        
+        showAlert('Câmera Ativa', 'Aponte para o QR Code ou use a Entrada Manual.', 'info');
+        
+        // SIMULAÇÃO: Após 5 segundos, simula a leitura de um código
+        setTimeout(() => {
+            if (scannerRunning) { // Verifica se ainda está ativo
+                const simulatedCode = "BR123456789";
+                handleScanResult(simulatedCode);
+            }
+        }, 5000); 
 
     } catch (err) {
-        console.error("Erro ao acessar a câmera:", err);
-        showFeedback('Erro: Câmera indisponível ou permissão negada.', 'error');
-        cameraView.style.display = 'none';
-        appContainer.classList.remove('hidden');
+        showAlert('Erro de Câmera', 'Não foi possível acessar a câmera. Certifique-se de que o acesso foi permitido.', 'error');
+        console.error("Erro ao acessar a câmera: ", err);
+        stopScanner();
     }
-}
+};
 
-/** Para a câmera e o stream. */
-function stopCamera() {
-    if (currentCameraStream) {
-        currentCameraStream.getTracks().forEach(track => track.stop());
-        currentCameraStream = null;
+/**
+ * Para a visualização da câmera e o scanner
+ */
+const stopScanner = () => {
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
     }
-}
+    document.getElementById('cameraView').style.display = 'none';
+    document.getElementById('feedbackMsg').style.opacity = '0';
+    document.getElementById('manualInputContainer').style.opacity = '0';
+    document.getElementById('manualInputContainer').style.pointerEvents = 'none';
+    scannerRunning = false;
+};
 
-/** Enumera as câmeras disponíveis e preenche o select. */
-async function enumerateDevices() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-
-    cameraSelect.innerHTML = '';
-    if (videoDevices.length === 0) {
-        cameraSelect.innerHTML = '<option value="">Nenhuma Câmera Encontrada</option>';
-        return;
-    }
-
-    videoDevices.forEach((device, index) => {
-        const option = document.createElement('option');
-        option.value = device.deviceId;
-        option.textContent = device.label || `Câmera ${index + 1}`;
-        cameraSelect.appendChild(option);
-    });
-}
-
-/** Loop principal de escaneamento de QR Code. */
-function tick() {
-    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-        // Cria um canvas para processar o frame do vídeo
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.height = videoElement.videoHeight;
-        canvas.width = videoElement.videoWidth;
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-        // Usa jsQR para escanear o código
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
-        });
-
-        if (code) {
-            // Código encontrado
-            handleScanResult(code.data);
-            return; // Sai do loop para não escanear o mesmo código repetidamente
-        }
-    }
-
-    // Continua o loop se a câmera ainda estiver ativa
-    if (currentCameraStream) {
-        requestAnimationFrame(tick);
-    }
-}
-
-/** Processa o resultado do scan/entrada manual. */
-function handleScanResult(deliveryId) {
-    stopCamera();
+/**
+ * Trata o resultado da leitura de um código
+ * @param {string} code Código lido/digitado (ex: ID da entrega)
+ */
+const handleScanResult = (code) => {
+    stopScanner(); // Para o scanner imediatamente após a leitura
     
-    const data = getDeliveryData(deliveryId);
-
-    if (data) {
-        showFeedback(`ID de Entrega Encontrado: ${deliveryId}`, 'success', 5000);
+    const rastreio = RASTREIOS[code];
+    
+    if (rastreio) {
+        // Encontrou o rastreio
+        showAlert('Código Encontrado!', `ID: ${code}\nDestinatário: ${rastreio.destinatario}\nStatus: ${rastreio.status}`, 'success');
         
-        const actionButton = data.status === 'Entrega Concluída' ? 
-            `<button class="btn-primary" style="background:var(--secondary); width:100%; margin-top:10px;" disabled>Entrega Concluída</button>` :
-            `<button class="btn-primary" style="background:var(--success); width:100%; margin-top:10px;" onclick="confirmDelivery('${deliveryId}')">Confirmar ${data.type}</button>`;
-            
-        showAlert(
-            `${data.type} Encontrada!`,
-            `
-            <div style="text-align:left; font-size:16px;">
-                <p><b>ID:</b> ${deliveryId}</p>
-                <p><b>Status:</b> ${data.status}</p>
-                <p><b>Local:</b> ${data.location}</p>
-                ${data.recipient ? `<p><b>Recebedor:</b> ${data.recipient}</p>` : ''}
-                ${actionButton}
-            </div>
-            `,
-            'success'
-        ).then(() => {
-            // Volta para o dashboard após fechar o alerta
-            renderContent('Dashboard');
-        });
-
+        // Abre a tela de rota/mapa e centraliza no item
+        switchView('map'); 
+        // Em um sistema real, você adicionaria o marcador específico ou abriria um modal de detalhes
+        // Exemplo: mapInstance.setView(rastreio.coordenadas, 15);
+        
     } else {
-        showFeedback(`ID de Entrega Inválido: ${deliveryId}`, 'error', 5000);
-        // Volta a escanear
-        setTimeout(() => startCamera(cameraSelect.value), 3000); 
+        // Não encontrou o rastreio
+        showAlert('Rastreio Não Encontrado', `O código ${code} não está registrado em nosso sistema.`, 'error');
+        // Volta para o dashboard
+        switchView('dashboard');
     }
-}
+};
 
-/** Simula a confirmação de uma entrega/coleta. */
-function confirmDelivery(deliveryId) {
-    Swal.fire({
-        title: 'Confirmar Ação',
-        text: `Você tem certeza que deseja confirmar a entrega/coleta do ID ${deliveryId}?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sim, Confirmar!',
-        cancelButtonText: 'Cancelar',
-        customClass: {
-            confirmButton: 'btn-primary',
-            cancelButton: 'btn-primary'
-        }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            showAlert('Sucesso!', `ID ${deliveryId} confirmado com sucesso.`, 'success');
-            // Simulação: Atualizaria o status no backend aqui
-            renderContent('Dashboard');
-        } else {
-            // Volta para o dashboard se cancelar
-            renderContent('Dashboard');
-        }
-    });
-}
+/**
+ * Preenche o select de câmeras disponíveis
+ */
+const updateCameraList = async () => {
+    const select = document.getElementById('cameraSelect');
+    select.innerHTML = '<option value="">Câmera Padrão</option>';
+    
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        videoDevices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Câmera ${index + 1}`;
+            select.appendChild(option);
+        });
+    } catch (err) {
+        console.error("Erro ao listar dispositivos de vídeo: ", err);
+    }
+};
 
-// --- Funções de Eventos ---
+// --- Funções de Login ---
 
-// 1. Login
-btnLogin.addEventListener('click', () => {
-    const user = document.getElementById('loginUser').value;
-    const pass = document.getElementById('loginPass').value;
+/**
+ * Tenta realizar o login
+ */
+const performLogin = () => {
+    const user = document.getElementById('loginUser').value.trim();
+    const pass = document.getElementById('loginPass').value.trim();
     const errorMsg = document.getElementById('loginError');
 
-    const matchedUser = userCredentials.find(c => c.user === user && c.pass === pass);
-
-    if (matchedUser) {
-        currentUser = matchedUser;
-        errorMsg.textContent = '';
-        loginSection.classList.add('hidden');
-        appContainer.classList.remove('hidden');
-        updateUI(currentUser);
-        renderContent('Dashboard'); // Inicia no Dashboard
-    } else {
-        errorMsg.textContent = 'Usuário ou senha inválidos.';
-    }
-});
-
-// 2. Logout
-btnLogout.addEventListener('click', () => {
-    stopCamera();
-    currentUser = null;
-    appContainer.classList.add('hidden');
-    loginSection.classList.remove('hidden');
-    mobileMenuBtn.classList.add('hidden');
-    document.getElementById('loginPass').value = ''; // Limpa a senha
-    showAlert('Desconectado', 'Você saiu do sistema com sucesso.', 'info');
-});
-
-// 3. Navegação
-menuItems.forEach(item => {
-    item.addEventListener('click', (e) => {
-        const id = e.currentTarget.id.replace('btn', '');
-        if (id === 'Export') {
-            // Lógica especial para Exportar: exibe sub-botões
-            const exportOptions = document.getElementById('exportOptions');
-            const isVisible = exportOptions.style.display === 'flex';
-            exportOptions.style.display = isVisible ? 'none' : 'flex';
-            
-            // Se for Administrador, renderiza o painel de exportação.
-            if (currentUser.role === 'admin' && !isVisible) {
-                 renderContent(id);
-            }
-            // Não renderiza conteúdo se for apenas para abrir/fechar o menu
-            return; 
-        }
+    if (USERS[user] && USERS[user].pass === pass) {
+        const userInfo = USERS[user];
+        userRole = userInfo.role;
         
-        // Se for Users, verifica permissão
-        if (id === 'Users' && currentUser.role !== 'admin') {
-            showAlert('Acesso Negado', 'Apenas administradores podem gerenciar usuários.', 'error');
-            return;
+        // Esconde a tela de login
+        document.getElementById('loginSection').classList.add('hidden');
+        
+        // Mostra o container principal do App
+        const appContainer = document.getElementById('appContainer');
+        appContainer.classList.remove('hidden');
+
+        // Mostra o botão do menu em mobile
+        if (window.innerWidth <= 768) {
+            document.getElementById('mobileMenuBtn').classList.remove('hidden');
         }
 
-        renderContent(id);
-    });
-});
+        // Atualiza o nome de usuário no sidebar
+        document.getElementById('displayUser').textContent = user;
+        
+        // Mostra/Esconde opções de Admin
+        const adminOptions = document.getElementById('adminMenuOptions');
+        if (userRole === 'admin') {
+            adminOptions.classList.remove('hidden');
+        } else {
+            adminOptions.classList.add('hidden');
+        }
 
-// 4. Exportação (Sub-botões)
-document.getElementById('btnExportDaily').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação diária...', 'success'));
-document.getElementById('btnExportWeekly').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação semanal...', 'success'));
-document.getElementById('btnExportMonthly').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação mensal...', 'success'));
-document.getElementById('btnExportAll').addEventListener('click', () => showAlert('Sucesso', 'Simulando exportação de todos os dados...', 'success'));
+        // Vai para o dashboard
+        switchView('dashboard');
+        
+        showAlert('Sucesso', `Bem-vindo, ${user}!`, 'success');
 
-
-// 5. Troca de Câmera
-cameraSelect.addEventListener('change', (e) => {
-    stopCamera();
-    startCamera(e.target.value);
-});
-
-// 6. Entrada Manual do Scanner
-document.getElementById('btnToggleManualInput').addEventListener('click', () => {
-    const isVisible = manualInputContainer.style.opacity === '1';
-    if (isVisible) {
-        manualInputContainer.style.opacity = '0';
-        manualInputContainer.style.pointerEvents = 'none';
     } else {
-        manualInputContainer.style.opacity = '1';
-        manualInputContainer.style.pointerEvents = 'auto';
-        document.getElementById('manualDeliveryId').focus();
+        errorMsg.textContent = "Usuário ou senha inválidos.";
+        showAlert('Erro de Login', 'Usuário ou senha inválidos.', 'error');
     }
-});
+};
 
-document.getElementById('btnManualConfirm').addEventListener('click', () => {
-    const id = document.getElementById('manualDeliveryId').value.trim();
-    if (id) {
-        manualInputContainer.style.opacity = '0';
-        manualInputContainer.style.pointerEvents = 'none';
-        handleScanResult(id);
-    } else {
-        showFeedback('Por favor, insira um ID.', 'error');
-    }
-});
-
-// --- Inicialização ---
-
-/** Verifica se há algum usuário logado ao carregar (para fins de desenvolvimento). */
-function initialize() {
-    // Configura o evento do botão de menu mobile
-    mobileMenuBtn.onclick = toggleSidebar;
+/**
+ * Realiza o logout
+ */
+const performLogout = () => {
+    userRole = 'entregador'; // Reset para o padrão
     
-    // Configura o formulário de login para enviar com Enter
+    // Esconde o app e mostra a tela de login
+    document.getElementById('appContainer').classList.add('hidden');
+    document.getElementById('loginSection').classList.remove('hidden');
+    document.getElementById('mobileMenuBtn').classList.add('hidden');
+    
+    // Limpa campos de login
+    document.getElementById('loginUser').value = '';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginError').textContent = '';
+    
+    // Para o scanner, se estiver rodando
+    if (scannerRunning) {
+        stopScanner();
+    }
+    
+    showAlert('Logout', 'Você foi desconectado com sucesso.', 'info');
+};
+
+// --- Funções de Exportação (Simuladas) ---
+
+/**
+ * Simula a exportação de dados
+ * @param {string} periodo O período de exportação (Diário, Semanal, etc.)
+ */
+const simulateExport = (periodo) => {
+    if (userRole !== 'admin') {
+        showAlert('Acesso Negado', 'Apenas administradores podem exportar dados.', 'error');
+        return;
+    }
+    
+    const dataCount = Math.floor(Math.random() * 500) + 50;
+    showAlert('Exportação Iniciada', `Exportando ${dataCount} registros para o período ${periodo}.`, 'info');
+    
+    // Simulação de delay para a exportação
+    setTimeout(() => {
+        showAlert('Exportação Concluída', `O arquivo de exportação (${periodo}) está pronto para download.`, 'success');
+    }, 2000);
+};
+
+// --- Configuração de Event Listeners ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 🚪 Login Events
+    document.getElementById('btnLogin').addEventListener('click', performLogin);
+    // Permite login ao pressionar Enter nos campos de senha
     document.getElementById('loginPass').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            btnLogin.click();
+            performLogin();
         }
     });
 
-    // Tenta simular o login automático para agilizar o desenvolvimento
-    // Remova este bloco em produção
-    const autoLogin = userCredentials[0];
-    document.getElementById('loginUser').value = autoLogin.user;
-    document.getElementById('loginPass').value = autoLogin.pass;
-    btnLogin.click();
-}
+    // 🧭 Sidebar Menu Events
+    document.getElementById('btnDashboard').addEventListener('click', () => switchView('dashboard'));
+    document.getElementById('btnScanMode').addEventListener('click', () => switchView('scan'));
+    document.getElementById('btnMap').addEventListener('click', () => switchView('map'));
+    document.getElementById('btnRoutes').addEventListener('click', () => switchView('routes'));
+    document.getElementById('btnUsers').addEventListener('click', () => switchView('users')); // Admin
 
-// Inicia a aplicação
-initialize();
+    // 📤 Export Toggle Event (Admin)
+    const btnExport = document.getElementById('btnExport');
+    const exportOptions = document.getElementById('exportOptions');
+    btnExport.addEventListener('click', () => {
+        if (userRole === 'admin') {
+            exportOptions.style.display = exportOptions.style.display === 'flex' ? 'none' : 'flex';
+            btnExport.classList.toggle('active'); // Destaca o botão pai
+        } else {
+            showAlert('Acesso Negado', 'Apenas administradores podem ver opções de exportação.', 'error');
+        }
+    });
+    
+    // Export Option Clicks
+    document.getElementById('btnExportDaily').addEventListener('click', () => simulateExport('Diário'));
+    document.getElementById('btnExportWeekly').addEventListener('click', () => simulateExport('Semanal'));
+    document.getElementById('btnExportMonthly').addEventListener('click', () => simulateExport('Mensal'));
+    document.getElementById('btnExportAll').addEventListener('click', () => simulateExport('Completo'));
+    
+    // 🚪 Logout Event
+    document.getElementById('btnLogout').addEventListener('click', performLogout);
+    
+    // 📱 Mobile Menu Toggle
+    document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('active');
+    });
+
+    // 📸 Scanner - Entrada Manual Toggle
+    document.getElementById('btnToggleManualInput').addEventListener('click', () => {
+        const manualContainer = document.getElementById('manualInputContainer');
+        const isVisible = manualContainer.style.opacity === '1';
+        
+        manualContainer.style.opacity = isVisible ? '0' : '1';
+        manualContainer.style.pointerEvents = isVisible ? 'none' : 'auto';
+        
+        document.getElementById('btnToggleManualInput').textContent = isVisible ? '✏️ Entrada Manual' : 'X Fechar';
+        
+        // Foca no input quando abre
+        if (!isVisible) {
+            document.getElementById('manualDeliveryId').focus();
+        }
+    });
+    
+    // 📸 Scanner - Confirmar Entrada Manual
+    document.getElementById('btnManualConfirm').addEventListener('click', () => {
+        const code = document.getElementById('manualDeliveryId').value.trim().toUpperCase();
+        if (code) {
+            handleScanResult(code);
+        } else {
+            showAlert('Atenção', 'Digite o ID da entrega/coleta.', 'warning');
+        }
+    });
+});
