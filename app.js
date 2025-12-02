@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /* --- FUNÇÕES DE AUTENTICAÇÃO (IMPLEMENTAÇÃO COMPLETA) --- */
+    /* --- FUNÇÕES DE AUTENTICAÇÃO --- */
 
     function handleLogin() {
         const username = dom.loginUser.value;
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     window.renderDashboard = function() {
         stopVideo(); // Garante que a câmera seja desligada
-        dom.mapView.style.display = 'none'; // Esconde a seção do mapa
+        dom.mapView.style.display = 'none'; 
         dom.cameraView.style.display = 'none';
         dom.app.classList.remove('hidden');
         dom.contentArea.innerHTML = `<h2>Dashboard</h2><p>Bem-vindo(a), ${currentUser.username}!</p>`;
@@ -386,7 +386,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.renderRoutes = function() { 
-        // ... (Implemente a renderização de rotas)
         stopVideo(); 
         dom.mapView.style.display = 'none';
         dom.cameraView.style.display = 'none';
@@ -397,7 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.renderUsers = function() { 
-        // ... (Implemente a renderização de usuários)
         if (currentUser.role !== 'admin' && currentUser.role !== 'gestor') {
             return renderDashboard(); // Redireciona se não tiver permissão
         }
@@ -429,7 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.renderUserForm = function(userId = null) {
-        // ... (Implemente o formulário de usuário)
         const userToEdit = userId ? users.find(u => u.id === userId) : { username: '', password: '', role: 'colaborador' };
         
         const isEditing = userId !== null;
@@ -451,7 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.saveUser = function(userId) {
-        // ... (Implemente a lógica de salvar usuário)
         const username = document.getElementById('formUsername').value.trim();
         const password = document.getElementById('formPassword').value.trim();
         const role = document.getElementById('formRole').value;
@@ -488,7 +484,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.deleteUser = function(userId) {
-        // ... (Implemente a lógica de deletar usuário)
         if (currentUser.id === userId) {
             alert("Você não pode deletar a si mesmo.");
             return;
@@ -512,7 +507,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startVideoAndScan() {
-        // ... (Implemente a lógica de iniciar câmera e QR scan)
         if (isScanning) return;
         isScanning = true;
         
@@ -534,7 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopVideo() {
-        // ... (Implemente a lógica de parar câmera)
         if (videoStream) {
             videoStream.getTracks().forEach(track => track.stop());
             videoStream = null;
@@ -544,7 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function scan() {
-        // ... (Implemente a lógica de scan de QR)
         if (!isScanning || dom.videoElement.readyState !== dom.videoElement.HAVE_ENOUGH_DATA) {
             requestAnimationFrame(scan);
             return;
@@ -591,8 +583,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // ... (restante das funções do scanner, como toggleTorch)
-    
     window.toggleSidebar = function() {
         if (window.innerWidth <= 768) {
             dom.sidebar.classList.toggle('active');
@@ -602,7 +592,6 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- FUNÇÕES DE EXPORTAÇÃO --- */
 
     function exportData(filter) {
-        // ... (Implemente a lógica de exportação, você já tem essa função)
         let filteredRecords = [];
         const today = new Date();
         
