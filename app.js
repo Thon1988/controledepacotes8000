@@ -12,25 +12,28 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
+    // CORREÇÃO: Garante que registros antigos tenham um status padrão
+    scanRecords.forEach(r => {
+        if (!r.status) r.status = 'pending';
+    });
+
     let users = loadUsers();
     
     let videoStream = null;
     let isScanning = false;
-    let videoTrack = null; 
+    let videoTrack = null;
     const SCAN_DELAY = 1000;
     let lastScanCode = '';
     let lastScanTime = 0;
     let userLocation = null;
     let mapInstance = null;
     let locationMarker = null;
-    
-    let tempScanRecord = null; // Variável de estado para a Baixa
 
     /* --- Referências DOM --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'), 
+        appContainer: document.querySelector('.app'), // Adicionado
         contentArea: document.getElementById('contentArea'),
         cameraView: document.getElementById('cameraView'),
         video: document.getElementById('videoElement'),
@@ -138,13 +141,15 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.style.display = 'block';
         
         dom.appContainer.style.display = 'grid'; 
-
+        
+        // CORREÇÃO: Garante o layout padrão (sidebar + content) ao sair do scanner/mapa full screen
         if (window.innerWidth > 768) { 
             dom.sidebar.classList.remove('hidden'); 
-            dom.appContainer.style.gridTemplateColumns = '320px 1fr';
+            dom.appContainer.style.gridTemplateColumns = '392px 1fr';
         } else {
             dom.sidebar.classList.remove('active');
         }
+        
         stopScanner();
         if (dom.exportOptions.style.display === 'flex') {
             dom.exportOptions.style.display = 'none'; 
@@ -191,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner (Com a correção de robustez) --- */
+    /* --- Lógica do Scanner --- */
     
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
@@ -210,7 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const opt = document.createElement('option');
                     opt.value = d.deviceId;
                     opt.text = d.label || `Câmera ${dom.cameraSelect.length + 1}`;
-                    opt.selected = d.label.toLowerCase().includes('environment') || d.label.toLowerCase().includes('back');
                     dom.cameraSelect.appendChild(opt);
                 });
                 dom.cameraSelect.classList.remove('hidden');
@@ -228,10 +232,12 @@ document.addEventListener('DOMContentLoaded', () => {
         stopScanner(); 
         
         const videoDevices = Array.from(dom.cameraSelect.options);
+        
         let targetDeviceId = deviceId;
         
         // Lógica de seleção automática da câmera 0 (traseira/environment)
         if (!targetDeviceId && videoDevices.length > 0) {
+            // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
             const preferredCamera = videoDevices.find(opt => 
                 opt.text.toLowerCase().includes('environment') || 
                 opt.text.toLowerCase().includes('back') || 
@@ -241,64 +247,36 @@ document.addEventListener('DOMContentLoaded', () => {
             if (preferredCamera) {
                 targetDeviceId = preferredCamera.value;
             } else {
+                // 2. Se não encontrar pelo label, usa a primeira (índice 0)
+                // Nota: Em muitos dispositivos, a câmera 0 é a frontal, mas é a opção mais segura se o label for genérico.
                 targetDeviceId = videoDevices[0].value;
             }
         }
-        
-        // --- TENTATIVA 1: Constraints específicas (deviceID ou facingMode) ---
-        let constraints = {
+
+        const constraints = {
             video: targetDeviceId
                 ? { deviceId: { exact: targetDeviceId } } 
                 : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         };
-        
-        let videoStreamAttempt = null;
 
         try {
-            videoStreamAttempt = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err1) {
-            console.warn("Falha na TENTATIVA 1 (Específica):", err1.name, err1.message);
+            videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+            dom.video.srcObject = videoStream;
+            dom.video.setAttribute('playsinline', true);
+            await dom.video.play();
+            isScanning = true;
+            videoTrack = videoStream.getVideoTracks()[0];
             
-            // --- TENTATIVA 2: Constraints genéricas (video: true) ---
-            constraints = { video: true };
-            try {
-                videoStreamAttempt = await navigator.mediaDevices.getUserMedia(constraints);
-            } catch (err2) {
-                // FALHA TOTAL
-                console.error("Falha na TENTATIVA 2 (Genérica):", err2);
-                stopScanner(); 
-                
-                // Usa SweetAlert para erro na câmera
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Erro ao Acessar Câmera',
-                    text: 'Por favor, verifique se a câmera está disponível e se as permissões foram concedidas. Código: ' + (err2.name || 'Desconhecido'),
-                    confirmButtonText: 'Entendi'
-                });
-                window.renderDashboard(); 
-                return;
-            }
-        }
+            // Atualiza o seletor para o dispositivo que realmente foi aberto
+            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
 
-        // --- SUCESSO (Executado após TENTATIVA 1 ou TENTATIVA 2) ---
-        videoStream = videoStreamAttempt;
-        dom.video.srcObject = videoStream;
-        dom.video.setAttribute('playsinline', true);
-        await dom.video.play();
-        isScanning = true;
-        videoTrack = videoStream.getVideoTracks()[0]; 
-        
-        // Se conseguimos uma stream, atualiza o seletor para o dispositivo que está sendo usado.
-        const actualDeviceId = videoTrack.getSettings().deviceId;
-        if (actualDeviceId) {
-             dom.cameraSelect.value = actualDeviceId;
-        } else if (targetDeviceId) {
-             dom.cameraSelect.value = targetDeviceId;
+            requestAnimationFrame(tick);
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao acessar câmera: ' + err.message);
+            window.renderDashboard(); 
         }
-
-        requestAnimationFrame(tick);
     }
-
 
     function stopScanner() {
         isScanning = false;
@@ -306,7 +284,6 @@ document.addEventListener('DOMContentLoaded', () => {
             videoStream.getTracks().forEach(t => t.stop());
             videoStream = null;
         }
-        videoTrack = null; 
         dom.video.srcObject = null;
     }
 
@@ -328,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sy = (h - size) / 2;
             const imageData = ctx.getImageData(sx, sy, size, size);
             
+            // jsQR está no index.html via CDN
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "attemptBoth",
             });
@@ -347,222 +325,35 @@ document.addEventListener('DOMContentLoaded', () => {
         lastScanTime = now;
 
         beep();
-        showFeedback("QR Code lido. Processando baixa..."); 
+        showFeedback(data); 
 
         const scanLat = userLocation ? userLocation.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
         const scanLon = userLocation ? userLocation.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
 
-        // 1. Cria o registro temporário (ainda sem finalStatus/observation)
-        tempScanRecord = parsePayload(data, scanLat, scanLon);
-        
-        // 2. Para o scanner e mostra o formulário de baixa
-        stopScanner();
-        renderBaixaForm(tempScanRecord); 
-    }
-
-    /* --- FUNÇÕES DE BAIXA --- */
-
-    /** Inicia o formulário de baixa para um registro EXISTENTE no dashboard. */
-    window.startBaixaExisting = (index) => {
-        const record = scanRecords[index];
-        if (!record) {
-             Swal.fire('Erro', 'Registro não encontrado.', 'error');
-             return;
-        }
-        // Cria uma cópia do registro para edição, mantendo a referência do índice
-        tempScanRecord = { ...record }; 
-        renderBaixaForm(tempScanRecord, index);
-    }
-    
-    /** * Renderiza o formulário de baixa. 
-     * indexToUpdate: -1 para nova baixa (scanner), índice para atualização (dashboard).
-     */
-    function renderBaixaForm(record, indexToUpdate = -1) {
-        showContent();
-        
-        const possibleStatus = [
-            { code: 'ENTREGUE', label: '✅ Entregue com sucesso' },
-            { code: 'AUSENTE', label: '🏠 Ausente/Endereço Fechado' },
-            { code: 'RECUSA', label: '❌ Recusado pelo Destinatário' },
-            { code: 'PROBLEMA', label: '⚠️ Problema de Rota/Acesso' }
-        ];
-
-        const detailsHtml = `
-            <div style="background:var(--content-card-bg); padding:20px; border-radius:10px; border-left:4px solid var(--accent); margin-bottom:20px;">
-                <h3 style="margin-top:0; color:var(--content-text-dark);">Baixa de Entrega</h3>
-                <p style="font-weight:bold; font-size:18px; margin:5px 0;">ID: ${record.id}</p>
-                <p style="margin:2px 0;">Destinatário: <strong>${record.recipientName}</strong></p>
-                <p style="margin:2px 0;">Endereço: ${record.address}, ${record.zipCode}</p>
-                <p style="margin:2px 0; font-size:14px; color:var(--muted);">Transportadora: ${record.type} | Previsto: ${record.scheduledDate}</p>
-            </div>
-            
-            <h3 style="color:var(--content-text-dark);">Status Final da Baixa</h3>
-            <select id="finalStatus" style="margin-bottom:15px; background:var(--content-card-bg); border:1px solid var(--muted); padding:10px; border-radius:8px;">
-                ${possibleStatus.map(s => 
-                    `<option value="${s.code}" ${record.finalStatus === s.code ? 'selected' : ''}>${s.label}</option>`
-                ).join('')}
-            </select>
-            
-            <textarea id="observation" placeholder="Observações (opcional)" style="width:100%; height:100px; padding:10px; border-radius:8px; border:1px solid var(--muted); margin-bottom:15px; resize:vertical; background:var(--content-card-bg); color:var(--content-text-dark);">${record.observation || ''}</textarea>
-            
-            <button class="btn-primary" onclick="window.confirmBaixa(${indexToUpdate})" style="width:100%;">
-                ${indexToUpdate !== -1 ? 'Atualizar Status' : 'Confirmar Baixa e Salvar Registro'}
-            </button>
-            <button onclick="window.cancelBaixa()" style="width:100%; margin-top:10px; background:#e5e7eb; color:var(--content-text-dark); padding:12px 20px; border:none; border-radius:10px; cursor:pointer;">Cancelar e Voltar</button>
-        `;
-        
-        dom.contentArea.innerHTML = detailsHtml;
-        window.confirmBaixa = confirmBaixa;
-        window.cancelBaixa = cancelBaixa;
-    }
-
-    /** * Confirma a baixa/atualização. 
-     * indexToUpdate: -1 para nova baixa (scanner), índice para atualização (dashboard).
-     */
-    function confirmBaixa(indexToUpdate = -1) {
-        if (!tempScanRecord) return;
-
-        const finalStatus = document.getElementById('finalStatus').value;
-        const observation = document.getElementById('observation').value.trim();
-
-        // Atualiza o registro temporário com as informações da baixa
-        tempScanRecord.finalStatus = finalStatus;
-        tempScanRecord.observation = observation;
-        tempScanRecord.baixaDate = new Date().toISOString(); 
-        tempScanRecord.deliveryStatus = finalStatus; // Sobrescreve o status inicial com o final
-
-        if (indexToUpdate !== -1) {
-            // Edição de registro existente (vindo do dashboard)
-            scanRecords[indexToUpdate] = { ...tempScanRecord }; // Substitui o registro existente pela cópia atualizada
-        } else {
-            // Nova baixa (vindo do scanner)
-            // Salva o registro final (unshift adiciona ao começo)
-            scanRecords.unshift(tempScanRecord);
-        }
-
+        const record = parsePayload(data, scanLat, scanLon);
+        scanRecords.unshift(record);
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
-        
-        const finalId = tempScanRecord.id;
-        const statusDisplay = tempScanRecord.finalStatus === 'ENTREGUE' ? 'Entrega Confirmada' : `Status de Baixa: ${tempScanRecord.finalStatus}`;
-        tempScanRecord = null; // Limpa o estado temporário
-        
-        showContent(); // Garante a transição visual
-        renderDashboard(); // Volta para o dashboard
-        
-        // Usa SweetAlert para feedback de sucesso
-        Swal.fire({
-            icon: 'success',
-            title: indexToUpdate !== -1 ? 'Status Atualizado!' : 'Baixa Confirmada!',
-            text: `ID ${finalId} salvo. ${statusDisplay}.`,
-            showConfirmButton: false,
-            timer: 3000
-        });
-    }
-
-    function cancelBaixa() {
-        tempScanRecord = null; // Descarta o registro
-        renderDashboard(); // Volta para o dashboard
     }
 
     /* --- Parsers e Helpers --- */
-
-    /**
-     * Função auxiliar para gerar os links de navegação para o Leaflet popup ou dashboard.
-     * @param {number} lat - Latitude do destino.
-     * @param {number} lon - Longitude do destino.
-     * @param {string} id - ID ou nome de exibição do destino.
-     * @returns {string} HTML com os botões de navegação.
-     */
-    function getNavigationLinks(lat, lon, id) {
-        // Links formatados para abrir o aplicativo diretamente em dispositivos móveis
-        const googleMapsUrl = `https://maps.google.com/?daddr=${lat},${lon}&travelmode=driving`;
-        const wazeUrl = `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
-        
-        return `
-            <div style="font-size: 14px; padding: 5px; text-align: center;">
-                <a href="${googleMapsUrl}" target="_blank" style="display: block; margin-bottom: 8px; background: #4285F4; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🗺️ Google Maps</a>
-                <a href="${wazeUrl}" target="_blank" style="display: block; background: #6E0E6E; color: white; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold;">🚕 Waze</a>
-            </div>
-        `;
-    }
-
-
     function parsePayload(raw, lat, lon) {
-        // Divide o conteúdo do QR code em linhas para extração, filtrando linhas vazias
-        const lines = raw.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        let id = raw;
+        let type = 'Genérico';
+        if (raw.includes('shopee')) { type = 'Shopee'; }
+        else if (raw.includes('mercadoli')) { type = 'Mercado Livre'; }
         
-        // --- 1. Extração de campos (Metadata - Linhas 0 a 4) ---
-        
-        // Linha 0: ID e Data (e.g., "1- 45975475892-01/12/2025")
-        let deliveryId = 'N/A';
-        let scheduledDate = 'N/A';
-        const idDateMatch = lines[0] ? lines[0].match(/(\d+-\s?)?(\d+)-(\d{2}\/\d{2}\/\d{4})/) : null;
-        if (idDateMatch) {
-            deliveryId = idDateMatch[2] || lines[0]; 
-            scheduledDate = idDateMatch[3];         
-        } else {
-            const numMatch = raw.match(/(\d{8,})/);
-            if (numMatch) deliveryId = numMatch[1];
-        }
-
-        const carrier = lines[1] || 'Genérico';                   
-        const deliveryType = lines[2] || 'Tipo Não Encontrado';  
-        // lines[3] é 'NORMAL'
-        const status = lines[4] || 'Status Não Encontrado';      
-        
-        // --- 2. Ajuste do Índice de Destinatário (FIX CORREÇÃO DE SHIFT) ---
-        
-        // Por padrão, o Destinatário está na linha 6 se a linha 5 (Gerência: PEX) estiver presente.
-        let recipientStart = 6;
-        
-        // Se a linha 5 não existe ou não começa com 'Gerência:', assume que a linha 5 é o Destinatário.
-        if (!lines[5] || !lines[5].startsWith('Gerência:')) {
-            recipientStart = 5;
-        }
-
-        // Garante que o array tenha espaço suficiente antes de tentar extrair
-        if (lines.length <= recipientStart) {
-             console.warn("Payload curto demais para extrair destinatário/endereço/cep.");
-             recipientStart = lines.length; // Garante que a extração falhe graciosamente
-        }
-        
-        // --- 3. Extração dos Dados de Entrega (Ajustada) ---
-        const recipientName = lines[recipientStart] || 'Destinatário Não Encontrado'; 
-        const address = lines[recipientStart + 1] || 'Endereço Não Encontrado';     
-        const zipCode = lines[recipientStart + 2] || 'CEP Não Encontrado';
-        
-        
-        // Campo com prefixo: Coletado: MSS019 (Extração dinâmica, já robusta)
-        let collectorId = 'N/A';
-        const collectorLine = lines.find(l => l.startsWith('Coletado:'));
-        const collectorMatch = collectorLine ? collectorLine.match(/Coletado:\s*(.*)/) : null;
-        if (collectorMatch) {
-            collectorId = collectorMatch[1].trim();
-        }
-        
-        // --- 4. Estrutura do Registro de Retorno ---
+        const numMatch = raw.match(/(\d{8,})/);
+        if (numMatch) id = numMatch[1];
 
         return {
-            id: deliveryId, 
+            id: id,
             raw: raw,
-            type: carrier,  
+            type: type,
             user: currentUser.username,
-            date: new Date().toISOString(), 
+            date: new Date().toISOString(),
             lat: lat,
             lon: lon,
-
-            scheduledDate: scheduledDate,
-            deliveryType: deliveryType,
-            deliveryStatus: status, 
-            recipientName: recipientName,
-            address: address,
-            zipCode: zipCode,
-            collectorId: collectorId,
-            
-            // Campos de Baixa (adicionados)
-            finalStatus: null, // Será preenchido na confirmação
-            observation: null,
-            baixaDate: null 
+            status: 'pending' // ADICIONADO: Status inicial
         };
     }
 
@@ -581,13 +372,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showFeedback(text) {
-        dom.feedback.textContent = text;
+        dom.feedback.textContent = `Leitura Confirmada: ${text.substring(0, 30)}...`;
         dom.feedback.style.opacity = '1';
         setTimeout(() => { dom.feedback.style.opacity = '0'; }, 2000); 
         
         const overlay = document.querySelector('.scan-overlay');
         overlay.style.borderColor = 'var(--success)';
         setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+    }
+    
+    // ADICIONADO: Feedback visual para o Dashboard
+    function showDashboardFeedback(text) {
+        const feedbackDiv = document.createElement('div');
+        feedbackDiv.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:20px 40px; background:var(--success); color:white; border-radius:12px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.2); opacity:0; transition:opacity 0.3s; font-family: 'Inter', sans-serif;";
+        feedbackDiv.innerHTML = `<h3>${text}</h3>`;
+        document.body.appendChild(feedbackDiv);
+        
+        setTimeout(() => { feedbackDiv.style.opacity = '1'; }, 50);
+        setTimeout(() => { 
+            feedbackDiv.style.opacity = '0'; 
+            setTimeout(() => { document.body.removeChild(feedbackDiv); }, 300);
+            renderDashboard(); // Re-renderiza para mostrar a lista atualizada
+        }, 1500);
     }
 
     document.getElementById('btnTorch').addEventListener('click', async () => {
@@ -598,20 +404,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     const settings = videoTrack.getSettings();
                     await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
                 } else {
-                    Swal.fire({
-                        icon: 'info',
-                        title: 'Flash/Lanterna',
-                        text: 'Flash não suportado neste dispositivo/navegador.',
-                        timer: 2000
-                    });
+                    alert('Flash não suportado neste dispositivo/navegador');
                 }
             } catch(e) { console.log(e); }
         }
     });
+    
+    // ADICIONADO: Função para dar baixa no registro
+    window.markAsDelivered = (recordId) => {
+        // Apenas o usuário que escaneou pode marcar como entregue, a menos que seja um admin/gestor (simplificação: apenas o próprio)
+        const record = scanRecords.find(r => r.id === recordId && r.user === currentUser.username); 
+        
+        if (record) {
+            if (record.status === 'delivered') {
+                alert(`Entrega ${recordId} já está marcada como entregue.`);
+                return;
+            } else {
+                record.status = 'delivered';
+                localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
+                
+                showDashboardFeedback(`Entrega ${recordId} confirmada como entregue!`);
+            }
+        } else {
+             alert('Registro não encontrado ou você não tem permissão para alterar o status desta entrega.');
+        }
+    };
+
 
     /* --- Views (Renderização) --- */
     
-    // FUNÇÃO RENDERDASHBOARD COM EXPANSÃO E NAVEGAÇÃO
     function renderDashboard() {
         showContent();
         
@@ -625,49 +446,21 @@ document.addEventListener('DOMContentLoaded', () => {
             <h2>📦 Entregas Realizadas</h2>
             <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
             <div style="display:grid; gap:10px; margin-top:20px;">
-                ${scanRecords.map((r, index) => {
-                    const isDelivered = r.finalStatus === 'ENTREGUE';
-                    // Se não foi feita a baixa, usa o status inicial (PENDENTE/Status Não Encontrado)
-                    const isPending = !r.finalStatus || r.finalStatus === 'Status Não Encontrado'; 
-                    const borderColor = isPending ? 'var(--secondary)' : (isDelivered ? 'var(--success)' : 'var(--danger)');
-                    const statusDisplay = r.finalStatus || r.deliveryStatus;
-                    const dateDisplay = new Date(r.baixaDate || r.date).toLocaleString();
+                ${scanRecords.map(r => {
+                    const statusColor = r.status === 'delivered' ? 'var(--success)' : 'var(--danger)';
+                    const actionText = r.status === 'delivered' ? 'ENTREGUE ✅' : 'CLIQUE PARA DAR BAIXA 📝';
+                    const cursorStyle = r.status === 'delivered' ? 'default' : 'pointer';
+                    const onclickHandler = r.status === 'delivered' ? '' : `onclick="window.markAsDelivered('${r.id}')"`;
                     
-                    const navigationHtml = getNavigationLinks(r.lat, r.lon, r.id);
-
                     return `
-                        <div class="dashboard-card" 
-                             style="background:var(--content-card-bg); 
-                                    padding:15px; 
-                                    border-radius:10px; 
-                                    border-left:4px solid ${borderColor}; 
-                                    cursor:pointer;"
-                             onclick="document.getElementById('details-${index}').classList.toggle('expanded');">
-                            
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div ${onclickHandler} 
+                             style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid ${statusColor}; cursor:${cursorStyle};">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <div style="font-weight:bold; font-size:16px">${r.id}</div>
-                                <div style="font-size:12px; font-weight:600; color:var(--accent);">${r.type}</div>
+                                <div style="font-size:12px; font-weight:bold; color:${statusColor};">${actionText}</div>
                             </div>
-                            <div style="font-size:14px; margin-top:5px; color:var(--content-text-dark);">
-                                <p style="margin:0;">Destino: <strong>${r.recipientName}</strong></p>
-                                <p style="margin:2px 0; font-size:12px; color:var(--muted);">
-                                    Status: <strong>${statusDisplay}</strong> | Coleta: ${r.collectorId}
-                                </p>
-                            </div>
-                            
-                            <div id="details-${index}" class="detail-content" style="max-height:0; overflow:hidden; transition:max-height 0.3s ease-in-out; margin-top:10px;">
-                                <hr style="border-color:var(--muted); opacity:0.3; margin:10px 0;">
-                                
-                                <p style="margin:2px 0;">Endereço: ${r.address} (${r.zipCode})</p>
-                                ${r.observation ? `<p style="margin:2px 0; font-size:13px; color:var(--danger);">Obs: ${r.observation}</p>` : ''}
-                                <p style="margin:2px 0; font-size:11px; color:#94a3b8;">
-                                    Registrado por ${r.user} em ${dateDisplay} | Previsto: ${r.scheduledDate}
-                                </p>
-
-                                <h4 style="margin-top:15px; margin-bottom:5px; font-size:15px;">Iniciar Navegação:</h4>
-                                ${navigationHtml}
-
-                                ${!isDelivered ? `<button class="btn-primary" style="margin-top:15px; width:100%;" onclick="event.stopPropagation(); window.startBaixaExisting(${index})">🔄 Confirmar Baixa/Atualizar Status</button>` : ''}
+                            <div style="font-size:12px; color:#6b7280; margin-top:5px;">
+                                ${r.type} • ${new Date(r.date).toLocaleString()} • User: ${r.user}
                             </div>
                         </div>
                     `;
@@ -675,25 +468,11 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         dom.contentArea.innerHTML = html;
-
-        // Injeção de CSS para lidar com o estado "expandido"
-        const styleId = 'dashboard-css-styles';
-        if (!document.getElementById(styleId)) {
-            const style = document.createElement('style');
-            style.id = styleId;
-            style.textContent = `
-                .detail-content.expanded {
-                    max-height: 500px; /* Suficiente para caber o conteúdo */
-                }
-            `;
-            document.head.appendChild(style);
-        }
     }
 
     function renderRoutes() {
         showContent();
-        // Filtra apenas as entregas que já têm coordenadas de baixa
-        const deliveryPoints = scanRecords.filter(r => r.lat && r.lon).map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
+        const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
         
         if (deliveryPoints.length < 2) {
             dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
@@ -705,9 +484,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .sort(() => Math.random() - 0.5); 
 
         const routeMapHtml = `
-            <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
+                ${deliveryPoints.length >= 2 ? `
+                    <button id="btnToggleRouteFullscreen" class="btn-primary" style="padding: 8px 12px; font-size: 14px; box-shadow:none;">
+                        🖥️ Tela Cheia
+                    </button>` : ''}
+            </div>
             <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
-            <div id="routeMapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>
+            <div id="routeMapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>
             <div style="margin-top:10px">
                 ${simplifiedRoute.map((p, index) => 
                     `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
@@ -721,12 +506,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => {
             const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
 
             const routePoints = simplifiedRoute.map((p, index) => {
                 const marker = L.marker([p.lat, p.lon]).addTo(map)
-                    // Adiciona o popup de navegação
-                    .bindPopup(getNavigationLinks(p.lat, p.lon, `Ponto ${index + 1} (${p.id})`));
+                    .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
                 
                 marker.setIcon(L.divIcon({
                     className: 'custom-div-icon',
@@ -742,13 +526,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 map.fitBounds(L.polyline(routePoints).getBounds());
             }
 
+            // ADICIONADO: Lógica de tela cheia
+            if (deliveryPoints.length >= 2) {
+                document.getElementById('btnToggleRouteFullscreen').addEventListener('click', () => {
+                    const sidebar = document.getElementById('sidebar');
+                    const appContainer = document.querySelector('.app');
+                    const button = document.getElementById('btnToggleRouteFullscreen');
+
+                    if (window.innerWidth > 768) { 
+                        if (!sidebar.classList.contains('hidden')) {
+                            sidebar.classList.add('hidden');
+                            appContainer.style.gridTemplateColumns = '1fr';
+                            button.innerHTML = '◀️ Voltar';
+                        } else {
+                            sidebar.classList.remove('hidden');
+                            appContainer.style.gridTemplateColumns = '392px 1fr';
+                            button.innerHTML = '🖥️ Tela Cheia';
+                        }
+                    }
+                    
+                    if (map) {
+                        setTimeout(() => {
+                            map.invalidateSize();
+                        }, 350);
+                    }
+                });
+            }
+
         }, 100);
     }
 
     function renderMap() {
         showContent();
         mapInstance = null;
-        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
+        dom.contentArea.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>🗺️ Mapa de Entregas</h2>
+                <button id="btnToggleMapFullscreen" class="btn-primary" style="padding: 8px 12px; font-size: 14px; box-shadow:none;">
+                    🖥️ Tela Cheia
+                </button>
+            </div>
+            <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
+            <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`; // Aumentado para 70vh
         
         setTimeout(() => {
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
@@ -756,17 +575,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
             mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OSM'
+                attribution: '&copy; OSM'
             }).addTo(mapInstance);
 
-            // Filtra apenas as entregas que já têm coordenadas de baixa
-            scanRecords.filter(r => r.lat && r.lon).forEach(r => { 
+            scanRecords.forEach(r => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
-                    // Adiciona o popup de navegação
-                    .bindPopup(getNavigationLinks(r.lat, r.lon, r.id));
+                    .bindPopup(`<b>${r.id}</b><br>${r.type}`);
             });
 
             updateMapLocation();
+            
+            // ADICIONADO: Lógica de tela cheia
+            document.getElementById('btnToggleMapFullscreen').addEventListener('click', () => {
+                const sidebar = document.getElementById('sidebar');
+                const appContainer = document.querySelector('.app');
+                const button = document.getElementById('btnToggleMapFullscreen');
+
+                if (window.innerWidth > 768) { 
+                    if (!sidebar.classList.contains('hidden')) {
+                        // Entra em Tela Cheia
+                        sidebar.classList.add('hidden');
+                        appContainer.style.gridTemplateColumns = '1fr';
+                        button.innerHTML = '◀️ Voltar';
+                    } else {
+                        // Sai de Tela Cheia
+                        sidebar.classList.remove('hidden');
+                        appContainer.style.gridTemplateColumns = '392px 1fr';
+                        button.innerHTML = '🖥️ Tela Cheia';
+                    }
+                }
+                
+                // Força o redimensionamento do mapa
+                if (mapInstance) {
+                    setTimeout(() => {
+                        mapInstance.invalidateSize();
+                    }, 350);
+                }
+            });
+
 
         }, 100);
     }
@@ -826,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span style="color:var(--accent); font-size:12px">(${u.role})</span>
                     </div>
                     <div>
-                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:5px 10px; margin-right:5px; font-size:14px; box-shadow:none;">Editar</button>` : ''}
+                        ${canEdit ? `<button onclick="window.editUser('${u.id}')" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:5px 10px; margin-right:5px; font-size:14px; box-shadow:none;" title="Editar">✏️</button>` : ''}
                         ${canDelete ? `<button onclick="window.deleteUser('${u.id}')" style="background:rgba(239, 68, 68, 0.2); color:var(--danger); padding:5px 10px; font-size:14px; box-shadow:none;">Excluir</button>` : ''}
                     </div>
                 </div>
@@ -842,12 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Acesso Negado',
-                text: 'Você não tem permissão para editar este usuário.',
-                timer: 3000
-            });
+            alert('Você não tem permissão para editar este usuário.');
             return;
         }
 
@@ -881,14 +722,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const role = document.getElementById('formRole').value;
         const isNew = !userId;
 
-        if (!username) { Swal.fire('Erro', 'Usuário é obrigatório.', 'error'); return; }
-        if (isNew && !password) { Swal.fire('Erro', 'Senha é obrigatória para novo usuário.', 'error'); return; }
+        if (!username) { alert('Usuário é obrigatório.'); return; }
+        if (isNew && !password) { alert('Senha é obrigatória para novo usuário.'); return; }
 
         let userIndex = -1;
         if (userId) userIndex = users.findIndex(u => u.id === userId);
 
         if (isNew && users.some(u => u.username === username)) {
-            Swal.fire('Erro', 'Nome de usuário já existe.', 'error');
+            alert('Nome de usuário já existe.');
             return;
         }
         
@@ -903,8 +744,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
-            Swal.fire('Sucesso!', `Usuário ${username} criado.`, 'success');
         } else {
+            // CORREÇÃO: Usa o userIndex para obter a referência correta
             updatedUser = users[userIndex]; 
 
             if (password) updatedUser.password = password;
@@ -913,7 +754,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentUser.role === 'admin' || currentUser.id === userId) {
                 updatedUser.role = role; 
             }
-             Swal.fire('Sucesso!', `Usuário ${username} atualizado.`, 'success');
         }
 
         saveUsers();
@@ -923,26 +763,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.deleteUser = (userId) => {
         if (userId === currentUser.id) {
-            Swal.fire('Erro', 'Você não pode excluir seu próprio perfil enquanto estiver logado.', 'error');
+            alert('Você não pode excluir seu próprio perfil enquanto estiver logado.');
             return;
         }
-        
-        Swal.fire({
-            title: 'Tem certeza?',
-            text: "Você não poderá reverter isso!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: 'var(--danger)',
-            cancelButtonColor: 'var(--secondary)',
-            confirmButtonText: 'Sim, deletar!'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                users = users.filter(u => u.id !== userId);
-                saveUsers();
-                renderUsers();
-                Swal.fire('Deletado!', 'O usuário foi excluído.', 'success');
-            }
-        });
+        if (confirm('Tem certeza que deseja excluir este usuário?')) {
+            users = users.filter(u => u.id !== userId);
+            saveUsers();
+            renderUsers();
+        }
     };
 
 
@@ -953,49 +781,27 @@ document.addEventListener('DOMContentLoaded', () => {
         today.setHours(0, 0, 0, 0);
 
         if (filter === 'daily') {
-            filteredRecords = scanRecords.filter(r => new Date(r.baixaDate || r.date) >= today);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= today);
         } else if (filter === 'weekly') {
             const oneWeekAgo = new Date(today);
             oneWeekAgo.setDate(today.getDate() - 7);
-            filteredRecords = scanRecords.filter(r => new Date(r.baixaDate || r.date) >= oneWeekAgo);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneWeekAgo);
         } else if (filter === 'monthly') {
             const oneMonthAgo = new Date(today);
             oneMonthAgo.setMonth(today.getMonth() - 1);
-            filteredRecords = scanRecords.filter(r => new Date(r.baixaDate || r.date) >= oneMonthAgo);
+            filteredRecords = scanRecords.filter(r => new Date(r.date) >= oneMonthAgo);
         } else {
             filteredRecords = scanRecords; // 'all'
         }
 
-        if(!filteredRecords.length) {
-            // Usa SweetAlert para aviso
-             Swal.fire({
-                icon: 'warning',
-                title: 'Sem Dados',
-                text: `Nenhum registro encontrado para o filtro: ${filter}.`,
-                confirmButtonText: 'OK'
-            });
-            return;
-        }
+        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
         
-        // Colunas adicionadas para o CSV
-        let csv = 'ID,TIPO,DATA_REGISTRO,DATA_BAIXA,USUARIO,LAT,LON,STATUS_FINAL,OBSERVACAO,DESTINATARIO,ENDERECO,CEP,RAW\n';
+        let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS\n'; // ADICIONADO: Coluna STATUS
         filteredRecords.forEach(r => {
             const scanDate = new Date(r.date);
-            const baixaDate = r.baixaDate ? new Date(r.baixaDate) : null;
-
-            const dateRegStr = scanDate.toLocaleDateString('pt-BR') + ' ' + scanDate.toLocaleTimeString('pt-BR');
-            const dateBaixaStr = baixaDate ? baixaDate.toLocaleDateString('pt-BR') + ' ' + baixaDate.toLocaleTimeString('pt-BR') : 'PENDENTE';
-            
-            const status = r.finalStatus || 'PENDENTE';
-            const observation = r.observation || '';
-            const recipient = r.recipientName || '';
-            const address = r.address || '';
-            const zipCode = r.zipCode || '';
-            
-            // Tratamento de aspas duplas dentro do campo CSV
-            const escape = (str) => `"${String(str).replace(/"/g, '""')}"`;
-
-            csv += `${escape(r.id)},${escape(r.type)},${escape(dateRegStr)},${escape(dateBaixaStr)},${escape(r.user)},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${escape(status)},${escape(observation)},${escape(recipient)},${escape(address)},${escape(zipCode)},${escape(r.raw)}\n`;
+            const dateStr = scanDate.toLocaleDateString('pt-BR');
+            const timeStr = scanDate.toLocaleTimeString('pt-BR');
+            csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},"${r.raw.replace(/"/g, '""')}",${r.status || 'pending'}\n`;
         });
         
         const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
@@ -1007,14 +813,6 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
 
         dom.exportOptions.style.display = 'none';
-        
-        // SweetAlert de sucesso (opcional)
-        Swal.fire({
-            icon: 'info',
-            title: 'Exportação Concluída!',
-            text: 'O arquivo CSV foi baixado com sucesso.',
-            timer: 2000
-        });
     }
     
     // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
