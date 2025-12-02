@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (window.innerWidth > 768) { 
             dom.sidebar.classList.remove('hidden'); 
-            dom.appContainer.style.gridTemplateColumns = '392px 1fr';
+            dom.appContainer.style.gridTemplateColumns = '320px 1fr';
         } else {
             dom.sidebar.classList.remove('active');
         }
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    /* --- Lógica do Scanner (Com correção de stopScanner) --- */
+    /* --- Lógica do Scanner (Com a correção de robustez) --- */
     
     /** Função para forçar a permissão e preencher a lista de câmeras */
     async function enumerateDevices() {
@@ -228,12 +228,10 @@ document.addEventListener('DOMContentLoaded', () => {
         stopScanner(); 
         
         const videoDevices = Array.from(dom.cameraSelect.options);
-        
         let targetDeviceId = deviceId;
         
         // Lógica de seleção automática da câmera 0 (traseira/environment)
         if (!targetDeviceId && videoDevices.length > 0) {
-            // 1. Tenta encontrar a câmera "environment" ou "traseira" pelo label
             const preferredCamera = videoDevices.find(opt => 
                 opt.text.toLowerCase().includes('environment') || 
                 opt.text.toLowerCase().includes('back') || 
@@ -243,35 +241,64 @@ document.addEventListener('DOMContentLoaded', () => {
             if (preferredCamera) {
                 targetDeviceId = preferredCamera.value;
             } else {
-                // 2. Se não encontrar pelo label, usa a primeira (índice 0)
                 targetDeviceId = videoDevices[0].value;
             }
         }
-
-        const constraints = {
+        
+        // --- TENTATIVA 1: Constraints específicas (deviceID ou facingMode) ---
+        let constraints = {
             video: targetDeviceId
                 ? { deviceId: { exact: targetDeviceId } } 
                 : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         };
+        
+        let videoStreamAttempt = null;
 
         try {
-            videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-            dom.video.srcObject = videoStream;
-            dom.video.setAttribute('playsinline', true);
-            await dom.video.play();
-            isScanning = true;
-            videoTrack = videoStream.getVideoTracks()[0]; 
+            videoStreamAttempt = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err1) {
+            console.warn("Falha na TENTATIVA 1 (Específica):", err1.name, err1.message);
             
-            // Atualiza o seletor para o dispositivo que realmente foi aberto
-            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
-
-            requestAnimationFrame(tick);
-        } catch (err) {
-            console.error(err);
-            alert('Erro ao acessar câmera: ' + err.message);
-            window.renderDashboard(); 
+            // --- TENTATIVA 2: Constraints genéricas (video: true) ---
+            constraints = { video: true };
+            try {
+                videoStreamAttempt = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (err2) {
+                // FALHA TOTAL
+                console.error("Falha na TENTATIVA 2 (Genérica):", err2);
+                stopScanner(); 
+                
+                // NOVO: Usa SweetAlert para erro na câmera
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro ao Acessar Câmera',
+                    text: 'Por favor, verifique se a câmera está disponível e se as permissões foram concedidas. Código: ' + (err2.name || 'Desconhecido'),
+                    confirmButtonText: 'Entendi'
+                });
+                window.renderDashboard(); 
+                return;
+            }
         }
+
+        // --- SUCESSO (Executado após TENTATIVA 1 ou TENTATIVA 2) ---
+        videoStream = videoStreamAttempt;
+        dom.video.srcObject = videoStream;
+        dom.video.setAttribute('playsinline', true);
+        await dom.video.play();
+        isScanning = true;
+        videoTrack = videoStream.getVideoTracks()[0]; 
+        
+        // Se conseguimos uma stream, atualiza o seletor para o dispositivo que está sendo usado.
+        const actualDeviceId = videoTrack.getSettings().deviceId;
+        if (actualDeviceId) {
+             dom.cameraSelect.value = actualDeviceId;
+        } else if (targetDeviceId) {
+             dom.cameraSelect.value = targetDeviceId;
+        }
+
+        requestAnimationFrame(tick);
     }
+
 
     function stopScanner() {
         isScanning = false;
@@ -387,11 +414,20 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords));
         
         const finalId = tempScanRecord.id;
+        const statusDisplay = tempScanRecord.finalStatus === 'ENTREGUE' ? 'Entrega Confirmada' : `Status de Baixa: ${tempScanRecord.finalStatus}`;
         tempScanRecord = null; // Limpa o estado temporário
         
         showContent(); // Garante a transição visual
         renderDashboard(); // Volta para o dashboard
-        alert(`Baixa do ID ${finalId} confirmada com status: ${finalStatus}!`);
+        
+        // NOVO: Usa SweetAlert para feedback de sucesso
+        Swal.fire({
+            icon: 'success',
+            title: 'Baixa Confirmada!',
+            text: `ID ${finalId} salvo. ${statusDisplay}.`,
+            showConfirmButton: false,
+            timer: 3000
+        });
     }
 
     function cancelBaixa() {
@@ -410,7 +446,6 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function getNavigationLinks(lat, lon, id) {
         // Links formatados para abrir o aplicativo diretamente em dispositivos móveis
-        // Nota: O Google Maps usa o formato "daddr" ou simplesmente as coordenadas para navegação.
         const googleMapsUrl = `https://maps.google.com/?daddr=${lat},${lon}&travelmode=driving`;
         const wazeUrl = `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
         
@@ -529,7 +564,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const settings = videoTrack.getSettings();
                     await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
                 } else {
-                    alert('Flash não suportado neste dispositivo/navegador');
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Flash/Lanterna',
+                        text: 'Flash não suportado neste dispositivo/navegador.',
+                        timer: 2000
+                    });
                 }
             } catch(e) { console.log(e); }
         }
@@ -537,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Views (Renderização) --- */
     
-    // FUNÇÃO RENDERDASHBOARD CORRIGIDA: Torna os cards expansíveis com navegação GPS
+    // FUNÇÃO RENDERDASHBOARD COM EXPANSÃO E NAVEGAÇÃO
     function renderDashboard() {
         showContent();
         
@@ -763,7 +803,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const userToEdit = userId ? users.find(u => u.id === userId) : null;
         
         if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
-            alert('Você não tem permissão para editar este usuário.');
+            Swal.fire({
+                icon: 'warning',
+                title: 'Acesso Negado',
+                text: 'Você não tem permissão para editar este usuário.',
+                timer: 3000
+            });
             return;
         }
 
@@ -797,14 +842,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const role = document.getElementById('formRole').value;
         const isNew = !userId;
 
-        if (!username) { alert('Usuário é obrigatório.'); return; }
-        if (isNew && !password) { alert('Senha é obrigatória para novo usuário.'); return; }
+        if (!username) { Swal.fire('Erro', 'Usuário é obrigatório.', 'error'); return; }
+        if (isNew && !password) { Swal.fire('Erro', 'Senha é obrigatória para novo usuário.', 'error'); return; }
 
         let userIndex = -1;
         if (userId) userIndex = users.findIndex(u => u.id === userId);
 
         if (isNew && users.some(u => u.username === username)) {
-            alert('Nome de usuário já existe.');
+            Swal.fire('Erro', 'Nome de usuário já existe.', 'error');
             return;
         }
         
@@ -819,8 +864,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 creatorId: currentUser.id
             };
             users.push(updatedUser);
+            Swal.fire('Sucesso!', `Usuário ${username} criado.`, 'success');
         } else {
-            // CORREÇÃO: Usa o userIndex para obter a referência correta
             updatedUser = users[userIndex]; 
 
             if (password) updatedUser.password = password;
@@ -829,6 +874,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentUser.role === 'admin' || currentUser.id === userId) {
                 updatedUser.role = role; 
             }
+             Swal.fire('Sucesso!', `Usuário ${username} atualizado.`, 'success');
         }
 
         saveUsers();
@@ -838,14 +884,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.deleteUser = (userId) => {
         if (userId === currentUser.id) {
-            alert('Você não pode excluir seu próprio perfil enquanto estiver logado.');
+            Swal.fire('Erro', 'Você não pode excluir seu próprio perfil enquanto estiver logado.', 'error');
             return;
         }
-        if (confirm('Tem certeza que deseja excluir este usuário?')) {
-            users = users.filter(u => u.id !== userId);
-            saveUsers();
-            renderUsers();
-        }
+        
+        Swal.fire({
+            title: 'Tem certeza?',
+            text: "Você não poderá reverter isso!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: 'var(--danger)',
+            cancelButtonColor: 'var(--secondary)',
+            confirmButtonText: 'Sim, deletar!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                users = users.filter(u => u.id !== userId);
+                saveUsers();
+                renderUsers();
+                Swal.fire('Deletado!', 'O usuário foi excluído.', 'success');
+            }
+        });
     };
 
 
@@ -869,7 +927,16 @@ document.addEventListener('DOMContentLoaded', () => {
             filteredRecords = scanRecords; // 'all'
         }
 
-        if(!filteredRecords.length) return alert(`Nenhum dado encontrado para o filtro: ${filter}.`);
+        if(!filteredRecords.length) {
+            // NOVO: Usa SweetAlert para aviso
+             Swal.fire({
+                icon: 'warning',
+                title: 'Sem Dados',
+                text: `Nenhum registro encontrado para o filtro: ${filter}.`,
+                confirmButtonText: 'OK'
+            });
+            return;
+        }
         
         let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,STATUS_FINAL,OBSERVACAO,RAW\n';
         filteredRecords.forEach(r => {
@@ -890,6 +957,14 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
 
         dom.exportOptions.style.display = 'none';
+        
+        // SweetAlert de sucesso (opcional)
+        Swal.fire({
+            icon: 'info',
+            title: 'Exportação Concluída!',
+            text: 'O arquivo CSV foi baixado com sucesso.',
+            timer: 2000
+        });
     }
     
     // Inicializa a enumeração de dispositivos (para preencher a lista de câmeras)
