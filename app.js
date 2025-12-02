@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
+        mapView: document.getElementById('mapView'), // NOVO
     };
 
     /* --- Inicialização e Storage --- */
@@ -133,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Navegação e Eventos --- */
     function showContent() {
         dom.cameraView.style.display = 'none';
+        dom.mapView.style.display = 'none'; // NOVO: Esconde a view do mapa
         dom.contentArea.style.display = 'block';
         
         dom.appContainer.style.display = 'grid'; 
@@ -166,7 +168,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.renderDashboard = () => {
         dom.appContainer.style.display = 'grid'; 
-        renderDashboard();
+        showContent(); // Garante que as views full screen sejam fechadas
+        
+        // Chamada direta para o conteúdo do dashboard
+        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
+            dom.adminMenuOptions.classList.remove('hidden');
+        } else {
+            dom.adminMenuOptions.classList.add('hidden');
+        }
+        
+        const html = `
+            <h2>📦 Entregas Realizadas</h2>
+            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
+            <div style="display:grid; gap:10px; margin-top:20px;">
+                ${scanRecords.map(r => `
+                    <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid var(--accent)">
+                        <div style="font-weight:bold; font-size:16px">${r.id}</div>
+                        <div style="font-size:12px; color:#6b7280;">
+                            ${r.type} • ${new Date(r.date).toLocaleString()} • User: ${r.user}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        dom.contentArea.innerHTML = html;
+        // Fim da chamada direta
     }
     
     document.getElementById('btnDashboard').addEventListener('click', window.renderDashboard); 
@@ -388,32 +414,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Views (Renderização) --- */
     
-    function renderDashboard() {
-        showContent();
-        
-        if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-            dom.adminMenuOptions.classList.remove('hidden');
-        } else {
-            dom.adminMenuOptions.classList.add('hidden');
-        }
-        
-        const html = `
-            <h2>📦 Entregas Realizadas</h2>
-            <p style="color:var(--content-text-dark)">Total de registros: ${scanRecords.length}</p>
-            <div style="display:grid; gap:10px; margin-top:20px;">
-                ${scanRecords.map(r => `
-                    <div style="background:var(--content-card-bg); padding:15px; border-radius:10px; border-left:4px solid var(--accent)">
-                        <div style="font-weight:bold; font-size:16px">${r.id}</div>
-                        <div style="font-size:12px; color:#6b7280;">
-                            ${r.type} • ${new Date(r.date).toLocaleString()} • User: ${r.user}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-        dom.contentArea.innerHTML = html;
-    }
-
+    // A função renderDashboard foi movida para o escopo global no Listener do btnDashboard para evitar repetição.
+    
     function renderRoutes() {
         showContent();
         const deliveryPoints = scanRecords.map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
@@ -466,17 +468,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }, 100);
     }
-
+    
+    // NOVO renderMap para tela cheia
     function renderMap() {
-        showContent();
+        // Esconde o app principal e mostra a tela cheia do mapa
+        dom.contentArea.style.display = 'none';
+        dom.appContainer.style.display = 'none';
+        dom.mapView.style.display = 'block'; // Mostra a nova view
+        
+        // Garante que o scanner e a sidebar estejam desligados
+        stopScanner();
+        if(window.innerWidth > 768) {
+            dom.sidebar.classList.add('hidden'); 
+        } else {
+            dom.sidebar.classList.remove('active');
+        }
+        
         mapInstance = null;
-        dom.contentArea.innerHTML = `<h2>🗺️ Mapa de Entregas</h2><p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" style="height:60vh; border-radius:12px; margin-top:10px"></div>`;
         
         setTimeout(() => {
+            const mapContainerId = 'mapObjFullscreen'; 
+            
             const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
             const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
 
-            mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
+            // Verifica se o mapa já existe (para evitar erro de inicialização do Leaflet)
+            if (mapInstance) mapInstance.remove();
+
+            mapInstance = L.map(mapContainerId).setView([initialLat, initialLon], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OSM'
             }).addTo(mapInstance);
@@ -485,6 +504,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 L.marker([r.lat, r.lon]).addTo(mapInstance)
                     .bindPopup(`<b>${r.id}</b><br>${r.type}`);
             });
+            
+            // Invalida o tamanho para forçar a renderização correta 
+            mapInstance.invalidateSize(); 
 
             updateMapLocation();
 
@@ -494,7 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateMapLocation() {
         if (!mapInstance || !userLocation) return;
 
-        const currentLocEl = document.getElementById('currentLoc');
+        // Atualiza a nova localização no cabeçalho da tela cheia do mapa
+        const currentLocEl = document.getElementById('currentLocMap'); 
         if (currentLocEl) {
             currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
         }
