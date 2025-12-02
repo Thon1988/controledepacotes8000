@@ -1,571 +1,400 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>PegazusLog — Scanner Integrado</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pegazus Logística - Sistema de Rastreio</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+        
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-  
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-  
-  <script src="app.js" defer></script> 
-
-  <style>
-    /* --- VARIÁVEIS DE COR PADRÃO (TEMA CLARO - DEFAULT) --- */
-    :root {
-      /* Base - Sidebar Dark / Conteúdo Light */
-      --bg: #0f172a; /* Fundo principal (body) - Azul escuro */
-      --panel: rgba(30, 41, 59, 0.95); /* Sidebar/Login (Slate 800) */
-      --text: #f1f5f9; /* Texto claro (para sidebar) */
-      --muted: #94a3b8; /* Cinza claro (para sidebar) */
-      
-      /* Conteúdo Light */
-      --content-bg-light: #f4f6f8; /* Fundo claro para o Main (cinza claro) */
-      --content-card-bg: #ffffff; /* Fundo branco para cards internos */
-      --content-text-dark: #1f2937; /* Texto escuro para áreas claras */
-
-      /* Acento */
-      --accent: #38bdf8; /* Azul principal (Sky 400) */
-      --accent-dark: #0ea5e9; /* Azul um pouco mais escuro para hover */
-      --success: #22c55e; /* Verde */
-      --danger: #ef4444; /* Vermelho */
-      
-      /* Raio de Borda */
-      --radius: 25px; 
-      
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    }
-
-    /* --- MEDIA QUERY: TEMA DARK COMPLETO (Se preferência do usuário for dark) --- */
-    @media (prefers-color-scheme: dark) {
+    <style>
         :root {
-            --bg: #020617; /* Fundo principal mais escuro */
-            --panel: rgba(15, 23, 42, 0.95); /* Sidebar/Login (Slate 900) */
-            
-            /* Todos os painéis ficam escuros */
-            --content-bg-light: #0f172a; /* Main fica Slate 900 */
-            --content-card-bg: rgba(30, 41, 59, 0.7); /* Cards internos ficam Slate 800 */
-            --content-text-dark: #f1f5f9; /* Texto fica claro em todo lugar */
-            
-            --text: #f1f5f9; /* Texto claro (para sidebar) */
-            --muted: #94a3b8; /* Cinza claro (para sidebar) */
-        }
-
-        /* Ajustes específicos para elementos no modo Dark */
-        .user-form-card, #contentArea > div > div {
-            border: 1px solid rgba(255,255,255,0.05) !important;
-            box-shadow: none !important;
-        }
-
-        /* Inputs na área de conteúdo (que agora é dark) */
-        .main input, .main select, .user-form-card input, .user-form-card select {
-             background: rgba(0,0,0,0.3) !important;
-             border: 1px solid rgba(255,255,255,0.1) !important;
-             color: white !important;
+            --primary: #1F2937; /* Cinza Escuro */
+            --secondary: #374151; /* Cinza Médio */
+            --accent: #3b82f6; /* Azul Claro */
+            --success: #22c55e; /* Verde */
+            --danger: #ef4444; /* Vermelho */
+            --background: #f3f4f6; /* Fundo Leve */
+            --content-bg: #ffffff; /* Fundo de Conteúdo */
+            --content-bg-light: #f9fafb; /* Fundo de Card Claro */
+            --content-card-bg: #fff;
+            --content-text-dark: #374151;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
         
-        /* Botões de edição e delete no modo Dark */
-        .user-form-card button:first-of-type { /* Botão Editar (Azul) */
-            background: rgba(56, 189, 248, 0.2) !important; 
-            color: var(--accent) !important; 
-        }
-        .user-form-card button:nth-of-type(2) { /* Botão Excluir (Vermelho) */
-            background: rgba(239, 68, 68, 0.2) !important; 
-            color: var(--danger) !important; 
-        }
-    }
-
-
-    * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
-    
-    body {
-      margin: 0;
-      background: linear-gradient(180deg, var(--bg) 0%, #000 100%);
-      color: var(--content-text-dark);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    /* --- LAYOUT GERAL DO APP --- */
-    .app {
-      display: grid;
-      grid-template-columns: 392px 1fr; /* Sidebar + Content */
-      background: var(--content-bg-light);
-      width: 100vw;
-      height: 100vh;
-      max-width: 100%;
-      max-height: 100%;
-      overflow: hidden;
-    }
-
-    /* --- SIDEBAR (BARRA LATERAL) --- */
-    .sidebar {
-      background: var(--panel);
-      color: var(--text);
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 4px 0 10px rgba(0,0,0,0.2);
-      position: relative;
-      z-index: 10;
-    }
-    
-    .logo {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--accent);
-        margin-bottom: 30px;
-        display: flex;
-        align-items: center;
-    }
-
-    .menu-item {
-      padding: 12px 15px;
-      margin-bottom: 8px;
-      border-radius: 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: background-color 0.2s, color 0.2s;
-      font-weight: 500;
-    }
-
-    .menu-item:hover {
-      background: rgba(56, 189, 248, 0.1);
-      color: var(--accent);
-    }
-    
-    .menu-item.active {
-        background: var(--accent);
-        color: var(--panel);
-        font-weight: 700;
-    }
-
-    /* --- FOOTER DA SIDEBAR --- */
-    .sidebar-footer {
-        margin-top: auto;
-        padding-top: 15px;
-        border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .user-info {
-        font-size: 14px;
-        color: var(--muted);
-    }
-    .user-info strong {
-        color: var(--text);
-        font-weight: 600;
-    }
-
-    /* --- MAIN CONTENT (ÁREA DE CONTEÚDO) --- */
-    .main {
-      padding: 30px;
-      overflow-y: auto;
-      height: 100%; 
-    }
-    
-    .main h2 {
-        color: var(--content-text-dark);
-        margin-top: 0;
-    }
-    
-    .main input, .main select {
-        width: 100%;
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid #ccc;
-        margin-bottom: 10px;
-        font-size: 16px;
-        color: var(--content-text-dark);
-        background: #fff;
-    }
-    
-    .user-form-card {
-        background: var(--content-card-bg);
-        padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        margin-bottom: 10px;
-    }
-    
-    /* Inputs dentro da área de detalhes da entrega */
-    .user-form-card input, .user-form-card select {
-        color: var(--content-text-dark) !important;
-        background: var(--content-bg-light) !important;
-        border: 1px solid #ccc !important;
-    }
-
-
-    /* --- LOGIN SCREEN --- */
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        width: 100vw;
-        background: var(--bg);
-    }
-    .login-card {
-        background: var(--panel);
-        padding: 40px;
-        border-radius: var(--radius);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        text-align: center;
-        max-width: 400px;
-        width: 90%;
-        color: var(--text);
-    }
-    .login-card h1 {
-        color: var(--accent);
-        margin-bottom: 30px;
-        font-size: 28px;
-    }
-    .login-card input {
-        width: 100%;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 10px;
-        border: none;
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text);
-        font-size: 16px;
-    }
-    .login-card input::placeholder {
-        color: var(--muted);
-    }
-    #loginError {
-        color: var(--danger);
-        margin-top: 10px;
-        font-size: 14px;
-    }
-
-    /* --- BOTÕES E GERAL --- */
-    .btn-primary {
-        background: var(--accent);
-        color: var(--content-text-dark);
-        padding: 12px 20px;
-        border: none;
-        border-radius: 10px;
-        cursor: pointer;
-        font-weight: 700;
-        transition: background-color 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 10px rgba(56, 189, 248, 0.4);
-    }
-    .btn-primary:hover {
-        background: var(--accent-dark);
-    }
-    
-    .btn-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text);
-        padding: 10px 15px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: background-color 0.2s;
-    }
-    .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.2);
-    }
-
-    /* --- CAMERA VIEW --- */
-    #cameraView {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: black;
-        display: none; /* Controlado pelo JS */
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-    }
-    #videoElement {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .scan-overlay {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 90vmin; /* 90% da menor dimensão da tela */
-        height: 90vmin;
-        max-width: 400px;
-        max-height: 400px;
-        border: 4px solid rgba(255,255,255,0.5);
-        border-radius: 15px;
-        z-index: 1001;
-        transition: border-color 0.3s;
-    }
-    
-    #feedbackMsg {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: var(--accent);
-        color: var(--content-text-dark);
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-weight: bold;
-        z-index: 1002;
-        opacity: 0;
-        transition: opacity 0.3s;
-        max-width: 90%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .camera-controls {
-        position: absolute;
-        top: 10px;
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        padding: 0 10px;
-        z-index: 1002;
-    }
-    
-    .camera-controls button {
-        background: rgba(0,0,0,0.5);
-        color: white;
-        border: none;
-        padding: 10px;
-        border-radius: 50%;
-        width: 45px;
-        height: 45px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 20px;
-        cursor: pointer;
-    }
-    
-    #cameraSelect {
-        background: rgba(0,0,0,0.5);
-        color: white;
-        border: none;
-        padding: 8px 15px;
-        border-radius: 8px;
-        margin-right: 10px;
-        appearance: none;
-        cursor: pointer;
-    }
-    
-    /* --- EXPORT OPTIONS (CSS para o menu flutuante) --- */
-    #exportOptions {
-        position: absolute;
-        right: 0;
-        top: 100%;
-        background: var(--content-card-bg);
-        border-radius: 10px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        padding: 10px;
-        display: none; /* Escondido por padrão */
-        flex-direction: column;
-        gap: 5px;
-        z-index: 20;
-    }
-
-    #exportOptions button {
-        background: none;
-        border: none;
-        padding: 8px 15px;
-        text-align: left;
-        color: var(--content-text-dark);
-        border-radius: 5px;
-        transition: background 0.2s;
-    }
-
-    #exportOptions button:hover {
-        background: var(--content-bg-light);
-    }
-    
-    .export-container {
-        position: relative;
-        display: inline-block;
-    }
-    
-    /* NOVO: Estilo para o Input Manual na Câmera */
-    #manualInputContainer {
-        position: absolute; 
-        bottom: 80px; 
-        width: 90%; 
-        max-width: 400px; 
-        z-index: 1002; 
-        display: flex; 
-        gap: 10px; 
-        opacity:0; 
-        transition:opacity 0.3s;
-        pointer-events: none; /* Garante que não atrapalhe o clique do scanner quando oculto */
-    }
-    #manualInputContainer input {
-        flex-grow: 1; 
-        padding: 10px; 
-        border-radius: 8px; 
-        border: 1px solid white; 
-        background: rgba(0,0,0,0.7); 
-        color: white;
-        font-size: 16px;
-    }
-    #btnManualConfirm {
-        background: var(--success) !important;
-        color: white !important;
-        width: auto !important; 
-        padding: 10px 15px !important; 
-        border-radius: 8px !important; 
-        font-size: 16px !important;
-        line-height: 1 !important;
-    }
-
-
-    /* --- UTILIDADES --- */
-    .hidden { display: none !important; }
-
-    /* --- MEDIA QUERIES (RESPONSIVIDADE) --- */
-    @media (max-width: 768px) {
-        .app {
-            grid-template-columns: 1fr;
-            height: 100vh;
-        }
-
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 300px;
-            height: 100%;
-            transform: translateX(-300px);
-            transition: transform 0.3s ease;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            padding: 30px 20px;
-            overflow-y: auto;
-            background: var(--panel); /* Garante que a sidebar seja opaca em mobile */
-        }
-        
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .main {
-            padding: 20px;
-            height: 100%;
-        }
-
-        /* Botão de menu mobile */
-        #mobileMenuBtn {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 100;
-            background: var(--accent);
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background);
             color: var(--content-text-dark);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            display: block; /* Visível em mobile */
-            border: none;
-            cursor: pointer;
+            margin: 0;
+            padding: 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 20px;
-            line-height: 1;
+            min-height: 100vh;
         }
-    }
-  </style>
+
+        /* 📱 Layout Principal */
+        .app-container {
+            width: 100%;
+            max-width: 1400px; /* Limite de largura para telas grandes */
+            height: 100vh;
+            display: grid;
+            /* Definição padrão: 392px para sidebar (tablet/desktop) e 1fr para conteúdo */
+            grid-template-columns: 392px 1fr; 
+            overflow: hidden;
+            background: var(--background);
+        }
+
+        /* Oculta a barra lateral e maximiza o conteúdo */
+        .app-container[style*="grid-template-columns: 1fr"] #sidebar {
+            display: none;
+        }
+
+        /* 🚪 Login */
+        .login-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 40px;
+            background: var(--content-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            width: 90%;
+            max-width: 400px;
+        }
+        
+        /* ⚙️ Sidebar */
+        .sidebar {
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .logo { font-size: 24px; font-weight: 700; margin-bottom: 20px; text-align: center; }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin: 5px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 16px;
+        }
+
+        .menu-item:hover, .menu-item.active {
+            background: var(--secondary);
+        }
+        
+        .menu-item span { margin-left: 10px; }
+
+        /* 🖥️ Área de Conteúdo */
+        .content-area {
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--background);
+        }
+
+        /* 📷 Scanner */
+        .camera-view {
+            display: none; /* Controlado por JS */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .scan-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            max-width: 500px;
+            max-height: 500px;
+            border: 4px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
+            pointer-events: none;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        #feedbackMsg {
+            position: absolute;
+            bottom: 60px;
+            padding: 10px 20px;
+            background: var(--accent);
+            color: white;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 100;
+        }
+
+        /* ✏️ Entrada Manual (NOVO) */
+        #manualInputContainer {
+            position: absolute;
+            bottom: 120px;
+            width: 90%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            opacity: 0;
+            pointer-events: none; /* Controlado pelo JS */
+            transition: opacity 0.3s;
+            z-index: 99;
+        }
+
+        #manualInputContainer input {
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 📱 Layout Responsivo e Utilitários */
+        .hidden { display: none !important; }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover {
+            background: #2563eb; 
+        }
+
+        input[type="text"], input[type="password"], select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        .user-form-card {
+            background: var(--content-card-bg);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+        }
+
+        /* Menu Mobile */
+        .mobile-menu-btn {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 20;
+            background: var(--primary);
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+        /* Mobile: Menu lateral escondido por padrão */
+        @media (max-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                position: fixed;
+                width: 70%;
+                height: 100%;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            .content-area {
+                padding-top: 60px; /* Espaço para o botão do menu */
+            }
+            .app-container[style*="grid-template-columns: 1fr"] {
+                grid-template-columns: 1fr !important;
+            }
+        }
+        
+        /* ⚙️ Opções do Scanner */
+        .scanner-options {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+        .scanner-options select {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 14px;
+            width: auto;
+            margin: 0;
+            cursor: pointer;
+        }
+        
+        /* 🚨 Botão Lápis/Manual */
+        #btnToggleManualInput {
+            background: var(--accent);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: none;
+            transition: background 0.2s;
+        }
+        
+    </style>
 </head>
 <body>
 
-  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
+    <button id="mobileMenuBtn" class="mobile-menu-btn hidden" onclick="toggleSidebar()">☰</button>
 
-  <section id="loginSection" class="login-container">
-    <div class="login-card">
-      <h1>PegazusLog</h1>
-      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
-      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
-      <button id="btnLogin" class="btn-primary" style="width: 100%">Entrar</button>
-      <p id="loginError"></p>
-    </div>
-  </section>
+    <section id="loginSection" class="login-section">
+        <h1 style="text-align:center; color:var(--primary);">PEGASUS</h1>
+        <h2 style="text-align:center; margin-top:-10px; font-size:18px; color:var(--content-text-dark);">Login do Entregador</h2>
+        <input type="text" id="loginUser" placeholder="Usuário" value="thon">
+        <input type="password" id="loginPass" placeholder="Senha" value="882010">
+        <button id="btnLogin" class="btn-primary">Entrar</button>
+        <p id="loginError" style="color:var(--danger); text-align:center; font-size:14px;"></p>
+    </section>
 
-  <div class="app hidden">
-    <aside id="sidebar" class="sidebar">
-      <div class="logo">
-          📦 PegazusLog
-      </div>
+    <div id="appContainer" class="app-container hidden">
 
-      <div id="menuSection">
-        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
-        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
-        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
-        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
-        
-        <div id="adminMenuOptions">
-            <hr style="border-color:rgba(255,255,255,0.1); margin:15px 0;">
-            <div id="btnUsers" class="menu-item">👥 Usuários</div>
-            <div class="export-container menu-item">
-                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
-                    ⬇️ Exportar Dados
-                </button>
-                <div id="exportOptions">
-                    <button id="btnExportDaily">Últimas 24h</button>
-                    <button id="btnExportWeekly">Últimos 7 dias</button>
-                    <button id="btnExportMonthly">Últimos 30 dias</button>
-                    <button id="btnExportAll">Todos os Dados</button>
+        <aside id="sidebar" class="sidebar">
+            <div class="menu-top">
+                <div class="logo">PEGASUS LOGÍSTICA</div>
+                
+                <div id="menuSection">
+                    <div id="btnDashboard" class="menu-item active">
+                        <span role="img" aria-label="Dashboard">📊</span>
+                        <span>Dashboard</span>
+                    </div>
+                    <div id="btnScanMode" class="menu-item">
+                        <span role="img" aria-label="Scanner">📸</span>
+                        <span>Scanner (Baixa)</span>
+                    </div>
+                    <div id="btnMap" class="menu-item">
+                        <span role="img" aria-label="Map">🗺️</span>
+                        <span>Mapa de Entregas</span>
+                    </div>
+                    <div id="btnRoutes" class="menu-item">
+                        <span role="img" aria-label="Routes">🧭</span>
+                        <span>Rotas Otimizadas</span>
+                    </div>
+                    
+                    <hr style="border-color: rgba(255, 255, 255, 0.1); margin: 15px 0;">
+
+                    <div id="adminMenuOptions" class="hidden">
+                        <div id="btnUsers" class="menu-item">
+                            <span role="img" aria-label="Users">👥</span>
+                            <span>Gerenciar Usuários</span>
+                        </div>
+                        <div id="btnExport" class="menu-item">
+                            <span role="img" aria-label="Export">📤</span>
+                            <span>Exportar Dados (CSV)</span>
+                        </div>
+                        <div id="exportOptions" style="display:none; flex-direction:column; padding-left:20px; gap:5px; margin-top:5px;">
+                            <button id="btnExportDaily" style="background:#4b5563; color:white; padding:8px; border-radius:6px; font-size:14px; box-shadow:none;">Diário</button>
+                            <button id="btnExportWeekly" style="background:#4b5563; color:white; padding:8px; border-radius:6px; font-size:14px; box-shadow:none;">Semanal</button>
+                            <button id="btnExportMonthly" style="background:#4b5563; color:white; padding:8px; border-radius:6px; font-size:14px; box-shadow:none;">Mensal</button>
+                            <button id="btnExportAll" style="background:#6b7280; color:white; padding:8px; border-radius:6px; font-size:14px; box-shadow:none;">Todos os Dados</button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-      </div>
+            
+            <div class="menu-bottom">
+                <p style="font-size:14px; color:#9ca3af;">Logado como: <span id="displayUser" style="font-weight:bold;"></span></p>
+                <button id="btnLogout" class="btn-primary" style="width:100%; margin-top:10px; background:var(--danger); box-shadow:none;">
+                    Sair
+                </button>
+            </div>
+        </aside>
 
-      <div class="sidebar-footer">
-        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
-        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
-      </div>
-    </aside>
+        <main id="contentArea" class="content-area">
+            <div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)">
+                <h2>Bem-vindo! Selecione uma opção no menu.</h2>
+            </div>
+        </main>
 
-    <main class="main">
-      <div id="contentArea">
-        </div>
-    </main>
-  </div>
+        <div id="cameraView" class="camera-view">
+            <video id="videoElement" autoplay playsinline></video>
+            
+            <div class="scan-overlay"></div>
+            
+            <p id="feedbackMsg">Pronto para escanear.</p>
 
-  <section id="cameraView">
-    <video id="videoElement" playsinline></video>
-    <div class="scan-overlay"></div>
-    <div class="camera-controls">
-        <button onclick="window.renderDashboard()">✕</button>
-        <div>
-            <select id="cameraSelect" class="hidden"></select>
-            <button id="btnTorch">💡</button>
+            <div class="scanner-options">
+                <select id="cameraSelect">
+                    <option value="">Carregando Câmeras...</option>
+                </select>
+                
+                <button id="btnToggleManualInput" title="Entrada Manual">
+                    ✏️
+                </button>
+            </div>
+            
+            <div id="manualInputContainer">
+                <input type="text" id="manualDeliveryId" placeholder="ID de Entrega (Ex: BR123456789)" required>
+                <button id="btnManualConfirm" class="btn-primary">Confirmar ID Manual</button>
+            </div>
+
         </div>
+
     </div>
-    
-    <div id="manualInputContainer" style="position: absolute; bottom: 80px; width: 90%; max-width: 400px; z-index: 1002; display: flex; gap: 10px;">
-        <input type="text" id="manualDeliveryId" placeholder="Digite o ID de Entrega" />
-        <button id="btnManualConfirm">OK</button>
-    </div>
-    
-    <button id="btnToggleManualInput" style="position: absolute; bottom: 20px; right: 20px; background: var(--accent); color: var(--content-text-dark); border-radius: 50%; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 1003; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
-        ✏️
-    </button>
-    
-    <div id="feedbackMsg"></div>
-  </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20n6c6P3l5K8s/4mKqEwB8A6pP6A4m/zB5l8xJtA4p8="
+        crossorigin=""></script>
+        
+    <script src="app.js"></script>
 
 </body>
 </html>
