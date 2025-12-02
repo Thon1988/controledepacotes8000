@@ -32,28 +32,36 @@
             color: var(--content-text-dark);
             margin: 0;
             padding: 0;
-            display: flex;
+            /* Centraliza a tela de login inicialmente */
+            display: flex; 
             justify-content: center;
             align-items: center;
             min-height: 100vh;
         }
 
-        /* 📱 Layout Principal */
+        /* 📱 Layout Principal CLÁSSICO (Desktop/Tablet) */
         .app-container {
             width: 100%;
             max-width: 1400px; /* Limite de largura para telas grandes */
-            height: 100vh;
-            display: grid;
-            /* Definição padrão: 392px para sidebar (tablet/desktop) e 1fr para conteúdo */
-            grid-template-columns: 392px 1fr; 
+            min-height: 100vh;
+            display: flex; /* Novo: Usa Flexbox para sidebar e conteúdo */
             overflow: hidden;
             background: var(--background);
+            margin: 0 auto; /* Centraliza o container principal */
+        }
+        
+        /* Ajuste para quando o login sumir, o appContainer ocupar a tela toda */
+        #appContainer:not(.hidden) {
+            position: absolute; /* Para sobrescrever a centralização do body */
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 100vh;
+            width: 100vw;
+            max-width: none;
         }
 
-        /* Oculta a barra lateral e maximiza o conteúdo (usado no modo mapa/scanner) */
-        .app-container[style*="grid-template-columns: 1fr"] #sidebar {
-            display: none;
-        }
 
         /* 🚪 Login */
         .login-section {
@@ -80,6 +88,8 @@
             overflow-y: auto;
             position: relative;
             z-index: 10;
+            width: 392px; /* Largura fixa para a sidebar em desktop */
+            flex-shrink: 0; /* Impede que a sidebar diminua */
         }
         
         .logo { font-size: 24px; font-weight: 700; margin-bottom: 20px; text-align: center; }
@@ -106,18 +116,22 @@
             padding: 20px;
             overflow-y: auto;
             background: var(--background);
+            flex-grow: 1; /* Permite que o conteúdo preencha o espaço restante */
         }
 
-        /* 📷 Scanner */
+        /* 📷 Scanner - Posicionamento em Tela Cheia */
         .camera-view {
             display: none; /* Controlado por JS */
             flex-direction: column;
             align-items: center;
             justify-content: center;
             background: #000;
-            width: 100%;
-            height: 100%;
-            position: relative;
+            width: 100vw; /* Ocupa a largura total */
+            height: 100vh; /* Ocupa a altura total */
+            position: fixed; /* Fixa sobre tudo */
+            top: 0;
+            left: 0;
+            z-index: 1000; /* Garante que fique acima de todos os outros elementos */
         }
         
         #videoElement {
@@ -168,7 +182,7 @@
             border-radius: 10px;
             box-shadow: var(--shadow);
             opacity: 0;
-            pointer-events: none; /* Controlado pelo JS */
+            pointer-events: none;
             transition: opacity 0.3s;
             z-index: 99;
         }
@@ -235,7 +249,9 @@
         /* Mobile: Menu lateral escondido por padrão */
         @media (max-width: 768px) {
             .app-container {
-                grid-template-columns: 1fr;
+                /* Em mobile, a barra lateral é escondida e o conteúdo ocupa tudo */
+                display: block; 
+                width: 100vw;
             }
             .sidebar {
                 position: fixed;
@@ -243,16 +259,13 @@
                 height: 100%;
                 transform: translateX(-100%);
                 transition: transform 0.3s ease-in-out;
+                z-index: 50; /* Z-index alto para ficar sobre o conteúdo */
             }
             .sidebar.active {
                 transform: translateX(0);
             }
             .content-area {
                 padding-top: 60px; /* Espaço para o botão do menu */
-            }
-            /* Garante que o grid de coluna única permaneça em mobile */
-            .app-container[style*="grid-template-columns: 1fr"] {
-                grid-template-columns: 1fr !important;
             }
         }
         
@@ -362,29 +375,28 @@
                 <h2>Bem-vindo! Selecione uma opção no menu.</h2>
             </div>
         </main>
+    </div>
 
-        <div id="cameraView" class="camera-view">
-            <video id="videoElement" autoplay playsinline></video>
-            
-            <div class="scan-overlay"></div>
-            
-            <p id="feedbackMsg">Pronto para escanear.</p>
+    <div id="cameraView" class="camera-view">
+        <video id="videoElement" autoplay playsinline></video>
+        
+        <div class="scan-overlay"></div>
+        
+        <p id="feedbackMsg">Pronto para escanear.</p>
 
-            <div class="scanner-options">
-                <select id="cameraSelect">
-                    <option value="">Carregando Câmeras...</option>
-                </select>
-                
-                <button id="btnToggleManualInput" title="Entrada Manual">
-                    ✏️
-                </button>
-            </div>
+        <div class="scanner-options">
+            <select id="cameraSelect">
+                <option value="">Carregando Câmeras...</option>
+            </select>
             
-            <div id="manualInputContainer">
-                <input type="text" id="manualDeliveryId" placeholder="ID de Entrega (Ex: BR123456789)" required>
-                <button id="btnManualConfirm" class="btn-primary">Confirmar ID Manual</button>
-            </div>
-
+            <button id="btnToggleManualInput" title="Entrada Manual">
+                ✏️
+            </button>
+        </div>
+        
+        <div id="manualInputContainer">
+            <input type="text" id="manualDeliveryId" placeholder="ID de Entrega (Ex: BR123456789)" required>
+            <button id="btnManualConfirm" class="btn-primary">Confirmar ID Manual</button>
         </div>
 
     </div>
