@@ -1,4 +1,4 @@
-/* app.js — versão integrada e aprimorada (PATCH: Modal Comar Logic) */
+/* app.js — versão integrada e aprimorada (PATCH: map z-index fix) */
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- KEYS e Estado --- */
@@ -40,16 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         adminMenuOptions: document.getElementById('adminMenuOptions'),
         exportPeriod: document.getElementById('exportPeriod'),
         exportUserFilter: document.getElementById('exportUserFilter'),
-        btnGenerateCSV: document.getElementById('btnGenerateCSV'),
-        // --- NOVOS ELEMENTOS DO MODAL COMAR ---
-        btnComar: document.getElementById('btnComar'),
-        cameraModal: document.getElementById('cameraModal'),
-        btnCloseCameraModal: document.getElementById('btnCloseCameraModal'),
-        btnAbrirCamera: document.getElementById('abrirCameraParaComprovante'),
-        btnAptsaischan: document.getElementById('AptsaischanComprovante'),
-        btnAfssran: document.getElementById('AfssranRota'),
-        btnMesran: document.getElementById('MesranRota'),
-        btnCararIagas: document.getElementById('CararIagas')
+        btnGenerateCSV: document.getElementById('btnGenerateCSV')
     };
 
     /* --- Inicialização --- */
@@ -116,60 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); });
     document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); });
     document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); });
-
-    // --- LÓGICA DO MODAL COMAR (FILTROS) ---
-    if (dom.btnComar) dom.btnComar.addEventListener('click', () => {
-        setActiveMenu('btnComar');
-        // Fecha mapa se aberto e oculta conteúdo principal
-        removeMapIfExists();
-        if (dom.contentArea) dom.contentArea.style.display = 'none';
-        // Mostra o modal
-        if (dom.cameraModal) dom.cameraModal.style.display = 'flex';
-    });
-
-    if (dom.btnCloseCameraModal) dom.btnCloseCameraModal.addEventListener('click', () => {
-        if (dom.cameraModal) dom.cameraModal.style.display = 'none';
-        // Retorna ao dashboard
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-
-    // --- HANDLERS DE AÇÃO DO MODAL ---
-    if (dom.btnAbrirCamera) dom.btnAbrirCamera.addEventListener('click', () => {
-        alert('Ação simulada: Reabrindo o scanner para comprovante...');
-        dom.cameraModal.style.display = 'none';
-        setActiveMenu('btnScanMode');
-        openCameraView();
-    });
-
-    if (dom.btnAptsaischan) dom.btnAptsaischan.addEventListener('click', () => {
-        alert('Ação simulada: Envio de comprovante processado com sucesso!');
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-
-    if (dom.btnAfssran) dom.btnAfssran.addEventListener('click', () => {
-        alert('Ação simulada: Rota F28e77 definida e centralizada no mapa.');
-        dom.cameraModal.style.display = 'none';
-        setActiveMenu('btnMap');
-        renderMap(); // Abre o mapa, simulando a navegação
-    });
-
-    if (dom.btnMesran) dom.btnMesran.addEventListener('click', () => {
-        alert('Ação simulada: Rota 007bi ff (Bf 5) marcada como concluída no sistema.');
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-
-    if (dom.btnCararIagas) dom.btnCararIagas.addEventListener('click', () => {
-        alert('Ação simulada: Todas as flags de entregas anteriores foram removidas (Limpeza de cache de rotas).');
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-    // --- FIM LÓGICA MODAL COMAR ---
 
     document.getElementById('btnExport').addEventListener('click', () => {
         if (dom.exportOptions) dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
