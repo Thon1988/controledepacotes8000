@@ -67,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     r.lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.01;
                     r.lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.01;
                 }
+                if (!r.date) r.date = Date.now(); // Adiciona timestamp para filtro
+                if (!r.user) r.user = 'system'; // Adiciona usuário
+                if (!r.type) r.type = 'Package'; // Adiciona tipo
             });
             return records;
         },
@@ -85,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const thonExists = users.some(u => u.username === 'thon');
             if (!thonExists) {
                 users.push(DEFAULT_USERS.find(u => u.username === 'thon'));
+                localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
             }
             return users;
         },
@@ -163,11 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('btnLogin').addEventListener('click', this.handleLogin);
             document.getElementById('btnLogout').addEventListener('click', this.handleLogout);
             document.getElementById('btnDashboard').addEventListener('click', () => this.navigateTo('dashboard'));
-            document.getElementById('btnScanMode').addEventListener('click', () => this.navigateTo('scanner'));
+            document.getElementById('btnScanner').addEventListener('click', () => this.navigateTo('scanner'));
             document.getElementById('btnMap').addEventListener('click', () => this.navigateTo('map'));
             document.getElementById('btnRoutes').addEventListener('click', () => this.navigateTo('routes'));
             document.getElementById('btnUsers').addEventListener('click', () => this.navigateTo('users'));
-            dom.cameraSelect.addEventListener('change', (e) => { if(isScanning) this.startScanner(e.target.value); });
+            dom.cameraSelect.addEventListener('change', (e) => this.startScanner(e.target.value));
             dom.btnToggleManualInput.addEventListener('click', this.toggleManualInput);
             dom.btnManualConfirm.addEventListener('click', this.handleManualConfirm);
             
@@ -178,13 +182,24 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('btnExportMonthly').addEventListener('click', () => this.handleExport('monthly'));
             document.getElementById('btnExportAll').addEventListener('click', () => this.handleExport('all'));
             
+            // Evento global para fechar exportOptions se clicar fora
+            document.addEventListener('click', (e) => {
+                if (dom.exportOptions.style.display === 'flex' && 
+                    !e.target.closest('.export-container')) {
+                    dom.exportOptions.style.display = 'none';
+                }
+            });
+            
             this.startGeolocation();
+            window.addEventListener('resize', this.handleResize);
         },
-        
+
+        /* --- Autenticação e Navegação --- */
         handleLogin: function() {
             const u = document.getElementById('loginUser').value.trim();
             const p = document.getElementById('loginPass').value.trim();
             const user = DeliveryStore.getUserByCredentials(u, p);
+            const errorElement = document.getElementById('loginError');
             
             if (user) {
                 currentUser = user;
@@ -196,28 +211,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
                     dom.adminMenuOptions.classList.remove('hidden');
+                    document.getElementById('btnUsers').classList.remove('hidden');
                 } else {
                     dom.adminMenuOptions.classList.add('hidden');
+                    document.getElementById('btnUsers').classList.add('hidden');
                 }
 
                 AppController.navigateTo('dashboard');
-                document.getElementById('loginError').textContent = '';
+                errorElement.textContent = '';
             } else {
-                document.getElementById('loginError').textContent = 'Credenciais inválidas';
+                errorElement.textContent = 'Credenciais inválidas';
             }
         },
 
         handleLogout: function() {
             currentUser = null;
             AppController.stopScanner();
+            if (mapInstance) mapInstance.remove();
+            mapInstance = null;
             dom.appContainer.classList.add('hidden');
             dom.loginSection.classList.remove('hidden'); 
             dom.mobileMenuBtn.classList.add('hidden');
             dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
+            window.removeEventListener('resize', AppController.handleResize);
         },
 
         navigateTo: function(viewName, params = null) {
+            // Fecha a sidebar em mobile
+            if (window.innerWidth <= 768 && dom.sidebar.classList.contains('active')) {
+                window.toggleSidebar();
+            }
+
             AppController.showContent();
+
+            // Limpa o mapa se sair das views de mapa
+            if (mapInstance && viewName !== 'map' && viewName !== 'routes' && !viewName.includes('details')) {
+                 mapInstance.remove();
+                 mapInstance = null;
+            }
 
             switch(viewName) {
                 case 'dashboard':
@@ -253,7 +284,51 @@ document.addEventListener('DOMContentLoaded', () => {
             if(btn) btn.classList.add('active');
         },
         
-        // --- Controle do Scanner ---
+        showContent: function() {
+            dom.cameraView.style.display = 'none';
+            dom.contentArea.style.display = 'block';
+            
+            dom.appContainer.style.display = 'grid'; 
+            
+            if (window.innerWidth > 768) { 
+                dom.sidebar.classList.remove('hidden'); 
+                // Garante o layout com a sidebar visível
+                dom.appContainer.style.gridTemplateColumns = '392px 1fr'; 
+            } else {
+                dom.sidebar.classList.remove('active');
+            }
+            
+            this.stopScanner();
+            if (dom.exportOptions.style.display === 'flex') {
+                dom.exportOptions.style.display = 'none'; 
+            }
+            dom.feedback.style.opacity = '0'; 
+            
+            dom.manualInputContainer.style.opacity = '0';
+            dom.manualInputContainer.style.pointerEvents = 'none';
+        },
+        
+        handleResize: function() {
+            if (mapInstance) {
+                mapInstance.invalidateSize();
+            }
+        },
+
+        /* --- Geolocation --- */
+        startGeolocation: function() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        userLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
+                        if (mapInstance) Views.updateMapLocation();
+                    },
+                    (error) => { console.warn('Geolocation error:', error.message); userLocation = null; },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            }
+        },
+
+        /* --- Controle do Scanner --- */
         enumerateDevices: async function() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
             dom.cameraSelect.innerHTML = '';
@@ -332,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (videoStream) {
                 videoStream.getTracks().forEach(t => t.stop());
                 videoStream = null;
+                videoTrack = null;
             }
             dom.video.srcObject = null;
         },
@@ -372,10 +448,24 @@ document.addEventListener('DOMContentLoaded', () => {
             lastScanTime = now;
 
             Utils.beep();
-            Utils.showFeedback(`Leitura Confirmada: ${data.substring(0, 30)}...`, 'var(--accent)'); 
+            Utils.showFeedback(`Leitura Confirmada: ${data.substring(0, 30)}...`, Utils.varCss('--accent')); 
 
             const record = Utils.parsePayload(data, userLocation, currentUser);
+            
+            // Verifica se a entrega já foi registrada e navega para detalhes se for o caso
+            const existing = DeliveryStore.getDeliveryById(record.id);
+            if (existing) {
+                AppController.stopScanner();
+                AppController.navigateTo('details', record.id);
+                return;
+            }
+            
             DeliveryStore.addDelivery(record);
+
+            // Se o scan for novo, adiciona e volta pro dashboard
+            AppController.stopScanner();
+            Utils.showDashboardFeedback(`Novo item (${record.id}) adicionado.`);
+            AppController.navigateTo('dashboard');
         },
         
         toggleManualInput: function() {
@@ -390,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         handleManualConfirm: function() {
             const id = dom.manualDeliveryId.value.trim();
             if (!id) {
-                Utils.showFeedback('ID de entrega vazio!', 'var(--danger)');
+                Utils.showFeedback('ID de entrega vazio!', Utils.varCss('--danger'));
                 return;
             }
             
@@ -401,13 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 html: `
                     <div style="text-align: left; color:var(--content-text-dark);">
                         <p><strong>ID:</strong> ${record.id}</p>
-                        <p><strong>Tipo:</strong> ${record.type}</p>
                         <p><strong>Status:</strong> Pendente</p>
                         <hr style="border-color: rgba(0,0,0,0.1)">
                         <h4>Dados do Destino (Simulação)</h4>
                         <p><strong>Nome:</strong> ${record.clientName}</p>
                         <p><strong>Endereço:</strong> ${record.clientAddress}</p>
-                        <p><strong>Telefone:</strong> ${record.clientPhone}</p>
                     </div>
                 `,
                 icon: 'info',
@@ -417,20 +505,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }).then((result) => {
                 if (result.isConfirmed) {
                     DeliveryStore.addDelivery(record); 
-                    Utils.showFeedback(`Registro Manual ${record.id} Salvo!`, 'var(--success)');
+                    Utils.showDashboardFeedback(`Registro Manual ${record.id} Salvo!`);
                     dom.manualDeliveryId.value = '';
                 } else {
-                    Utils.showFeedback(`Registro Manual ${record.id} Cancelado!`, 'var(--danger)');
+                    Utils.showFeedback(`Registro Manual ${record.id} Cancelado!`, Utils.varCss('--danger'));
                 }
                 dom.manualInputContainer.style.opacity = '0';
                 dom.manualInputContainer.style.pointerEvents = 'none';
             });
         },
         
-        /**
-         * @function handleMarkAsDelivered - Inicia o fluxo de confirmação de entrega.
-         * @param {string} recordId - ID do registro.
-         */
         handleMarkAsDelivered: function(recordId) {
             const record = DeliveryStore.getDeliveryById(recordId); 
             
@@ -439,10 +523,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (record.status === 'delivered') {
+            if (record.status !== 'pending') {
                  Swal.fire({
                     title: 'Entrega Já Confirmada', 
-                    text: `A entrega ${recordId} já foi marcada como ENTREGUE por ${record.receivedBy || 'um usuário'}.`, 
+                    text: `A entrega ${recordId} já foi marcada como ${record.status.toUpperCase()}.`, 
                     icon: 'info',
                     confirmButtonText: 'OK'
                 });
@@ -467,10 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         
-        /**
-         * @function handleRegisterOccurrence - Inicia o fluxo de registro de ocorrência.
-         * @param {string} recordId - ID do registro.
-         */
         handleRegisterOccurrence: function(recordId) {
             Swal.fire({
                 title: 'Tipo de Ocorrência',
@@ -510,10 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
 
-        /**
-         * @function handleMultipleDeliverySubmission - Gerencia a submissão do formulário de baixa múltipla.
-         * @param {Array<string>} recordIds - IDs das entregas a serem confirmadas.
-         */
         handleMultipleDeliverySubmission: function(recordIds) {
             const form = document.getElementById('multipleDeliveryForm');
             const allRecordsDelivered = [];
@@ -557,45 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 Swal.fire('Atenção', 'Preencha o nome do recebedor para todos os pacotes antes de finalizar.', 'warning');
             }
         },
-
-        // --- Ações Globais ---
-        showContent: function() {
-            dom.cameraView.style.display = 'none';
-            dom.contentArea.style.display = 'block';
-            
-            dom.appContainer.style.display = 'grid'; 
-            
-            if (window.innerWidth > 768) { 
-                dom.sidebar.classList.remove('hidden'); 
-                dom.appContainer.style.gridTemplateColumns = '392px 1fr';
-            } else {
-                dom.sidebar.classList.remove('active');
-            }
-            
-            this.stopScanner();
-            if (dom.exportOptions.style.display === 'flex') {
-                dom.exportOptions.style.display = 'none'; 
-            }
-            dom.feedback.style.opacity = '0'; 
-            
-            dom.manualInputContainer.style.opacity = '0';
-            dom.manualInputContainer.style.pointerEvents = 'none';
-        },
-
-        // --- Geolocalização ---
-        startGeolocation: function() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        userLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
-                        if (mapInstance) Views.updateMapLocation();
-                    },
-                    (error) => { console.warn('Geolocation error:', error.message); userLocation = null; },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
-            }
-        },
-
+        
         // --- Exportação ---
         toggleExportOptions: function() {
             dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
@@ -643,9 +681,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
             dom.exportOptions.style.display = 'none';
             Swal.fire('Sucesso', 'Exportação CSV concluída!', 'success');
+        },
+
+        // --- CRUD de Usuários ---
+        handleCreateUser: function(user, pass, role) {
+            const users = DeliveryStore.getUsers();
+            if (users.some(u => u.username === user)) {
+                return { success: false, message: 'Usuário já existe.' };
+            }
+            
+            const newId = 'u' + (users.length + 1);
+            const newUser = { 
+                id: newId, 
+                username: user, 
+                password: pass, 
+                role: role,
+                creatorId: currentUser.id
+            };
+            users.push(newUser);
+            DeliveryStore.updateUsers(users);
+            return { success: true, message: `Usuário ${user} criado com sucesso!` };
+        },
+
+        handleUpdateUser: function(id, newUsername, newPassword, newRole) {
+            const users = DeliveryStore.getUsers();
+            const index = users.findIndex(u => u.id === id);
+
+            if (index === -1) {
+                return { success: false, message: 'Usuário não encontrado.' };
+            }
+
+            const user = users[index];
+            if (user.id !== currentUser.id && currentUser.role !== 'admin' && currentUser.role !== 'gestor') {
+                return { success: false, message: 'Sem permissão para editar outros usuários.' };
+            }
+
+            user.username = newUsername;
+            user.password = newPassword || user.password; 
+            user.role = newRole; 
+
+            DeliveryStore.updateUsers(users);
+            return { success: true, message: `Usuário ${user.username} atualizado!` };
+        },
+
+        handleDeleteUser: function(id) {
+            if (currentUser.role !== 'admin') {
+                return { success: false, message: 'Apenas Administradores podem excluir usuários.' };
+            }
+            if (id === currentUser.id) {
+                 return { success: false, message: 'Você não pode excluir a si mesmo.' };
+            }
+            
+            let users = DeliveryStore.getUsers().filter(u => u.id !== id);
+            DeliveryStore.updateUsers(users);
+            return { success: true, message: 'Usuário excluído com sucesso.' };
         }
     };
-    
+
     /**
      * Views: Funções de renderização de interface.
      */
@@ -667,9 +759,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="display:grid; gap:10px; margin-top:20px;">
                     ${records.map(r => {
                         let statusColor;
-                        if (r.status === 'delivered') statusColor = 'var(--success)';
-                        else if (r.status.startsWith('Occurrence') || r.status === 'Canceled') statusColor = 'var(--danger)';
-                        else statusColor = 'var(--accent)'; 
+                        if (r.status === 'delivered') statusColor = Utils.varCss('--success');
+                        else if (r.status.startsWith('Occurrence') || r.status === 'Canceled') statusColor = Utils.varCss('--danger');
+                        else statusColor = Utils.varCss('--accent'); 
                         
                         const actionText = r.status.toUpperCase();
                         
@@ -728,9 +820,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const isPending = record.status === 'pending';
             
             let statusColor;
-            if (record.status === 'delivered') statusColor = 'var(--success)';
-            else if (record.status.startsWith('Occurrence') || record.status === 'Canceled') statusColor = 'var(--danger)';
-            else statusColor = 'var(--danger)'; 
+            if (record.status === 'delivered') statusColor = Utils.varCss('--success');
+            else if (record.status.startsWith('Occurrence') || record.status === 'Canceled') statusColor = Utils.varCss('--danger');
+            else statusColor = Utils.varCss('--accent'); 
 
             dom.contentArea.innerHTML = `
                 <h2>Detalhes da Entrega</h2>
@@ -738,10 +830,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="detailMapObj" style="height:250px; border-radius:12px; margin-bottom:15px;"></div>
 
                     <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom: 20px;">
-                        <button onclick="${prevId ? `AppController.navigateTo('details', '${prevId}')` : ''}" style="flex:1; padding:15px; background:${prevId ? 'var(--accent)' : '#ccc'}; color:${prevId ? 'var(--content-text-dark)' : '#666'}; border-radius:10px; box-shadow:none;" ${!prevId ? 'disabled' : ''}>
+                        <button onclick="${prevId ? `AppController.navigateTo('details', '${prevId}')` : ''}" style="flex:1; padding:15px; background:${prevId ? Utils.varCss('--accent') : '#ccc'}; color:${prevId ? Utils.varCss('--content-text-dark') : '#666'}; border-radius:10px; box-shadow:none;" ${!prevId ? 'disabled' : ''}>
                             ⬅️ Anterior
                         </button>
-                        <button onclick="${nextId ? `AppController.navigateTo('details', '${nextId}')` : ''}" style="flex:1; padding:15px; background:${nextId ? 'var(--accent)' : '#ccc'}; color:${nextId ? 'var(--content-text-dark)' : '#666'}; border-radius:10px; box-shadow:none;" ${!nextId ? 'disabled' : ''}>
+                        <button onclick="${nextId ? `AppController.navigateTo('details', '${nextId}')` : ''}" style="flex:1; padding:15px; background:${nextId ? Utils.varCss('--accent') : '#ccc'}; color:${nextId ? Utils.varCss('--content-text-dark') : '#666'}; border-radius:10px; box-shadow:none;" ${!nextId ? 'disabled' : ''}>
                             Próximo ➡️
                         </button>
                     </div>
@@ -835,22 +927,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${recordsToDeliver.map((record, index) => `
                             <div style="padding:15px; border:1px solid #ddd; border-radius:10px; margin-bottom:15px; background:var(--content-bg-light);">
                                 <div style="font-weight:bold; font-size:16px; margin-bottom:5px;">${index + 1}. ID: ${record.id}</div>
-                                <div style="font-size:14px; color:var(--content-text-dark); margin-bottom:10px;">Cliente: ${record.clientName}</div>
-                                
-                                <input type="text" 
-                                    id="recebedor_${record.id}" 
-                                    placeholder="Nome do Recebedor (Obrigatório)" 
-                                    required 
-                                    style="margin-bottom: 0;">
+                                <div style="font-size:14px; color:var(--content-text-dark); margin-bottom:10px;">
+                                    Destinatário: **${record.clientName}**
+                                </div>
+                                <label for="recebedor_${record.id}" style="font-size:14px;">Nome do Recebedor:</label>
+                                <input type="text" id="recebedor_${record.id}" name="recebedor_${record.id}" required 
+                                       placeholder="Nome do Cliente, Porteiro, etc." style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;">
                             </div>
                         `).join('')}
-                        
-                        <button type="submit" class="btn-primary" style="width:100%; padding:15px; margin-top:20px;">
-                            Finalizar ${recordsToDeliver.length} Entregas
-                        </button>
-                        
-                        <button type="button" onclick="AppController.navigateTo('details', '${recordsToDeliver[0].id}')" style="width:100%; background:#ccc; color:#333; padding:10px; border-radius:10px; margin-top:10px; box-shadow:none;">
-                            ↩️ Voltar aos Detalhes
+
+                        <button type="submit" class="btn-primary" style="width:100%; padding:15px; background:var(--success); font-size:18px; font-weight:bold; margin-top:20px; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.3);">
+                            Finalizar Baixa de ${recordsToDeliver.length} Pacotes
                         </button>
                     </form>
                 </div>
@@ -858,379 +945,479 @@ document.addEventListener('DOMContentLoaded', () => {
             
             document.getElementById('multipleDeliveryForm').addEventListener('submit', (e) => {
                 e.preventDefault();
-                const idsToConfirm = recordsToDeliver.map(r => r.id);
-                AppController.handleMultipleDeliverySubmission(idsToConfirm);
+                AppController.handleMultipleDeliverySubmission(recordIds);
             });
         },
 
-        renderUsers: function() {
-            AppController.showContent();
-            const users = DeliveryStore.getUsers();
-            
-            let userListHtml = `
-                <h2>👥 Gerenciamento de Usuários</h2>
-                <div style="margin-bottom: 20px;">
-                    <button class="btn-primary" onclick="Utils.editUser(null)">+ Novo Usuário</button>
-                </div>
-                <div id="userListContainer">
-            `;
-            
-            const filteredUsers = users.filter(u => {
-                if (currentUser.role === 'admin') return true;
-                if (currentUser.role === 'gestor') { return u.creatorId === currentUser.id || u.id === currentUser.id; }
-                return u.id === currentUser.id;
-            });
-
-            filteredUsers.forEach(u => {
-                const canEdit = currentUser.role === 'admin' || currentUser.id === u.id || (currentUser.role === 'gestor' && u.role === 'colaborador' && u.creatorId === currentUser.id);
-                const canDelete = currentUser.role === 'admin' && currentUser.id !== u.id;
-                
-                userListHtml += `
-                    <div class="user-form-card" style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <strong>${u.username}</strong> 
-                            <span style="color:var(--accent); font-size:12px">(${u.role})</span>
-                        </div>
-                        <div>
-                            ${canEdit ? `<button onclick="Utils.editUser('${u.id}')" style="background:rgba(56, 189, 248, 0.2); color:var(--accent); padding:5px 10px; margin-right:5px; font-size:14px; box-shadow:none;" title="Editar">✏️</button>` : ''}
-                            ${canDelete ? `<button onclick="Utils.deleteUser('${u.id}')" style="background:rgba(239, 68, 68, 0.2); color:var(--danger); padding:5px 10px; font-size:14px; box-shadow:none;">Excluir</button>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            userListHtml += `</div><div id="userFormArea"></div>`;
-            dom.contentArea.innerHTML = userListHtml;
-        },
-
+        /* --- MAPAS - Implementação Completa --- */
         renderMap: function() {
             AppController.showContent();
-            mapInstance = null;
+            
             dom.contentArea.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>🗺️ Mapa de Entregas</h2>
-                    <button id="btnToggleMapFullscreen" class="btn-primary" style="padding: 8px 12px; font-size: 14px; box-shadow:none;">
-                        🖥️ Tela Cheia
-                    </button>
-                </div>
-                <p style="color:var(--content-text-dark)">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-                <div id="mapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>`;
-            
-            setTimeout(() => {
-                const records = DeliveryStore.getDeliveries();
-                const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
-                const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
-
-                mapInstance = L.map('mapObj').setView([initialLat, initialLon], 14);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
-
-                records.forEach(r => {
-                    L.marker([r.lat, r.lon]).addTo(mapInstance)
-                        .bindPopup(`<b>${r.id}</b><br>${r.type}<br><a href="#" onclick="AppController.navigateTo('details', '${r.id}')">Ver Detalhes</a>`);
-                });
-
-                Views.updateMapLocation();
-                
-                document.getElementById('btnToggleMapFullscreen').addEventListener('click', () => {
-                    const sidebar = document.getElementById('sidebar');
-                    const appContainer = document.querySelector('.app');
-                    const button = document.getElementById('btnToggleMapFullscreen');
-
-                    if (window.innerWidth > 768) { 
-                        if (!sidebar.classList.contains('hidden')) {
-                            sidebar.classList.add('hidden');
-                            appContainer.style.gridTemplateColumns = '1fr';
-                            button.innerHTML = '◀️ Voltar';
-                        } else {
-                            sidebar.classList.remove('hidden');
-                            appContainer.style.gridTemplateColumns = '392px 1fr';
-                            button.innerHTML = '🖥️ Tela Cheia';
-                        }
-                    }
-                    if (mapInstance) { setTimeout(() => { mapInstance.invalidateSize(); }, 350); }
-                });
-
-
-            }, 100);
-        },
-
-        updateMapLocation: function() {
-            if (!mapInstance || !userLocation) return;
-
-            const currentLocEl = document.getElementById('currentLoc');
-            if (currentLocEl) {
-                currentLocEl.textContent = `(${userLocation.lat.toFixed(6)}, ${userLocation.lon.toFixed(6)}) - ${userLocation ? 'Atual' : 'Simulada'}`;
-            }
-
-            if (locationMarker) {
-                locationMarker.setLatLng([userLocation.lat, userLocation.lon]);
-            } else {
-                locationMarker = L.marker([userLocation.lat, userLocation.lon], {
-                    icon: L.divIcon({
-                        className: 'current-location-marker',
-                        html: '<div style="background:var(--danger); border:3px solid white; border-radius:50%; width:18px; height:18px;"></div>',
-                        iconSize: [18, 18],
-                        iconAnchor: [9, 9]
-                    })
-                }).addTo(mapInstance)
-                .bindPopup("Sua Localização Atual");
-            }
-        },
-
-        renderRoutes: function() {
-            AppController.showContent();
-            const deliveryPoints = DeliveryStore.getDeliveries().map(r => ({ lat: r.lat, lon: r.lon, id: r.id }));
-            
-            if (deliveryPoints.length < 2) {
-                dom.contentArea.innerHTML = `<h2>🧭 Geração de Rotas</h2><p style="color:var(--content-text-dark)">Escaneie pelo menos 2 entregas para gerar uma rota.</p>`;
-                return;
-            }
-
-            const simplifiedRoute = deliveryPoints
-                .slice(0, 10) 
-                .sort(() => Math.random() - 0.5); 
-            
-            const routeMapHtml = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>🧭 Rota Otimizada (${simplifiedRoute.length} pontos)</h2>
-                    ${deliveryPoints.length >= 2 ? `
-                        <button id="btnToggleRouteFullscreen" class="btn-primary" style="padding: 8px 12px; font-size: 14px; box-shadow:none;">
-                            🖥️ Tela Cheia
-                        </button>` : ''}
-                </div>
-                <p style="color:var(--content-text-dark)">Simulação baseada nas suas últimas entregas escaneadas. </p>
-                <div id="routeMapObj" style="height:70vh; border-radius:12px; margin-top:10px"></div>
-                <div style="margin-top:10px">
-                    ${simplifiedRoute.map((p, index) => 
-                        `<div style="font-size:14px; margin-bottom:5px; color:var(--content-text-dark);">
-                            ${index + 1}. ${p.id} 
-                            (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})
-                        </div>`
-                    ).join('')}
+                <h2>🗺️ Mapa de Entregas Pendentes</h2>
+                <div id="mapContainer" style="height: 500px; border-radius: 12px; margin-bottom: 20px;"></div>
+                <div id="mapStats" class="user-form-card" style="padding:15px;">
+                    <p>Visualização de todos os pontos de entrega pendentes.</p>
+                    <div id="mapLegend" style="display:flex; gap:20px; font-size:14px; margin-top:10px;">
+                        <span style="color:${Utils.varCss('--accent')}; font-weight:bold;">● Entregas Pendentes</span>
+                        <span style="color:#333; font-weight:bold;">⚫ CD / Sua Localização</span>
+                    </div>
                 </div>
             `;
-            dom.contentArea.innerHTML = routeMapHtml;
+            Views.initializeFullMap(false); // false = modo mapa
+        },
+        
+        renderRoutes: function() {
+            AppController.showContent();
+            
+            dom.contentArea.innerHTML = `
+                <h2>🧭 Rota Otimizada</h2>
+                <div id="mapContainer" style="height: 500px; border-radius: 12px; margin-bottom: 20px;"></div>
+                
+                <div id="routeDetails" class="user-form-card" style="padding:15px; border-left: 5px solid ${Utils.varCss('--accent')};">
+                     <h3>Detalhes da Rota (Partida: CD)</h3>
+                     <div id="routeList" style="width:100%;">
+                         <p style="text-align:center; color:var(--muted)">Calculando rota...</p>
+                     </div>
+                </div>
+            `;
+            Views.initializeFullMap(true); // true = modo rotas
+        },
 
-            setTimeout(() => {
-                const map = L.map('routeMapObj').setView([simplifiedRoute[0].lat, simplifiedRoute[0].lon], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
+        initializeFullMap: function(isRouteMode) {
+            if (mapInstance) mapInstance.remove();
+            
+            const pendingDeliveries = DeliveryStore.getDeliveries().filter(r => r.status === 'pending');
+            const mapDiv = document.getElementById('mapContainer');
+            
+            if (!mapDiv) return;
 
-                const routePoints = simplifiedRoute.map((p, index) => {
-                    const marker = L.marker([p.lat, p.lon]).addTo(map)
-                        .bindPopup(`<b>Ponto ${index + 1}</b><br>${p.id}`);
-                    
-                    marker.setIcon(L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div style="background:var(--accent); color:#000; border-radius:50%; width:24px; height:24px; text-align:center; font-weight:bold; line-height:24px;">${index + 1}</div>`,
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 12]
-                    }));
-                    return [p.lat, p.lon];
+            const startPoint = isRouteMode ? CD_LOCATION : userLocation || CD_LOCATION;
+            const startLatLng = [startPoint.lat, startPoint.lon];
+
+            mapInstance = L.map('mapContainer').setView(startLatLng, 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(mapInstance);
+
+            // Marcador do CD / Usuário
+            locationMarker = L.marker(startLatLng, {
+                icon: L.divIcon({
+                    className: 'custom-start-icon',
+                    html: `<div style="background-color: black; color: white; border-radius: 50%; width: 30px; height: 30px; text-align: center; line-height: 30px; font-weight: bold;">${isRouteMode ? 'CD' : '🚚'}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 30]
+                })
+            }).addTo(mapInstance)
+              .bindPopup(isRouteMode ? 'Centro de Distribuição' : 'Sua Localização Atual')
+              .openPopup();
+
+            if (isRouteMode) {
+                // Modo Rotas: Usar Leaflet Routing Machine
+                const optimizedOrder = Views.optimizeRoute(pendingDeliveries, CD_LOCATION);
+                
+                if (optimizedOrder.length === 0) {
+                     document.getElementById('routeList').innerHTML = `<p style="text-align:center;">Nenhuma entrega pendente para otimizar.</p>`;
+                     mapInstance.setView(startLatLng, 13);
+                     return;
+                }
+
+                const waypoints = [
+                    L.latLng(CD_LOCATION.lat, CD_LOCATION.lon), // Ponto de Partida
+                    ...optimizedOrder.map(r => L.latLng(r.lat, r.lon))
+                ];
+
+                L.Routing.control({
+                    waypoints: waypoints,
+                    routeWhileDragging: false,
+                    altLineOptions: { extendSegmentGradients: true, suppressReplacement: false },
+                    showAlternatives: false,
+                    lineOptions: {
+                        styles: [{ color: Utils.varCss('--accent'), opacity: 0.8, weight: 6 }]
+                    },
+                    createMarker: function(i, waypoint, n) {
+                        const isStart = i === 0;
+                        
+                        if (isStart) {
+                            return locationMarker;
+                        }
+
+                        const record = optimizedOrder[i - 1]; 
+                        const iconNumber = i;
+
+                        return L.marker(waypoint.latLng, {
+                            icon: L.divIcon({
+                                className: 'custom-route-icon',
+                                html: `<div style="background-color: ${Utils.varCss('--accent')}; color: white; border-radius: 50%; width: 25px; height: 25px; text-align: center; line-height: 25px; font-weight: bold;">${iconNumber}</div>`,
+                                iconSize: [25, 25],
+                                iconAnchor: [12, 25]
+                            })
+                        }).bindPopup(`<strong>Parada ${iconNumber}:</strong> ${record.clientName}<br>ID: ${record.id}<br><button onclick="AppController.navigateTo('details', '${record.id}')">Ver Detalhes</button>`);
+                    }
+                }).on('routesfound', (e) => {
+                    Views.updateRouteList(e.routes[0].coordinates, optimizedOrder);
+                }).addTo(mapInstance);
+
+            } else {
+                // Modo Mapa: Plota todos os pendentes
+                pendingDeliveries.forEach(record => {
+                    L.marker([record.lat, record.lon]).addTo(mapInstance)
+                        .bindPopup(`<strong>${record.clientName}</strong><br>ID: ${record.id}<br><button onclick="AppController.navigateTo('details', '${record.id}')">Ver Detalhes</button>`);
                 });
                 
-                if (routePoints.length > 1) {
-                    L.polyline(routePoints, { color: 'var(--success)', weight: 5, opacity: 0.7 }).addTo(map);
-                    map.fitBounds(L.polyline(routePoints).getBounds());
+                const allPoints = pendingDeliveries.map(r => [r.lat, r.lon]);
+                if (allPoints.length > 0) {
+                     const bounds = L.latLngBounds([startLatLng, ...allPoints]);
+                     mapInstance.fitBounds(bounds, { padding: [50, 50] });
                 }
+            }
+            
+            setTimeout(() => { mapInstance.invalidateSize(); }, 50);
+        },
+        
+        updateMapLocation: function() {
+            if (!mapInstance || !locationMarker || !userLocation) return;
+            const latlng = [userLocation.lat, userLocation.lon];
+            locationMarker.setLatLng(latlng);
+            if (dom.contentArea.innerHTML.includes('Mapa de Entregas Pendentes')) {
+                 locationMarker.setPopupContent('Sua Localização Atual').openPopup();
+            }
+        },
+        
+        // Heurística de Vizinho Mais Próximo para Otimização (Simulação)
+        optimizeRoute: function(deliveries, startLocation) {
+             if (deliveries.length === 0) return [];
 
-                if (deliveryPoints.length >= 2) {
-                    document.getElementById('btnToggleRouteFullscreen').addEventListener('click', () => {
-                        const sidebar = document.getElementById('sidebar');
-                        const appContainer = document.querySelector('.app');
-                        const button = document.getElementById('btnToggleRouteFullscreen');
+             const distance = (loc1, loc2) => {
+                 return Math.sqrt(
+                     Math.pow(loc1.lat - loc2.lat, 2) + 
+                     Math.pow(loc1.lon - loc2.lon, 2)
+                 );
+             };
 
-                        if (window.innerWidth > 768) { 
-                            if (!sidebar.classList.contains('hidden')) {
-                                sidebar.classList.add('hidden');
-                                appContainer.style.gridTemplateColumns = '1fr';
-                                button.innerHTML = '◀️ Voltar';
-                            } else {
-                                sidebar.classList.remove('hidden');
-                                appContainer.style.gridTemplateColumns = '392px 1fr';
-                                button.innerHTML = '🖥️ Tela Cheia';
-                            }
-                        }
-                        if (map) { setTimeout(() => { map.invalidateSize(); }, 350); }
+             let currentLoc = startLocation;
+             let unvisited = [...deliveries];
+             let optimized = [];
+
+             while (unvisited.length > 0) {
+                 let nearestIndex = -1;
+                 let minDistance = Infinity;
+
+                 unvisited.forEach((delivery, index) => {
+                     const dist = distance(currentLoc, delivery);
+                     if (dist < minDistance) {
+                         minDistance = dist;
+                         nearestIndex = index;
+                     }
+                 });
+
+                 if (nearestIndex !== -1) {
+                     const nextDelivery = unvisited[nearestIndex];
+                     optimized.push(nextDelivery);
+                     currentLoc = nextDelivery;
+                     unvisited.splice(nearestIndex, 1);
+                 }
+             }
+             return optimized;
+        },
+        
+        updateRouteList: function(routeCoordinates, optimizedOrder) {
+            const routeListElement = document.getElementById('routeList');
+            if (routeListElement) {
+                 routeListElement.innerHTML = `
+                    <div class="route-details-card" style="border-left-color: black;"><strong>Início:</strong> Centro de Distribuição</div>
+                    ${optimizedOrder.map((record, index) => `
+                        <div class="route-details-card" style="border-left-color: ${Utils.varCss('--accent')};" data-delivery-id="${record.id}">
+                            <strong>${index + 1}. ${record.clientName}</strong>
+                            <p style="margin: 5px 0 0 0; font-size: 14px;">Endereço: ${record.clientAddress}</p>
+                            <p style="margin: 0; font-size: 12px; color: var(--muted);">ID: ${record.id}</p>
+                        </div>
+                    `).join('')}
+                    <div class="route-details-card" style="border-left-color: black;"><strong>Fim:</strong> Rota Concluída!</div>
+                `;
+                
+                 document.querySelectorAll('.route-details-card[data-delivery-id]').forEach(card => {
+                    card.style.cursor = 'pointer';
+                    card.addEventListener('click', (e) => {
+                        const id = card.dataset.deliveryId;
+                        if (id) AppController.navigateTo('details', id);
                     });
-                }
+                });
+            }
+        },
+        
+        /* --- CRUD de Usuários - Implementação Completa --- */
+        renderUsers: function() {
+            AppController.showContent();
+            if (currentUser.role !== 'admin' && currentUser.role !== 'gestor') {
+                 dom.contentArea.innerHTML = `<h2>🚫 Acesso Negado</h2><p>Você não tem permissão para acessar esta área.</p>`;
+                 return;
+            }
+            
+            const users = DeliveryStore.getUsers();
+            
+             dom.contentArea.innerHTML = `
+                <h2>👥 Gerenciamento de Usuários</h2>
+                <p style="color:var(--content-text-dark);">Apenas Admin/Gestor podem gerenciar usuários. Admin pode deletar.</p>
+                <button id="btnAddUser" class="btn-primary" style="margin-bottom: 20px;">+ Adicionar Novo Usuário</button>
 
-            }, 100);
+                <div id="userList" style="display:grid; gap:10px; margin-top:20px;">
+                    ${users.map(u => `
+                        <div class="user-form-card" data-user-id="${u.id}" style="border-left:4px solid ${u.role === 'admin' ? Utils.varCss('--danger') : (u.role === 'gestor' ? Utils.varCss('--accent') : Utils.varCss('--success'))}; padding:15px; cursor:pointer;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                 <div style="font-weight:bold; font-size:16px">${u.username} <span style="font-size:12px; font-weight:normal; color:#6b7280;">(${u.id})</span></div>
+                                 <div style="font-weight:bold; color:${u.role === 'admin' ? Utils.varCss('--danger') : Utils.varCss('--accent')};">${u.role.toUpperCase()}</div>
+                            </div>
+                            <div style="margin-top:10px; text-align:right;">
+                                 <button onclick="Views.showEditUserModal('${u.id}')" class="btn-secondary" style="margin-right:5px; padding:5px 10px;">✏️ Editar</button>
+                                 ${(currentUser.role === 'admin' && u.id !== currentUser.id) ? 
+                                 `<button onclick="Views.showDeleteUserConfirm('${u.id}')" class="btn-danger" style="padding:5px 10px; background-color:var(--danger); color:white;">🗑️ Deletar</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            document.getElementById('btnAddUser').addEventListener('click', Views.showCreateUserModal);
+        },
+        
+        showCreateUserModal: function() {
+            const users = DeliveryStore.getUsers();
+            Swal.fire({
+                title: 'Novo Usuário',
+                html: Views.getUserFormHtml(null),
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'Criar Usuário',
+                preConfirm: () => {
+                    const username = document.getElementById('swal-user').value.trim();
+                    const password = document.getElementById('swal-pass').value.trim();
+                    const role = document.getElementById('swal-role').value;
+                    if (!username || !password) {
+                        Swal.showValidationMessage('Preencha Usuário e Senha');
+                        return false;
+                    }
+                    const result = AppController.handleCreateUser(username, password, role);
+                    if (!result.success) {
+                         Swal.showValidationMessage(result.message);
+                         return false;
+                    }
+                    return true;
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Views.renderUsers();
+                    Utils.showDashboardFeedback('Usuário criado com sucesso!');
+                }
+            });
+        },
+
+        showEditUserModal: function(userId) {
+            const user = DeliveryStore.getUsers().find(u => u.id === userId);
+            if (!user) return;
+
+            Swal.fire({
+                title: `Editar Usuário: ${user.username}`,
+                html: Views.getUserFormHtml(user),
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonText: 'Salvar Alterações',
+                preConfirm: () => {
+                    const username = document.getElementById('swal-user').value.trim();
+                    const password = document.getElementById('swal-pass').value.trim();
+                    const role = document.getElementById('swal-role').value;
+                    
+                    if (!username) {
+                        Swal.showValidationMessage('O nome de usuário não pode ser vazio.');
+                        return false;
+                    }
+
+                    if (user.role !== role && currentUser.role !== 'admin' && user.id !== currentUser.id) {
+                         Swal.showValidationMessage('Você não tem permissão para alterar o cargo deste usuário.');
+                         return false;
+                    }
+
+                    const result = AppController.handleUpdateUser(userId, username, password, role);
+                    if (!result.success) {
+                         Swal.showValidationMessage(result.message);
+                         return false;
+                    }
+                    return true;
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Views.renderUsers();
+                    Utils.showDashboardFeedback('Usuário atualizado!');
+                    if (userId === currentUser.id) {
+                        document.getElementById('displayUser').textContent = DeliveryStore.getUsers().find(u => u.id === userId).username + ` (${user.role})`;
+                    }
+                }
+            });
+        },
+
+        showDeleteUserConfirm: function(userId) {
+            Swal.fire({
+                title: 'Tem certeza?',
+                text: "Você não poderá reverter esta ação!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: Utils.varCss('--danger'),
+                cancelButtonColor: Utils.varCss('--accent'),
+                confirmButtonText: 'Sim, deletar!',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const deleteResult = AppController.handleDeleteUser(userId);
+                    if (deleteResult.success) {
+                        Views.renderUsers();
+                        Utils.showDashboardFeedback(deleteResult.message);
+                    } else {
+                        Swal.fire('Erro', deleteResult.message, 'error');
+                    }
+                }
+            });
+        },
+
+        getUserFormHtml: function(user) {
+            const isAdmin = currentUser.role === 'admin';
+            const isSelf = user && user.id === currentUser.id;
+            const currentRole = user ? user.role : 'colaborador';
+
+            return `
+                <input id="swal-user" class="swal2-input" placeholder="Usuário" value="${user ? user.username : ''}">
+                <input id="swal-pass" type="password" class="swal2-input" placeholder="${user ? 'Deixe vazio para manter a senha' : 'Senha obrigatória'}" style="margin-bottom:10px;">
+                <select id="swal-role" class="swal2-input" style="width: 85%; margin: 10px 0;" ${!(isAdmin || isSelf) ? 'disabled' : ''}>
+                    <option value="colaborador" ${currentRole === 'colaborador' ? 'selected' : ''}>Colaborador</option>
+                    <option value="gestor" ${currentRole === 'gestor' ? 'selected' : ''}>Gestor</option>
+                    ${isAdmin ? `<option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>Admin</option>` : ''}
+                </select>
+            `;
         }
     };
 
+    /* ========================================================= */
+    /* IV. UTILS: Funções auxiliares                             */
+    /* ========================================================= */
+
     /**
-     * Utils: Funções auxiliares (Parser, Beep, Feedback, etc.)
+     * Utils: Funções auxiliares (Beep, Feedback, Parsing).
      */
     const Utils = {
-        parsePayload: function(raw, location, user) {
-            let id = raw;
-            let type = 'Genérico';
-            if (raw.includes('shopee')) { type = 'Shopee'; } else if (raw.includes('mercadoli')) { type = 'Mercado Livre'; }
-            
-            const numMatch = raw.match(/(\d{8,})/);
-            if (numMatch) id = numMatch[1];
-            
-            const clientName = "Cliente " + id.slice(-5).toUpperCase();
-            const clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`; 
-            const clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-
-            const scanLat = location ? location.lat : (CD_LOCATION.lat + (Math.random() - 0.5) * 0.01);
-            const scanLon = location ? location.lon : (CD_LOCATION.lon + (Math.random() - 0.5) * 0.01);
-
-            return {
-                id: id, raw: raw, type: type, user: user.username,
-                date: new Date().toISOString(), lat: scanLat, lon: scanLon,
-                status: 'pending', clientName: clientName, clientAddress: clientAddress,
-                clientPhone: clientPhone, receivedBy: null
-            };
-        },
-
-        beep: function() { 
-             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.frequency.value = 1200;
-                gain.gain.value = 0.1;
-                osc.start();
-                setTimeout(() => { osc.stop(); audioCtx.close(); }, 100);
-            } catch(e){}
-        },
-
-        showFeedback: function(text, color = 'var(--accent)') { 
-            dom.feedback.textContent = text;
-            dom.feedback.style.background = color;
+        showFeedback: function(message, color) {
+            dom.feedback.textContent = message;
+            dom.feedback.style.backgroundColor = color;
+            dom.feedback.style.color = 'white'; 
             dom.feedback.style.opacity = '1';
-            setTimeout(() => { dom.feedback.style.opacity = '0'; }, 3000); 
-            
-            const overlay = document.querySelector('.scan-overlay');
-            overlay.style.borderColor = color;
-            setTimeout(() => overlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+
+            if (this.feedbackTimeout) clearTimeout(this.feedbackTimeout);
+            this.feedbackTimeout = setTimeout(() => {
+                dom.feedback.style.opacity = '0';
+            }, 3000);
+        },
+        
+        showDashboardFeedback: function(message) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Ação Realizada!',
+                text: message,
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
         },
 
-        showDashboardFeedback: function(text) {
-             const feedbackDiv = document.createElement('div');
-            feedbackDiv.style.cssText = "position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); padding:20px 40px; background:var(--success); color:white; border-radius:12px; z-index:10000; box-shadow:0 10px 20px rgba(0,0,0,0.2); opacity:0; transition:opacity 0.3s; font-family: 'Inter', sans-serif;";
-            feedbackDiv.innerHTML = `<h3>${text}</h3>`;
-            document.body.appendChild(feedbackDiv);
+        beep: function() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
             
-            setTimeout(() => { feedbackDiv.style.opacity = '1'; }, 50);
-            setTimeout(() => { 
-                feedbackDiv.style.opacity = '0'; 
-                setTimeout(() => { 
-                    document.body.removeChild(feedbackDiv); 
-                }, 300);
-            }, 1500);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.type = 'square'; 
+            oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); 
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); 
+            
+            oscillator.start();
+            setTimeout(() => {
+                oscillator.stop();
+            }, 100); 
+        },
+
+        parsePayload: function(payload, location, user) {
+            const isComplex = payload.includes('|'); 
+            const deliveryId = isComplex ? payload.split('|')[0] : payload;
+            
+            const nameSeed = deliveryId.length > 5 ? deliveryId.substring(deliveryId.length - 5) : 'XXXXX';
+            const randomLatOffset = (Math.random() - 0.5) * 0.005; // 500m
+            const randomLonOffset = (Math.random() - 0.5) * 0.005;
+            
+            return {
+                id: deliveryId,
+                type: isComplex ? 'Package-Complex' : 'Package-Simple',
+                date: Date.now(),
+                user: user.username,
+                lat: location ? location.lat : CD_LOCATION.lat + randomLatOffset,
+                lon: location ? location.lon : CD_LOCATION.lon + randomLonOffset,
+                raw: payload,
+                status: 'pending',
+                clientName: `Cliente ${nameSeed.toUpperCase()}`,
+                clientAddress: `Rua Simulação, ${Math.floor(Math.random() * 900) + 100}`,
+                clientPhone: `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`
+            };
         },
         
         openContactOptions: function(phone, id) {
-            const phoneDigits = phone.replace(/\D/g, ''); 
-            const waLink = `https://wa.me/55${phoneDigits}`; 
+            const whatsappUrl = `https://wa.me/55${phone.replace(/\D/g, '')}?text=Olá!%20Sou%20o%20entregador%20e%20estou%20com%20a%20sua%20entrega%20${id}.%20Poderia%20confirmar%20se%20está%20no%20local?`;
 
             Swal.fire({
-                title: `Contato da Entrega ${id}`, text: `Como você deseja contatar o cliente ${phone}?`, icon: 'question',
-                showCancelButton: true, showDenyButton: true, confirmButtonText: '📞 Ligar', denyButtonText: '💬 WhatsApp', cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) { window.open(`tel:${phone}`); } 
-                else if (result.isDenied) { window.open(waLink, '_blank'); }
-            });
-        },
-        
-        editUser: function(userId) {
-             const users = DeliveryStore.getUsers();
-             const userToEdit = userId ? users.find(u => u.id === userId) : null;
-            
-            if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
-                Swal.fire({ icon: 'error', title: 'Acesso Negado', text: 'Você não tem permissão para editar este usuário.' }); return;
-            }
-
-            const isAdmin = currentUser.role === 'admin';
-            const isSelf = userToEdit && userToEdit.id === currentUser.id;
-            
-            let formHtml = `
-                <div class="user-form-card" style="border:1px solid var(--accent)">
-                    <h3>${userId ? 'Editar Usuário: ' + userToEdit.username : 'Novo Usuário'}</h3>
-                    <input type="text" id="formUsername" placeholder="Usuário" value="${userToEdit ? userToEdit.username : ''}" ${userToEdit ? 'readonly' : ''} style="margin-bottom:8px;">
-                    <input type="password" id="formPassword" placeholder="Nova Senha (deixe em branco para manter)" value="">
-                    <select id="formRole" style="margin-bottom:8px;" ${isAdmin || isSelf ? '' : 'disabled'}>
-                        <option value="colaborador" ${userToEdit && userToEdit.role === 'colaborador' ? 'selected' : ''}>Colaborador</option>
-                        <option value="gestor" ${userToEdit && userToEdit.role === 'gestor' ? 'selected' : ''} ${!isAdmin && !isSelf ? 'hidden' : ''}>Gestor</option>
-                        <option value="admin" ${userToEdit && userToEdit.role === 'admin' ? 'selected' : ''} ${!isAdmin && !isSelf ? 'hidden' : ''}>Administrador</option>
-                    </select>
-                    <div style="display:flex;gap:8px;margin-top:10px">
-                        <button class="btn-primary" onclick="Utils.saveUser('${userId || ''}')" style="flex:1">Salvar</button>
-                        <button onclick="AppController.navigateTo('users')" style="background:#e5e7eb; color:var(--content-text-dark); box-shadow:none;">Cancelar</button>
-                    </div>
-                    ${!isAdmin && !isSelf ? `<p style="color:var(--danger); font-size:12px; margin-top:10px;">Apenas Admins/Você podem alterar o Nível de Acesso.</p>` : ''}
-                </div>
-            `;
-            document.getElementById('userFormArea').innerHTML = formHtml;
-            document.getElementById('userFormArea').scrollIntoView({ behavior: 'smooth' });
-        },
-        
-        saveUser: function(userId) {
-            const users = DeliveryStore.getUsers();
-            const username = document.getElementById('formUsername').value.trim();
-            const password = document.getElementById('formPassword').value.trim();
-            const role = document.getElementById('formRole').value;
-            const isNew = !userId;
-
-            if (!username) { Swal.fire('Erro', 'Usuário é obrigatório.', 'error'); return; }
-            if (isNew && !password) { Swal.fire('Erro', 'Senha é obrigatória para novo usuário.', 'error'); return; }
-
-            let userIndex = -1;
-            if (userId) userIndex = users.findIndex(u => u.id === userId);
-
-            if (isNew && users.some(u => u.username === username)) { Swal.fire('Erro', 'Nome de usuário já existe.', 'error'); return; }
-            
-            let updatedUser;
-            if (isNew) {
-                updatedUser = {
-                    id: 'u' + Date.now(),
-                    username, password,
-                    role: currentUser.role === 'gestor' && role !== 'colaborador' ? 'colaborador' : role, 
-                    creatorId: currentUser.id
-                };
-                users.push(updatedUser);
-            } else {
-                updatedUser = users[userIndex]; 
-                if (password) updatedUser.password = password;
-                if (currentUser.role === 'admin' || currentUser.id === userId) { updatedUser.role = role; }
-            }
-
-            DeliveryStore.updateUsers(users); 
-            document.getElementById('userFormArea').innerHTML = '';
-            AppController.navigateTo('users');
-            Swal.fire('Sucesso', 'Usuário salvo com sucesso!', 'success');
-        },
-
-        deleteUser: function(userId) {
-            if (userId === currentUser.id) { Swal.fire('Erro', 'Você não pode excluir seu próprio perfil enquanto estiver logado.', 'error'); return; }
-            Swal.fire({
-                title: 'Tem certeza?', text: "Você não poderá reverter isso!", icon: 'warning',
-                showCancelButton: true, confirmButtonColor: 'var(--danger)', cancelButtonColor: '#aaa',
-                confirmButtonText: 'Sim, excluir!'
+                title: 'Opções de Contato',
+                html: `<p>Como deseja entrar em contato com o cliente?</p>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Abrir WhatsApp',
+                cancelButtonText: 'Ligar',
+                showDenyButton: true,
+                denyButtonText: 'Voltar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    let users = DeliveryStore.getUsers().filter(u => u.id !== userId);
-                    DeliveryStore.updateUsers(users); 
-                    AppController.navigateTo('users');
-                    Swal.fire('Excluído!', 'O usuário foi excluído.', 'success');
+                    window.open(whatsappUrl, '_blank');
+                } else if (result.dismiss === Swal.DismissReason.cancel) {
+                    window.location.href = `tel:${phone}`;
                 }
             });
+        },
+
+        varCss: function(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
         }
     };
-    
-    // --- Funções de Escopo Global (para chamadas inline no HTML) ---
-    window.AppController = AppController;
+
+    /* ========================================================= */
+    /* V. INICIALIZAÇÃO E EXPOSIÇÃO GLOBAL                       */
+    /* ========================================================= */
+
+    // Expõe a função para que os botões de menu móvel funcionem
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
-    window.Utils = Utils;
-    window.renderDashboard = () => AppController.navigateTo('dashboard');
-    window.renderDeliveryDetails = (id) => AppController.navigateTo('details', id);
-
-
-    // Inicia a aplicação
+    
+    // Inicia a aplicação após o carregamento do DOM
     AppController.init();
+    
+    // Garante que o estado inicial seja a tela de Login
+    Views.renderLoginScreen = function() {
+        dom.loginSection.classList.remove('hidden');
+        dom.appContainer.classList.add('hidden');
+        dom.mobileMenuBtn.classList.add('hidden');
+    };
+    Views.renderLoginScreen();
+    
+    // Inicia a tela principal se as credenciais de exemplo estiverem preenchidas
+    const initialUser = document.getElementById('loginUser').value;
+    const initialPass = document.getElementById('loginPass').value;
+    if (initialUser && initialPass) {
+        AppController.handleLogin();
+    }
 });
