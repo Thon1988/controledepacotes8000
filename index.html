@@ -12,13 +12,11 @@
   <script src="app.js" defer></script>
 
   <style>
-    /* --- Estilos Existentes + NOVAS VARIÁVEIS PARA O MODAL --- */
+    /* --- Estilos Originais --- */
     :root{
       --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
       --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
       --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
-      --warning: #f39c12; /* Adicionado para estilos do modal */
-      --primary: #3498db; /* Adicionado para estilos do modal */
       --radius:25px;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
@@ -59,7 +57,7 @@
     .user-info strong{ color:var(--text); font-weight:600; }
 
     .main h2{ margin-top:0; color:var(--content-text-dark); }
-    .user-form-card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
+    .card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
 
     .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
     .btn-primary:hover{ background:var(--accent-dark); }
@@ -83,53 +81,14 @@
         padding: 0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-
-    /* MODAL STYLES (RE-ADICIONADOS) */
-    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
-    
-    .modal-pegazus { 
-        background:white; 
-        padding:16px; 
-        border-radius:12px; 
-        width:90%; 
-        max-width:420px; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
+    .badge {
+        background: var(--accent);
+        color: var(--panel);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-weight: 700;
+        font-size: 11px;
     }
-    .modal-pegazus h3{ margin:0 0 8px 0; }
-    .modal-pegazus input, .modal-pegazus select { width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
-    
-    /* Estilos específicos da Câmera Modal */
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background-color: var(--primary);
-        color: white;
-        margin: -16px -16px 15px -16px;
-        padding: 15px 16px;
-        border-top-left-radius: 12px;
-        border-top-right-radius: 12px;
-    }
-    .modal-button-group button {
-        display: block;
-        width: 100%;
-        padding: 12px;
-        margin-bottom: 8px;
-        border: none;
-        border-radius: 8px;
-        color: white;
-        font-weight: bold;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-    .modal-button-group button:hover { opacity: 0.8; }
-
-    #abrirCameraParaComprovante { background-color: var(--primary); }
-    #AptsaischanComprovante { background-color: var(--success); }
-    #AfssranRota { background-color: #2196F3; } /* Azul */
-    #MesranRota { background-color: #673AB7; } /* Roxo */
-    #CararIagas { background-color: var(--warning); }
-    /* Fim dos estilos específicos da Modal */
 
 
     /* camera view */
@@ -140,8 +99,9 @@
 
     .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
     .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
+    /* O botão fechar (X) do scanner já existe e usa o ícone '✕' vermelho */
     .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
-    /* Botão de fechar scanner no canto superior esquerdo (já existe e volta ao dashboard) */
+    #btnCloseCamera{ background:var(--danger) !important; color:white !important; } /* Garante o X vermelho no scanner */
 
 
     #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
@@ -151,22 +111,11 @@
     #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
 
     /* deliveries list */
-    .deliveries-list{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
+    .list-deliveries{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
     .delivery-item{ display:flex; gap:12px; align-items:flex-start; background:var(--content-card-bg); padding:12px; border-radius:10px; border-left:4px solid var(--accent); }
-    .delivery-id{ font-weight:700; }
-    .delivery-meta{ font-size:12px; color:#6b7280; margin-top:6px; }
-
-    /* header for content with X */
-    .view-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-    .close-btn{ background:transparent; border:none; font-size:20px; cursor:pointer; padding:6px; }
-
-    /* modal manual input (Reaproveitado) */
-    .modal-backdrop#modalBackdrop { 
-        display: none; /* Hide by default */
-    }
-    .modal{ background:white; padding:16px; border-radius:12px; width:90%; max-width:420px; }
-    .modal h3{ margin:0 0 8px 0; }
-    .modal input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
+    .delivery-item .title{ font-weight:700; }
+    .delivery-item .meta{ font-size:12px; color:#6b7280; margin-top:6px; }
+    .grow{ flex-grow:1; }
 
     /* ensure map wrapper stays behind sidebar */
     .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
@@ -179,6 +128,7 @@
       .main{ padding:16px; }
       .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
       .camera-controls .left{ gap:6px; }
+      #mobileMenuBtn{ position:fixed; top:10px; left:10px; z-index:70; background:var(--accent); color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:20px; display:flex; justify-content:center; align-items:center; }
     }
   </style>
 </head>
@@ -207,11 +157,9 @@
         <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
         <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
 
-        <div id="adminMenuOptions" style="margin-top:12px;">
+        <div id="adminMenuOptions" style="margin-top:12px;" class="hidden">
             <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
             <div id="btnUsers" class="menu-item">👥 Usuários</div>
-            <div id="btnComar" class="menu-item">📸 Comãr (Filtros)</div>
-
             <div class="export-container menu-item" style="align-items:flex-start;">
                 <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
                     ⬇️ Exportar Dados
@@ -263,7 +211,7 @@
     <div id="feedbackMsg" role="status" aria-live="polite"></div>
   </section>
 
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h3 id="modalTitle">Inserir rastreio manual</h3>
       <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
@@ -274,29 +222,5 @@
     </div>
   </div>
 
-  <div id="cameraModal" class="modal-backdrop">
-      <div class="modal-pegazus">
-          <div class="modal-header">
-              <h2>câmera Modal</h2>
-              <span class="close-btn" id="btnCloseCameraModal">✕</span>
-          </div>
-
-          <div class="modal-body">
-              <div class="modal-field-group">
-                  <label for="modal-data">Data:</label>
-                  <input type="text" id="modal-data" placeholder="Data">
-              </div>
-
-              <div class="modal-button-group" style="margin-top: 15px;">
-                  <button id="abrirCameraParaComprovante">abrir Camera Para Comprovante (id)</button>
-                  <button id="AptsaischanComprovante">Aptsaischan Comprovante (id)</button>
-                  <button id="AfssranRota">Afssran Rota (F28e77 / 32.5)</button>
-                  <button id="MesranRota">Mesran Rota (007bi ff (Bf 5)</button>
-                  <button id="CararIagas">Carar Iagas (sians)</button>
-              </div>
-          </div>
-      </div>
-  </div>
-
-</body>
+  </body>
 </html>
