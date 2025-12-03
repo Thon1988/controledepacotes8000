@@ -1,344 +1,458 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta http-equiv="content-type" content="charset=utf-8" />
-    <meta http-equiv="cache-control" content="no-cache" />
-    <meta http-equiv="pragma" content="no-cache" />
-    <meta name="google" content="notranslate" />
-    <meta name="viewport" content="width=device-width, initial-2.0, maximum-scale=1.0, user-scalable=no">
-    <link REL="SHORTCUT ICON" HREF="/moto/moto.dll/m/cache/moto_exe/n66/66_G7qBGUhBKd11223D414/favicon.ico">
-    <title>Pex - Mapa de Entregas</title>
-    <meta charset="utf-8">
-    <meta name="theme-color" content="#aeeabc">
-    <meta name="screen-orientation" content="portrait">
-    <meta name="x5-orientation" content="portrait">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
-    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/modern/theme-triton/resources/theme-triton-all.css" />
-    <link rel=stylesheet href="/moto/moto.dll/m/uni-1.95.0.1600/css/uni-ext-common.css" />
-    <link rel=stylesheet href="/moto/moto.dll/m/unim-1.95.0.1600/css/uni-ext.css" />
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600//uni-init-min.js"></script>
-    <script src="/moto/moto.dll/m/ext-7.8.0/build/ext-modern-all.js"></script>
-    <script src="/moto/moto.dll/m/ext-7.8.0/build/modern/theme-triton/theme-triton.js"></script>
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-unicommon-min.js"></script>
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-sync-min.js"></script>
-    <script src="/moto/moto.dll/m/ext-7.8.0/build/modern/locale/locale-pt_BR.js"></script>
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600/jQuery/jquery-3.6.4.min.js"></script>
-    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/packages/font-awesome-4.7.0/resources/font-awesome-all.css" />
-    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/packages/font-pictos/resources/font-pictos-all.css" />
-    <link rel=stylesheet href="/moto/moto.dll/m/ext-7.8.0/build/packages/font-awesome/resources/font-awesome-all.css" />
-    <script src="./files/dsa/qrcode_reader/js/qrcode_library.js"></script>
-    <script src="/moto/moto.dll/m/files/sweetalert2/sweetalert2.min.js"></script>
-    <link rel=stylesheet href="/moto/moto.dll/m/files/sweetalert2/sweetalert2.css" />
-    <link rel=stylesheet href="/moto/moto.dll/m/files/sweetalert2/unisweetalert2.css" />
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600/unicanvas-min.js"></script>
-    <link rel=stylesheet href="/moto/moto.dll/m/unim-1.95.0.1600/css/uni-triton.css" />
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-unicommon-min.js"></script>
-    <script src="/moto/moto.dll/m/uni-1.95.0.1600/ext-sync-min.js"></script>
-    <script src="/moto/moto.dll/m/unim-1.95.0.1600/touch-unigui-min.js"></script>
-    <script src="/moto/moto.dll/files/leaflet/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pegazus Scanner (Logística)</title>
     
-    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
-    <style type="text/css">
+    <style>
         :root {
-            --primary: #4f46e5;
-            --accent: #38bdf8;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --content-text-dark: #374151;
-            --content-card-bg: #ffffff;
-            --content-bg-light: #f3f4f6;
+            --primary: #4CAF50;
+            --accent: #2196F3;
+            --danger: #F44336;
+            --content-bg: #f5f5f5;
+            --content-text-dark: #333;
         }
 
-        /* Estrutura da Aplicação */
         body, html {
             margin: 0;
             padding: 0;
+            font-family: Arial, sans-serif;
             height: 100%;
-            background-color: var(--content-bg-light);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
+            background-color: var(--content-bg);
+            color: var(--content-text-dark);
+            overflow: hidden; /* Para garantir que o layout da aplicação ocupe toda a tela */
         }
+        
+        /* Layout Principal */
         .app {
-            display: none; /* Escondido até o login */
-            grid-template-columns: 392px 1fr;
+            display: grid;
+            grid-template-columns: 392px 1fr; /* Sidebar e Conteúdo */
             height: 100vh;
-            overflow: hidden;
+            transition: all 0.3s;
         }
-        .app.hidden { display: none !important; }
+        .app.hidden { display: none; }
 
         /* Sidebar (Menu) */
         #sidebar {
-            background-color: var(--content-card-bg);
+            background-color: #34495e;
+            color: white;
             padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
             overflow-y: auto;
-            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
         }
-        @media (max-width: 768px) {
-            #sidebar {
-                position: fixed;
-                left: -392px;
-                top: 0;
-                bottom: 0;
-                width: 392px;
-                z-index: 1001;
-                transition: left 0.3s ease;
-            }
-            #sidebar.active { left: 0; }
-        }
-        .menu-item {
+
+        .menu-item, #btnLogout {
             display: flex;
             align-items: center;
-            padding: 12px;
-            margin-bottom: 8px;
-            border-radius: 8px;
+            padding: 15px;
+            margin: 5px 0;
             cursor: pointer;
+            border-radius: 8px;
             transition: background-color 0.2s;
-            color: var(--content-text-dark);
-            font-weight: 500;
+            font-weight: bold;
         }
-        .menu-item:hover, .menu-item.active {
-            background-color: var(--content-bg-light);
-            color: var(--primary);
-            font-weight: 600;
+
+        .menu-item:hover, #btnLogout:hover {
+            background-color: #5d748f;
         }
-        .menu-item.active { border-left: 4px solid var(--primary); }
+        
+        .menu-item.active {
+            background-color: var(--primary);
+        }
+
+        .user-info {
+            padding: 10px 0 20px 0;
+            border-bottom: 1px solid #5d748f;
+            margin-bottom: 20px;
+        }
 
         /* Área de Conteúdo */
         #contentArea {
             padding: 20px;
             overflow-y: auto;
-            background-color: var(--content-bg-light);
-            position: relative;
+            position: relative; /* Necessário para o feedback de dashboard */
         }
         
-        /* Câmera / Scanner View */
-        #cameraView {
-            display: none;
-            flex-direction: column;
-            align-items: center;
+        /* Seção Login */
+        #loginSection {
+            display: flex;
             justify-content: center;
-            height: 100%;
+            align-items: center;
+            height: 100vh;
+            background-color: #ecf0f1;
+        }
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .login-box input, #btnLogin {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #btnLogin {
+            background-color: var(--primary);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        #loginError { color: var(--danger); }
+        
+        /* Seção Câmera/Scanner */
+        #cameraView {
+            display: none; /* Escondido por padrão, exibido pelo JS */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
             background-color: black;
             position: relative;
         }
         #videoElement {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            pointer-events: none; /* Permite interagir com elementos por baixo */
         }
-        .scan-overlay {
+        .scan-frame {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80vmin; 
-            height: 80vmin;
-            max-width: 500px;
-            max-height: 500px;
-            border: 4px dashed rgba(255, 255, 255, 0.5);
-            border-radius: 15px;
-            pointer-events: none;
+            width: 80%;
+            height: 80%;
+            max-width: 300px;
+            max-height: 300px;
+            border: 5px solid var(--accent);
+            box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); /* Efeito de máscara */
             z-index: 10;
-            transition: border-color 0.3s;
+            border-radius: 10px;
+            animation: pulse 1s infinite alternate;
         }
+        @keyframes pulse {
+            from { border-color: var(--accent); }
+            to { border-color: var(--primary); }
+        }
+
         #feedbackMsg {
             position: absolute;
             bottom: 20px;
-            background: var(--accent);
-            color: white;
             padding: 10px 20px;
-            border-radius: 8px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 5px;
             opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 15;
+            transition: opacity 0.5s;
+            z-index: 20;
         }
-        
-        /* Botões e Input Padrão */
-        .btn-primary {
-            background-color: var(--primary);
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            font-weight: bold;
-        }
-        .btn-primary:hover { background-color: #3730a3; }
-        
-        input[type="text"], input[type="password"], input[type="date"], select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
-        
-        /* Mobile Menu Button */
-        #mobileMenuBtn {
-            position: fixed;
-            top: 15px;
-            left: 15px;
-            z-index: 1002;
-            padding: 10px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            font-size: 20px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            display: none;
-        }
-        @media (max-width: 768px) {
-            #mobileMenuBtn { display: block; }
-        }
-        
-        /* Utilidades */
-        .hidden { display: none !important; }
-        .user-form-card {
-            background-color: var(--content-card-bg);
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-        .leaflet-container {
-            border-radius: 12px;
-        }
-        
-        /* Manual Input */
-        #manualInputContainer {
+
+        /* Controles do Scanner */
+        .scanner-controls {
             position: absolute;
             top: 10px;
+            left: 10px;
             right: 10px;
-            z-index: 20;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
             display: flex;
-            gap: 5px;
-            width: 300px;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 30;
+        }
+        #cameraSelect {
+            padding: 8px;
+            border-radius: 5px;
+            background-color: rgba(255,255,255,0.8);
+        }
+        #btnToggleManualInput {
+            background-color: var(--accent);
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        /* Entrada Manual */
+        #manualInputContainer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0,0,0,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 40;
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s;
         }
         #manualDeliveryId {
-            flex-grow: 1;
-            padding: 8px;
-            margin: 0;
-            font-size: 14px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            margin-right: 10px;
+            width: 200px;
         }
         #btnManualConfirm {
-            padding: 8px 12px;
-            margin: 0;
-            font-size: 14px;
-            background: var(--primary);
+            background-color: var(--primary);
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
-        #btnToggleManualInput {
-            position: absolute;
+
+        /* Mobile */
+        #mobileMenuBtn {
+            position: fixed;
             top: 10px;
-            right: 10px;
-            z-index: 25;
-            background: var(--accent);
+            left: 10px;
+            z-index: 100;
+            background: var(--primary);
             color: white;
             padding: 10px;
-            border-radius: 50%;
+            border-radius: 5px;
             border: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: pointer;
+            display: none; /* Escondido por padrão, ativado pelo JS em mobile */
         }
 
-    </style>
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+            }
+            #sidebar {
+                position: fixed;
+                left: -392px; /* Esconde a sidebar */
+                width: 300px;
+                height: 100%;
+                z-index: 90;
+                transition: left 0.3s;
+            }
+            #sidebar.active {
+                left: 0; /* Mostra a sidebar */
+            }
+            #contentArea {
+                padding-top: 60px; /* Espaço para o botão do menu */
+            }
+        }
+        
+        /* Exportação */
+        .export-container { position: relative; }
+        #exportOptions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 50;
+            display: none; /* Escondido por padrão */
+            flex-direction: column;
+            padding: 10px;
+        }
+        #exportOptions button {
+            padding: 10px;
+            margin: 5px 0;
+            background: none;
+            border: 1px solid var(--accent);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #exportOptions button:hover {
+            background-color: #f0f0f0;
+        }
 
-    <script>try{_S_ID="_S_ID=66_G7qBGUhBKd11223D414";Ext.appUri="/moto/moto.dll/HandleEvent";Ext.Ajax.setTimeout(60000);Ext.Date.defaultDateFormat="d/m/Y";uniSyncObj.errShow=true;uniSyncObj.errText="Erro de conexão";uniSyncObj.errRetryText="Tentando...";uniSyncObj.errTextColor="#505050";uniSyncObj.errAfterRetry=1;uniSyncObj.isTouch=true;uniSyncObj.errLogTry=0x7ef4f2fa;uniSyncObj.licOwn="Z2VuO2dlbileamg=";uniSyncObj.srcArr="WPZBHFss";Ext.application({name:"uniGUITouchApplication",launch: function(){try{Ext.get("loading").destroy();var _ajxerr=false;_ajxflerr="Erro de comunicação";var uniVPort=Ext.Viewport; O0=new Ext.Container({id:"O0_id",layout:"vbox",scrollable:false,cls:"x-panel",flex:1,fullscreen:true,showAnimation:"fade",style:"backgroundColor:#FFFFFF;"});O0.nm="O0";_cdo_("MainmForm");MainmForm.ajxS=AjaxSuccess;MainmForm.ajxF=AjaxFailure;O0.rootObj=true;MainmForm.appRoot="/moto/moto.dll/m/";_cdo_(null,O0,"window",MainmForm);_coe_(MainmForm,null,"window","resize",function(sender, info, eOpts) { var BrowserWidthValue=Ext.getBody().getViewSize().width; var BrowserHeightValue=Ext.getBody().getViewSize().height; ajaxRequest(sender, 'GetBrowser', ['BrowserWidth='+BrowserWidthValue, 'BrowserHeight='+BrowserHeightValue]); }); O8=new Ext.form.Panel({id:"O8_id",flex:1,scrollable:false,hidden:true,layout:"vbox",style:""});O8.nm="O8";_cdo_(null,O8,"form",MainmForm); O10=new Ext.Toolbar({id:"O10_id",titleAlign:"center",cls:"x-uni-window-header",docked:"top",height:59,title:"MainmForm",style:""});O10.nm="O10";_cdo_(null,O10,"titlebar",MainmForm); O18=new Ext.Button({id:"O18_id",iconAlign:"left",icon:"/moto/moto.dll/m/unim-1.95.0.1600/images/power_on.png",ui:"",uniMask:{ldMask:true}});O18.nm="O18";_cdo_(null,O18,"closebutton",MainmForm);uniVars._mFrm_=O0;Ext.apply(Ext.util.Format,{thousandSeparator:".",decimalSeparator:","});Ext.Viewport.on("resize",function(){uniResizeFrm()});ajaxRequest(O8,"vpsize",Ext.merge(Ext.Viewport.getSize(), {ci:_gci_()})); O1C=new Object({});O1C.nm="O1C";_cdo_("Menssagem",O1C,null,MainmForm); O1D=(function(P0){return Ext.xR("this="+P0.nm+""+_gv_(O8),O18,"tap");});O1D.nm="O1D";O18.on("tap",O1D);O10.add(O18);O0.add(O8);handleWinScroll(O0);O0.uniMask={ldMask:false,maskWaitData:false,maskUseMsg:true};O0.uniMask.targetObj=null;O0.show(); }}catch(e){try{throw e;}finally{alert(e.message)}};}});}catch(e){try{throw e;}finally{alert(e.message)}};window.onunload=function(){_cunld_()}</script>
-    
-    <script src="app.js"></script>
+        /* Feedback do Dashboard */
+        #dashboardFeedback {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px;
+            background-color: var(--accent);
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.5s;
+            transform: translateY(100%);
+            z-index: 60;
+            font-weight: bold;
+        }
+        #dashboardFeedback.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Estilos de conteúdo (Dashboard/Lista/Mapas/Usuários) - Containers vazios */
+        #dashboard-content, #list-content, #map-content, #routes-content, #users-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        #map-content, #routes-content {
+            height: 80vh; /* Altura para o mapa funcionar */
+            padding: 0;
+        }
+        #map { height: 100%; }
+        
+        /* Botões de Ação Comuns */
+        .action-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .btn-delivered { background-color: var(--primary); color: white; }
+        .btn-occurrence { background-color: var(--danger); color: white; }
+        .btn-default { background-color: #ccc; color: var(--content-text-dark); }
+        
+    </style>
 
 </head>
 <body>
-    <div id="loading"><div class="loading-indicator"></div><p>carregando...</p></div>
-    
-    <section id="loginSection" style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: var(--content-bg-light);">
-        <div class="user-form-card" style="width: 350px; text-align: center; padding: 30px;">
-            <h1 style="color:var(--primary);">PEGASUS</h1>
-            <p style="color:var(--content-text-dark);">Sistema de Gestão de Entregas</p>
-            <input type="text" id="loginUser" placeholder="Usuário" value="thon" required>
-            <input type="password" id="loginPass" placeholder="Senha" value="882010" required>
-            <p id="loginError" style="color:var(--danger); margin-bottom: 15px;"></p>
-            <button id="btnLogin" class="btn-primary" style="width: 100%;">Entrar</button>
+
+    <button id="mobileMenuBtn" class="hidden" onclick="toggleSidebar()">☰</button>
+
+    <section id="loginSection">
+        <div class="login-box">
+            <h2>Acesso Pegazus</h2>
+            <input type="text" id="loginUser" placeholder="Usuário" value="thon">
+            <input type="password" id="loginPass" placeholder="Senha" value="882010">
+            <button id="btnLogin">Entrar</button>
+            <p id="loginError" style="margin-top: 10px;"></p>
         </div>
     </section>
 
-    <button id="mobileMenuBtn" onclick="toggleSidebar()" class="hidden">☰</button>
+    <div class="app hidden" id="appContainer">
 
-    <div class="app hidden">
-        
         <aside id="sidebar">
-            <h3 style="margin-top: 0; color:var(--primary);">Menu</h3>
-            <p style="font-size:14px; color:var(--content-text-dark);">Usuário: <span id="displayUser"></span></p>
-            <hr style="border-color: #eee; margin-bottom: 15px;">
+            <div class="header">
+                <h1 style="color:white;">PEGASUS</h1>
+                <div class="user-info">
+                    Bem-vindo(a), <span id="displayUser"></span>
+                </div>
+            </div>
             
-            <div id="menuSection">
-                <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
-                <div id="btnScanMode" class="menu-item">📸 Scanner</div>
-                <div id="btnMap" class="menu-item">🗺️ Mapa</div>
-                <div id="btnRoutes" class="menu-item">🧭 Rotas</div>
+            <nav id="menuSection">
+                <a class="menu-item active" id="btnDashboard">
+                    <span style="margin-right: 10px;">📊</span> Dashboard
+                </a>
+                <a class="menu-item" id="btnScanner">
+                    <span style="margin-right: 10px;">🔍</span> Scanner
+                </a>
                 
-                <div id="adminMenuOptions" class="hidden">
-                    <hr style="border-color: #eee; margin-top: 15px; margin-bottom: 15px;">
-                    <div id="btnUsers" class="menu-item">👥 Usuários</div>
-                    <div id="btnExport" class="menu-item">⬇️ Exportar Dados</div>
-                    
-                    <div id="exportOptions" style="display:none; flex-direction:column; padding-left:20px; border-left:2px solid var(--accent); margin-top:5px; margin-bottom:15px;">
-                        <button id="btnExportDaily" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark); margin-bottom:5px;">Diário</button>
-                        <button id="btnExportWeekly" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark); margin-bottom:5px;">Semanal</button>
-                        <button id="btnExportMonthly" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark); margin-bottom:5px;">Mensal</button>
-                        <button id="btnExportAll" class="btn-primary" style="background:#5eead4; color:var(--content-text-dark);">Tudo</button>
-                    </div>
+                <div id="adminMenuOptions" class="hidden" style="border-top: 1px solid #5d748f; padding-top: 10px; margin-top: 10px;">
+                    <a class="menu-item" id="btnMap">
+                        <span style="margin-right: 10px;">🗺️</span> Mapa de Entregas
+                    </a>
+                    <a class="menu-item" id="btnRoutes">
+                        <span style="margin-right: 10px;">🛣️</span> Otimização de Rotas
+                    </a>
+                    <a class="menu-item" id="btnUsers">
+                        <span style="margin-right: 10px;">👥</span> Gestão de Usuários
+                    </a>
                 </div>
                 
-                <hr style="border-color: #eee; margin-top: 15px; margin-bottom: 15px;">
-                <div id="btnLogout" class="menu-item" style="color:var(--danger);">🚪 Sair</div>
+            </nav>
+            
+            <div style="flex-grow: 1;"></div> <div class="export-container">
+                <button id="btnExport" class="menu-item" style="justify-content: center; background-color: #2c3e50;">
+                    <span style="margin-right: 10px;">⬇️</span> Exportar Dados
+                </button>
+                <div id="exportOptions">
+                    <button id="btnExportDaily">Diário</button>
+                    <button id="btnExportWeekly">Semanal</button>
+                    <button id="btnExportMonthly">Mensal</button>
+                    <button id="btnExportAll">Tudo</button>
+                </div>
             </div>
+
+            <a class="menu-item" id="btnLogout" style="background-color: var(--danger); justify-content: center;">
+                <span style="margin-right: 10px;">🚪</span> Logout
+            </a>
         </aside>
 
         <main id="contentArea">
-            <div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)">
-                <h2>Bem-vindo ao Pegasus</h2>
+            <h1 style="color:#555;">Dashboard Inicial</h1>
+            
+            <div id="dashboard-content">
+                <p>Carregando dados...</p>
             </div>
-        </main>
+            
+            </main>
         
-        <section id="cameraView">
-            <video id="videoElement" playsinline autoplay></video>
-            <div class="scan-overlay"></div>
-            <div id="feedbackMsg"></div>
-            
-            <button id="btnToggleManualInput" style="position: absolute; top: 10px; right: 10px; z-index: 25; background: var(--accent); color: white; padding: 10px; border-radius: 50%; border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-                ⌨️
-            </button>
-            
-            <div id="manualInputContainer">
-                <input type="text" id="manualDeliveryId" placeholder="ID Manual" style="width: 100%;" />
-                <button id="btnManualConfirm">OK</button>
-            </div>
-
-            <div style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; width: 80%; max-width: 300px;">
-                <select id="cameraSelect" style="padding: 5px; margin: 0; font-size: 14px; background: rgba(255,255,255,0.8); border: none;"></select>
-            </div>
-            
-        </section>
+        <div id="dashboardFeedback" class="hidden">Mensagem de Sucesso!</div>
 
     </div>
+    
+    <section id="cameraView">
+        <video id="videoElement" playsinline autoplay></video>
+        
+        <div class="scanner-overlay">
+            <div class="scan-frame"></div>
+        </div>
 
-    <noscript>This web application requires JavaScript enabled</noscript>
+        <div class="scanner-controls">
+            <select id="cameraSelect"></select>
+            
+            <button id="btnToggleManualInput">Entrada Manual</button>
+        </div>
+        
+        <div id="feedbackMsg">Aguardando leitura...</div>
+        
+        <div id="manualInputContainer">
+            <input type="text" id="manualDeliveryId" placeholder="Digite o ID da Entrega" maxlength="50">
+            <button id="btnManualConfirm">Confirmar</button>
+        </div>
+        
+    </section>
+    
+    <script src="script.js"></script>
+    
+    <script>
+        // Função global para o botão mobile, referenciado no botão ☰
+        window.toggleSidebar = function() {
+            const sidebar = document.getElementById('sidebar');
+            const app = document.getElementById('appContainer');
+            
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('active');
+            } else {
+                 // Alterna a visibilidade no desktop, se necessário
+                 const isHidden = sidebar.classList.toggle('hidden');
+                 app.style.gridTemplateColumns = isHidden ? '1fr' : '392px 1fr';
+            }
+        }
+    </script>
 </body>
 </html>
