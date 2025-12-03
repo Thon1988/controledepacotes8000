@@ -1,4 +1,4 @@
-/* app.js — versão integrada e aprimorada (PATCH: Remoção do Menu Fixo) */
+/* app.js — versão integrada e aprimorada (PATCH: Modal Comar Logic) */
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- KEYS e Estado --- */
@@ -10,8 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
     ];
-    // CD_LOCATION agora inclui um ponto de latitude/longitude para uso nos registros
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; 
+    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
 
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
@@ -42,16 +41,15 @@ document.addEventListener('DOMContentLoaded', () => {
         exportPeriod: document.getElementById('exportPeriod'),
         exportUserFilter: document.getElementById('exportUserFilter'),
         btnGenerateCSV: document.getElementById('btnGenerateCSV'),
-        
-        // NOVO: Modal Câmera/Filtros
+        // --- NOVOS ELEMENTOS DO MODAL COMAR ---
+        btnComar: document.getElementById('btnComar'),
         cameraModal: document.getElementById('cameraModal'),
-        btnComar: document.getElementById('btnComar'), // Botão movido para a sidebar principal
         btnCloseCameraModal: document.getElementById('btnCloseCameraModal'),
-        btnAbrirCameraParaComprovante: document.getElementById('abrirCameraParaComprovante'),
-        btnAptsaischanComprovante: document.getElementById('AptsaischanComprovante'),
-        btnAfssranRota: document.getElementById('AfssranRota'),
-        btnMesranRota: document.getElementById('MesranRota'),
-        btnCararIagas: document.getElementById('CararIagas'),
+        btnAbrirCamera: document.getElementById('abrirCameraParaComprovante'),
+        btnAptsaischan: document.getElementById('AptsaischanComprovante'),
+        btnAfssran: document.getElementById('AfssranRota'),
+        btnMesran: document.getElementById('MesranRota'),
+        btnCararIagas: document.getElementById('CararIagas')
     };
 
     /* --- Inicialização --- */
@@ -66,37 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
             existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
             existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
         }
-        return users = existingUsers;
+        return existingUsers;
     }
     function saveUsers(){ localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users)); }
     function saveScans(){ localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords)); }
     function saveShipments(){ localStorage.setItem(STORAGE_KEY_SHIPMENTS, JSON.stringify(shipments)); }
-    
-    // Adiciona lat/lon default se estiverem faltando (para que o mapa funcione)
-    function ensureShipmentGeoData(tracking){
-        if (!shipments[tracking].lat || !shipments[tracking].lon) {
-             // Simulação de coordenadas para demonstração
-             shipments[tracking].lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.05;
-             shipments[tracking].lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.05;
-             saveShipments();
-        }
-    }
-    
-    // Adiciona dados demo se não existirem
-    function ensureDemoData(){
-        if(scanRecords.length === 0){
-            scanRecords = [
-                { id:'BR987654321', tracking:'BR987654321', date: new Date().toISOString(), user:'thon', type:'Entrega', cliente:'João da Silva', endereco:'Av. Paulista, 1000', raw:'BR987654321', lat:-23.564, lon:-46.652 },
-                { id:'BR112233445', tracking:'BR112233445', date: new Date(Date.now()-86400000).toISOString(), user:'maria', type:'Coleta', cliente:'Ana Paula', endereco:'Rua da Consolação, 500', raw:'BR112233445', lat:-23.555, lon:-46.659 },
-                { id:'BR556677889', tracking:'BR556677889', date: new Date(Date.now()-3600000).toISOString(), user:'joao', type:'Entrega', cliente:'Carlos Souza', endereco:'Rua Fictícia, 1', raw:'BR556677889', lat:-23.551, lon:-46.638 }
-            ];
-            shipments['BR987654321'] = { tracking:'BR987654321', name:'João da Silva', address:'Av. Paulista, 1000', phone:'(11)99999-0000', carrier:'Genérico', lat:-23.564, lon:-46.652 };
-            shipments['BR112233445'] = { tracking:'BR112233445', name:'Ana Paula', address:'Rua da Consolação, 500', phone:'(11)98888-1111', carrier:'Genérico', lat:-23.555, lon:-46.659 };
-            shipments['BR556677889'] = { tracking:'BR556677889', name:'Carlos Souza', address:'Rua Fictícia, 1', phone:'(11)97777-2222', carrier:'Genérico', lat:-23.551, lon:-46.638 };
-            saveScans(); saveShipments();
-        }
-    }
-    ensureDemoData();
 
     /* --- Geolocation (opcional) --- */
     function startGeolocation(){
@@ -138,23 +110,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Navegação --- */
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
+    document.getElementById('btnDashboard').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); });
+    document.getElementById('btnScanMode').addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); });
+    document.getElementById('btnDeliveries').addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); });
+    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); });
+    document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); });
+    document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); });
 
-    // Função para fechar a sidebar se estiver aberta (útil no mobile)
-    function closeSidebarIfActive() {
-        if (dom.sidebar.classList.contains('active')) {
-            window.toggleSidebar();
-        }
-    }
-    
-    // Listeners do menu principal
-    document.getElementById('btnDashboard').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); closeSidebarIfActive(); });
-    document.getElementById('btnScanMode').addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); closeSidebarIfActive(); });
-    document.getElementById('btnDeliveries').addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); closeSidebarIfActive(); });
-    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); closeSidebarIfActive(); });
-    document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); closeSidebarIfActive(); });
-    document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); closeSidebarIfActive(); });
-    // O botão 'btnDashboardMobile' e seu listener foram removidos
-    
+    // --- LÓGICA DO MODAL COMAR (FILTROS) ---
+    if (dom.btnComar) dom.btnComar.addEventListener('click', () => {
+        setActiveMenu('btnComar');
+        // Fecha mapa se aberto e oculta conteúdo principal
+        removeMapIfExists();
+        if (dom.contentArea) dom.contentArea.style.display = 'none';
+        // Mostra o modal
+        if (dom.cameraModal) dom.cameraModal.style.display = 'flex';
+    });
+
+    if (dom.btnCloseCameraModal) dom.btnCloseCameraModal.addEventListener('click', () => {
+        if (dom.cameraModal) dom.cameraModal.style.display = 'none';
+        // Retorna ao dashboard
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+
+    // --- HANDLERS DE AÇÃO DO MODAL ---
+    if (dom.btnAbrirCamera) dom.btnAbrirCamera.addEventListener('click', () => {
+        alert('Ação simulada: Reabrindo o scanner para comprovante...');
+        dom.cameraModal.style.display = 'none';
+        setActiveMenu('btnScanMode');
+        openCameraView();
+    });
+
+    if (dom.btnAptsaischan) dom.btnAptsaischan.addEventListener('click', () => {
+        alert('Ação simulada: Envio de comprovante processado com sucesso!');
+        dom.cameraModal.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+
+    if (dom.btnAfssran) dom.btnAfssran.addEventListener('click', () => {
+        alert('Ação simulada: Rota F28e77 definida e centralizada no mapa.');
+        dom.cameraModal.style.display = 'none';
+        setActiveMenu('btnMap');
+        renderMap(); // Abre o mapa, simulando a navegação
+    });
+
+    if (dom.btnMesran) dom.btnMesran.addEventListener('click', () => {
+        alert('Ação simulada: Rota 007bi ff (Bf 5) marcada como concluída no sistema.');
+        dom.cameraModal.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+
+    if (dom.btnCararIagas) dom.btnCararIagas.addEventListener('click', () => {
+        alert('Ação simulada: Todas as flags de entregas anteriores foram removidas (Limpeza de cache de rotas).');
+        dom.cameraModal.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+    // --- FIM LÓGICA MODAL COMAR ---
+
     document.getElementById('btnExport').addEventListener('click', () => {
         if (dom.exportOptions) dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
     });
@@ -181,83 +197,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const code = prompt('Digite o número de rastreio (ex: BR123456789):');
         if (code) { handleScannedTracking(code.trim()); alert('Rastreio inserido manualmente.'); }
     });
-    
-    /* --- Lógica da Modal Câmera/Filtros --- */
-    
-    function openCameraModal() {
-        if (!currentUser) return alert('Faça login primeiro.');
-        // Fecha a área principal de conteúdo e abre a modal
-        if (dom.contentArea) dom.contentArea.style.display = 'none';
-        dom.cameraModal.style.display = 'flex';
-        // Garante que o scanner e mapa estejam fechados
-        stopScanner();
-        removeMapIfExists();
-        closeSidebarIfActive(); // Adicionado para fechar a sidebar após abrir a modal
-    }
-
-    function closeCameraModal() {
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        renderDashboard(); // Volta para a dashboard ao fechar
-    }
-
-    function handleModalAction(action) {
-        closeCameraModal();
-
-        switch (action) {
-            case 'abrirCameraParaComprovante':
-                // Reusa a função do scanner existente
-                openCameraView();
-                alert('Scanner ativo para Comprovante de ID. (Escaneie o QR Code)');
-                break;
-            case 'AfssranRota':
-                // Simula o cálculo de rota. Procura o primeiro pacote pendente para centrar o mapa
-                const firstPending = scanRecords.find(r => !r.status || r.status.toLowerCase() !== 'entregue');
-                if (firstPending) {
-                    // Garante que o registro tem coordenadas, mesmo que simuladas
-                    ensureShipmentGeoData(firstPending.tracking);
-                    window.centerMapToRecord(firstPending.tracking);
-                    setActiveMenu('btnMap');
-                    alert(`Simulando rota para: ${firstPending.tracking}.`);
-                } else {
-                    alert('Nenhuma entrega pendente encontrada para simular rota. Abrindo mapa geral.');
-                    renderMap();
-                    setActiveMenu('btnMap');
-                }
-                break;
-            case 'AptsaischanComprovante':
-                alert('Ação "Aptsaischan Comprovante (id)" executada. (Simulação de envio de comprovante)');
-                break;
-            case 'MesranRota':
-                alert('Ação "Mesran Rota (007bi ff (Bf 5)" executada.');
-                break;
-            case 'CararIagas':
-                alert('Ação "Carar Iagas (sians)" executada.');
-                break;
-            default:
-                alert(`Ação ${action} confirmada.`);
-                break;
-        }
-    }
-    
-    if(dom.btnComar) dom.btnComar.addEventListener('click', openCameraModal);
-    if(dom.btnCloseCameraModal) dom.btnCloseCameraModal.addEventListener('click', closeCameraModal);
-    if(dom.btnAbrirCameraParaComprovante) dom.btnAbrirCameraParaComprovante.addEventListener('click', () => handleModalAction('abrirCameraParaComprovante'));
-    if(dom.btnAptsaischanComprovante) dom.btnAptsaischanComprovante.addEventListener('click', () => handleModalAction('AptsaischanComprovante'));
-    if(dom.btnAfssranRota) dom.btnAfssranRota.addEventListener('click', () => handleModalAction('AfssranRota'));
-    if(dom.btnMesranRota) dom.btnMesranRota.addEventListener('click', () => handleModalAction('MesranRota'));
-    if(dom.btnCararIagas) dom.btnCararIagas.addEventListener('click', () => handleModalAction('CararIagas'));
-
 
     function setActiveMenu(id){
-        // Apenas itera sobre os itens do menu principal
         Array.from(document.querySelectorAll('.menu-item')).forEach(el => el.classList.remove('active'));
-        // Linha Array.from(document.querySelectorAll('.left-menu-item')).forEach(el => el.classList.remove('active')); REMOVIDA
-        
         const el = document.getElementById(id);
         if (el) el.classList.add('active');
-        
-        // O Listener do dashboard mobile foi removido. Apenas o item da sidebar é ativado.
     }
 
     /* --- Camera / Scanner --- */
@@ -352,39 +296,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Quando um rastreio é detectado (manual ou scanner) --- */
     function handleScannedTracking(raw){
-        const now = Date.now();
-        if (raw === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
-        lastScanCode = raw; lastScanTime = now;
-        
         // No Formato 4 o raw é algo como BR123456789 (apenas tracking)
         // Normaliza
         const tracking = raw.split(/\s/)[0];
         // Lookup local
         const details = lookupShipment(tracking);
-        const nowISO = new Date().toISOString();
-        
-        // Garante lat/lon simulada para o registro
-        ensureShipmentGeoData(tracking);
-        
+        const now = new Date().toISOString();
         const record = {
             id: tracking,
             tracking,
-            date: nowISO,
+            date: now,
             user: currentUser ? currentUser.username : 'unknown',
             type: details.carrier || 'Genérico',
             endereco: details.address || '',
             telefone: details.phone || '',
             cliente: details.name || '',
-            lat: shipments[tracking].lat, // Usa a coordenada garantida
-            lon: shipments[tracking].lon, // Usa a coordenada garantida
             raw: raw
         };
         // adiciona ao topo e salva
-        // Verifica se o registro já existe para evitar duplicatas, mas registra novo scan
-        const existingIndex = scanRecords.findIndex(r => r.tracking === tracking);
-        if (existingIndex > -1) {
-            scanRecords.splice(existingIndex, 1); // Remove o antigo
-        }
         scanRecords.unshift(record);
         saveScans();
         showScanFeedback(record);
@@ -393,11 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Shipment lookup / edição local --- */
     function lookupShipment(tracking){
         // se já existe no DB local -> retorna
-        if (shipments[tracking]) {
-            // Garante que o registro tem coordenadas, mesmo que simuladas
-            ensureShipmentGeoData(tracking);
-            return shipments[tracking];
-        }
+        if (shipments[tracking]) return shipments[tracking];
         // se não existe, cria placeholder (você pode editar depois)
         shipments[tracking] = {
             tracking,
@@ -406,8 +331,6 @@ document.addEventListener('DOMContentLoaded', () => {
             phone: '',
             carrier: ''
         };
-        // Garante que o registro tem coordenadas, mesmo que simuladas
-        ensureShipmentGeoData(tracking);
         saveShipments();
         return shipments[tracking];
     }
@@ -576,29 +499,20 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             const deliveryPoints = scanRecords.map(r=>({lat: r.lat||CD_LOCATION.lat, lon: r.lon||CD_LOCATION.lon, id: r.tracking}));
             if (deliveryPoints.length < 2) { const el = document.getElementById('routeMapObj'); if (el) el.innerHTML = '<p class="small-muted">Escaneie ao menos 2 entregas para simular rota.</p>'; return; }
-            
-            // Simula uma rota com os 10 primeiros pontos com lat/lon
-            const route = deliveryPoints.filter(p => p.lat && p.lon).slice(0,10).sort(()=>Math.random()-0.5);
-            
-            // Adiciona o CD_LOCATION como ponto de partida
-            const routePoints = [{lat: CD_LOCATION.lat, lon: CD_LOCATION.lon, id: 'CD'}].concat(route);
-            
+            const route = deliveryPoints.slice(0,10).sort(()=>Math.random()-0.5);
             // create map
             removeMapIfExists();
-            mapInstance = L.map('routeMapObj').setView([routePoints[0].lat, routePoints[0].lon], 13);
+            mapInstance = L.map('routeMapObj').setView([route[0].lat, route[0].lon], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
-            
+            // Ensure map container z-index stays behind sidebar
             try { mapInstance.getContainer().style.zIndex = '1'; } catch(e){}
-            const polylinePoints = routePoints.map((p,i) => {
-                const markerColor = i === 0 ? '#0ea5e9' : '#22c55e';
-                const marker = L.marker([p.lat,p.lon], {
-                    icon: L.divIcon({ className: `route-marker-${i}`, html:`<div style="background:${markerColor};border:3px solid white;border-radius:50%;width:18px;height:18px"></div>` })
-                }).addTo(mapInstance).bindPopup(`<b>${i === 0 ? 'CD (Início)' : 'Ponto ' + i}</b><br>${p.id}`);
+            const routePoints = route.map((p,i) => {
+                const marker = L.marker([p.lat,p.lon]).addTo(mapInstance).bindPopup(`<b>Ponto ${i+1}</b><br>${p.id}`);
                 return [p.lat,p.lon];
             });
-            if (polylinePoints.length>1) {
-                L.polyline(polylinePoints,{color:'#22c55e', weight:5}).addTo(mapInstance);
-                mapInstance.fitBounds(L.polyline(polylinePoints).getBounds());
+            if (routePoints.length>1) {
+                L.polyline(routePoints,{color:'#22c55e', weight:5}).addTo(mapInstance);
+                mapInstance.fitBounds(L.polyline(routePoints).getBounds());
             }
         },120);
     }
@@ -622,15 +536,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Ensure map container z-index stays behind sidebar
             try {
                 mapInstance.getContainer().style.zIndex = '1';
+                // also make sure leaflet panes aren't interfering
                 const panes = mapInstance.getPanes && mapInstance.getPanes();
                 if (panes && panes.tilePane) panes.tilePane.style.zIndex = '1';
             } catch(e){ console.warn('z-index patch error', e); }
 
             scanRecords.forEach(r => {
-                // Garante que a coordenada existe, mesmo que simulada
-                ensureShipmentGeoData(r.tracking);
-                const lat = r.lat || shipments[r.tracking].lat;
-                const lon = r.lon || shipments[r.tracking].lon;
+                // if record has endereco we won't convert — we just put marker at CD_LOCATION fallback
+                const lat = r.lat || CD_LOCATION.lat;
+                const lon = r.lon || CD_LOCATION.lon;
                 L.marker([lat,lon]).addTo(mapInstance).bindPopup(`<b>${r.tracking}</b><br>${r.cliente || ''}<br>${r.endereco || ''}`);
             });
 
@@ -671,10 +585,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMap();
         setTimeout(() => {
             try {
-                // Garante que a coordenada existe, mesmo que simulada
-                ensureShipmentGeoData(tracking);
-                const lat = rec.lat || shipments[tracking].lat;
-                const lon = rec.lon || shipments[tracking].lon;
+                const lat = rec.lat || CD_LOCATION.lat;
+                const lon = rec.lon || CD_LOCATION.lon;
                 if (mapInstance) mapInstance.setView([lat, lon], 15);
             } catch(e){ console.warn(e) }
         },200);
@@ -750,5 +662,4 @@ document.addEventListener('DOMContentLoaded', () => {
     window.renderUsers = renderUsers;
     window.generateCSV = generateCSV;
     window.lookupShipment = lookupShipment;
-    window.centerMapToRecord = centerMapToRecord;
 });
