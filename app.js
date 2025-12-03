@@ -1,4 +1,4 @@
-/* app.js — versão integrada e aprimorada (PATCH: Modal Comar Logic + Sidebar Closing) */
+/* app.js — Versão Original Limpa + Fechamento Automático da Sidebar (Mobile) */
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- KEYS e Estado --- */
@@ -41,15 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         exportPeriod: document.getElementById('exportPeriod'),
         exportUserFilter: document.getElementById('exportUserFilter'),
         btnGenerateCSV: document.getElementById('btnGenerateCSV'),
-        // --- NOVOS ELEMENTOS DO MODAL COMAR (RE-ADICIONADOS) ---
-        btnComar: document.getElementById('btnComar'),
-        cameraModal: document.getElementById('cameraModal'),
-        btnCloseCameraModal: document.getElementById('btnCloseCameraModal'),
-        btnAbrirCamera: document.getElementById('abrirCameraParaComprovante'),
-        btnAptsaischan: document.getElementById('AptsaischanComprovante'),
-        btnAfssran: document.getElementById('AfssranRota'),
-        btnMesran: document.getElementById('MesranRota'),
-        btnCararIagas: document.getElementById('CararIagas')
+        // O DOM para a modal 'Comãr' e seus botões foram removidos.
     };
 
     /* --- Inicialização --- */
@@ -90,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden');
-            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.remove('hidden'); // Alterado para 900px
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') dom.adminMenuOptions.classList.remove('hidden');
             else dom.adminMenuOptions.classList.add('hidden');
             renderDashboard();
@@ -108,9 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5"><h2>Até logo</h2></div>`;
     });
 
-    /* --- HELPER PARA FECHAR SIDEBAR EM MODO MOBILE --- */
+    /* --- NOVO HELPER PARA FECHAR SIDEBAR EM MODO MOBILE --- */
     function closeSidebarIfOpen() {
-        // Assume que a barra deve fechar se estiver em modo mobile (<= 900px, conforme CSS)
+        // Verifica se a largura é <= 900px (modo mobile) E se a sidebar está aberta
         if (dom.sidebar && window.innerWidth <= 900 && dom.sidebar.classList.contains('active')) {
             dom.sidebar.classList.remove('active');
         }
@@ -126,61 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); closeSidebarIfOpen(); });
     document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); closeSidebarIfOpen(); });
     document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); closeSidebarIfOpen(); });
-
-    // --- LÓGICA DO MODAL COMAR (FILTROS) ---
-    if (dom.btnComar) dom.btnComar.addEventListener('click', () => {
-        setActiveMenu('btnComar');
-        // Fecha mapa se aberto e oculta conteúdo principal
-        removeMapIfExists();
-        if (dom.contentArea) dom.contentArea.style.display = 'none';
-        // Mostra o modal
-        if (dom.cameraModal) dom.cameraModal.style.display = 'flex';
-        closeSidebarIfOpen(); // Fechar sidebar após abrir modal
-    });
-
-    if (dom.btnCloseCameraModal) dom.btnCloseCameraModal.addEventListener('click', () => {
-        if (dom.cameraModal) dom.cameraModal.style.display = 'none';
-        // Retorna ao dashboard
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-
-    // --- HANDLERS DE AÇÃO DO MODAL ---
-    if (dom.btnAbrirCamera) dom.btnAbrirCamera.addEventListener('click', () => {
-        alert('Ação simulada: Reabrindo o scanner para comprovante...');
-        dom.cameraModal.style.display = 'none';
-        setActiveMenu('btnScanMode');
-        openCameraView();
-    });
-
-    if (dom.btnAptsaischan) dom.btnAptsaischan.addEventListener('click', () => {
-        alert('Ação simulada: Envio de comprovante processado com sucesso!');
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-
-    if (dom.btnAfssran) dom.btnAfssran.addEventListener('click', () => {
-        alert('Ação simulada: Rota F28e77 definida e centralizada no mapa.');
-        dom.cameraModal.style.display = 'none';
-        setActiveMenu('btnMap');
-        renderMap(); // Abre o mapa, simulando a navegação
-    });
-
-    if (dom.btnMesran) dom.btnMesran.addEventListener('click', () => {
-        alert('Ação simulada: Rota 007bi ff (Bf 5) marcada como concluída no sistema.');
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-
-    if (dom.btnCararIagas) dom.btnCararIagas.addEventListener('click', () => {
-        alert('Ação simulada: Todas as flags de entregas anteriores foram removidas (Limpeza de cache de rotas).');
-        dom.cameraModal.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        if (currentUser) renderDashboard();
-    });
-    // --- FIM LÓGICA MODAL COMAR ---
+    // O botão 'btnComar' foi removido e a lógica de modal também.
 
     document.getElementById('btnExport').addEventListener('click', () => {
         if (dom.exportOptions) dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
@@ -188,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dom.btnGenerateCSV) dom.btnGenerateCSV.addEventListener('click', () => generateCSV(dom.exportPeriod.value, dom.exportUserFilter.value.trim()));
 
     const btnCloseCamera = document.getElementById('btnCloseCamera');
-    // A lógica de fechar scanner e voltar ao dashboard já existe.
+    // A lógica de fechar scanner e voltar ao dashboard já existe e usa o 'X' vermelho (CSS .close-x)
     if (btnCloseCamera) btnCloseCamera.addEventListener('click', () => { stopScanner(); closeCameraView(); renderDashboard(); });
 
     const btnTorch = document.getElementById('btnTorch');
@@ -417,6 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dom.cameraView) dom.cameraView.style.display = 'none';
         if (dom.contentArea) dom.contentArea.style.display = 'block';
 
+        // Aqui está o botão 'X' vermelho para fechar a view e voltar ao dashboard.
         const html = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>📋 Lista de Entregas</h2></div>
             <div class="card">
               <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px">
@@ -507,7 +446,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderRoutes(){
         removeMapIfExists();
         if (!dom.contentArea) return;
-        dom.contentArea.innerHTML = `<h2>🧭 Otimizar Rotas</h2><div class="card"><p class="small-muted">Gerando uma simulação com seus últimos pontos...</p><div id="routeMapObj" class="map-wrapper"></div></div>`;
+        // Aqui está o botão 'X' vermelho para fechar a view de Rotas e voltar ao dashboard.
+        dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()">✕</button><h2>🧭 Otimizar Rotas</h2></div>
+          <div class="card"><p class="small-muted">Gerando uma simulação com seus últimos pontos...</p><div id="routeMapObj" class="map-wrapper"></div></div>`;
         setTimeout(() => {
             const deliveryPoints = scanRecords.map(r=>({lat: r.lat||CD_LOCATION.lat, lon: r.lon||CD_LOCATION.lon, id: r.tracking}));
             if (deliveryPoints.length < 2) { const el = document.getElementById('routeMapObj'); if (el) el.innerHTML = '<p class="small-muted">Escaneie ao menos 2 entregas para simular rota.</p>'; return; }
@@ -537,7 +478,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dom.cameraView) dom.cameraView.style.display = 'none';
         if (dom.appContainer) dom.appContainer.style.display = 'grid';
 
-        // O botão "✕" já existe aqui e volta para o dashboard
+        // Aqui está o botão 'X' vermelho para fechar a view do Mapa e voltar ao dashboard.
         dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()">✕</button><h2>🗺️ Mapa de Entregas</h2></div>
             <div class="card"><p class="small-muted">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" class="map-wrapper"></div></div>`;
 
