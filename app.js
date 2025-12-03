@@ -1,33 +1,32 @@
+/* app.js — versão integrada e aprimorada (com patch do mapa) */
 document.addEventListener('DOMContentLoaded', () => {
 
-    /* ========================================================= */
-    /* I. CONFIGURAÇÕES E REFERÊNCIAS DOM                        */
-    /* ========================================================= */
-
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; 
-    const STORAGE_KEY_USERS = 'pegazus_users_v5';
-    const STORAGE_KEY_SCANS = 'pegazus_scans_v5';
-    
-    // Usuários Padrão para inicialização
+    /* --- KEYS e Estado --- */
+    const STORAGE_KEY_USERS = 'pegazus_users_v4';
+    const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
+    const STORAGE_KEY_SHIPMENTS = 'pegazus_shipments_v1'; // DB local de rastreios -> cliente/endereço/telefone
     const DEFAULT_USERS = [
         { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
         { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ]; 
-    
-    // Variáveis de Estado
+    ];
+    // Coordenadas do depósito (CD) já usadas no app
+    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
+
     let currentUser = null;
-    let videoStream = null;
-    let isScanning = false;
-    let videoTrack = null;
+    let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
+    let shipments = JSON.parse(localStorage.getItem(STORAGE_KEY_SHIPMENTS) || '{}'); // mapa tracking -> details
+    let users = loadUsers();
+
+    let videoStream = null, isScanning = false, videoTrack = null;
     const SCAN_DELAY = 1000;
-    let lastScanCode = '';
-    let lastScanTime = 0;
+    let lastScanCode = '', lastScanTime = 0;
     let userLocation = null;
+    // mapInstance é a instância do Leaflet usada no app (substitui 'map' local)
     let mapInstance = null;
     let locationMarker = null;
 
-    // Referências DOM - ADICIONADO: elementos da nova modal e menu fixo
+    /* --- DOM --- */
     const dom = {
         loginSection: document.getElementById('loginSection'),
         menuSection: document.getElementById('menuSection'),
@@ -41,847 +40,894 @@ document.addEventListener('DOMContentLoaded', () => {
         cameraSelect: document.getElementById('cameraSelect'),
         exportOptions: document.getElementById('exportOptions'),
         adminMenuOptions: document.getElementById('adminMenuOptions'),
-        manualInputContainer: document.getElementById('manualInputContainer'),
-        manualDeliveryId: document.getElementById('manualDeliveryId'),
-        btnToggleManualInput: document.getElementById('btnToggleManualInput'),
-        btnManualConfirm: document.getElementById('btnManualConfirm'),
-
-        // NOVOS ELEMENTOS DA MODAL DE CÂMERA/FILTROS
-        cameraModal: document.getElementById('cameraModal'),
-        btnOpenCameraModal: document.getElementById('btnComar'), // Botão "Comãr" no menu fixo
-        btnCloseCameraModal: document.querySelector('#cameraModal .close-btn'),
-        btnAbrirCameraParaComprovante: document.getElementById('abrirCameraParaComprovante'),
-        btnAptsaischanComprovante: document.getElementById('AptsaischanComprovante'),
-        btnAfssranRota: document.getElementById('AfssranRota'),
-        btnMesranRota: document.getElementById('MesranRota'),
-        btnCararIagas: document.getElementById('CararIagas'),
+        exportPeriod: document.getElementById('exportPeriod'),
+        exportUserSearch: document.getElementById('exportUserSearch'),
+        btnExportRun: document.getElementById('btnExportRun')
     };
 
-    /* ========================================================= */
-    /* II. STORES E ADAPTADORES (CAMADA DE DADOS ISOLADA)        */
-    /* ========================================================= */
-    
-    // As funções LocalStore e DeliveryStore permanecem as mesmas.
-    // ... [CÓDIGO DE LocalStore E DeliveryStore AQUI] ...
-    
-    const LocalStore = {
-        loadDeliveries: function() {
-            let records = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-            // Inicialização de dados simulados
-            records.forEach(r => {
-                if (!r.status) r.status = 'pending';
-                if (!r.clientName) r.clientName = "Cliente Simulado " + r.id.slice(-4);
-                if (!r.clientAddress) r.clientAddress = `Rua Fictícia, ${Math.floor(Math.random() * 50)} - Condomínio A`;
-                if (!r.clientPhone) r.clientPhone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-                if (!r.lat || !r.lon) { // Preenche lat/lon se faltar
-                    r.lat = CD_LOCATION.lat + (Math.random() - 0.5) * 0.01;
-                    r.lon = CD_LOCATION.lon + (Math.random() - 0.5) * 0.01;
-                }
-                if (!r.date) r.date = Date.now(); // Adiciona timestamp para filtro
-                if (!r.user) r.user = 'system'; // Adiciona usuário
-                if (!r.type) r.type = 'Package'; // Adiciona tipo
-            });
-            return records;
-        },
-
-        saveDeliveries: function(data) {
-            localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(data));
-        },
-
-        loadUsers: function() {
-            let users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS));
-            if (!users || users.length === 0) {
-                users = DEFAULT_USERS;
-                localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-            }
-            // Garante que o usuário 'thon' de sistema esteja sempre presente.
-            const thonExists = users.some(u => u.username === 'thon');
-            if (!thonExists) {
-                users.push(DEFAULT_USERS.find(u => u.username === 'thon'));
-                localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-            }
-            return users;
-        },
-
-        saveUsers: function(data) {
-            localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(data));
+    /* --- Inicialização --- */
+    function loadUsers() {
+        const raw = localStorage.getItem(STORAGE_KEY_USERS);
+        if(!raw) { localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS)); return DEFAULT_USERS; }
+        const existingUsers = JSON.parse(raw);
+        const thonExists = existingUsers.some(u => u.username === 'thon');
+        if (!thonExists) existingUsers.push(DEFAULT_USERS[0]);
+        else {
+            const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
+            existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
+            existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
         }
-    };
-    
-    const DataAdapter = LocalStore; 
+        return existingUsers;
+    }
+    function saveUsers(){ localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users)); }
+    function saveScans(){ localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords)); }
+    function saveShipments(){ localStorage.setItem(STORAGE_KEY_SHIPMENTS, JSON.stringify(shipments)); }
 
-    /**
-     * DeliveryStore: Gerencia o estado da aplicação e as regras de negócio.
-     */
-    const DeliveryStore = {
-        scanRecords: DataAdapter.loadDeliveries(),
-        users: DataAdapter.loadUsers(),
-        
-        getDeliveries: function() { return this.scanRecords; },
-        
-        getDeliveryById: function(id) {
-            return this.scanRecords.find(r => r.id === id);
-        },
-        
-        addDelivery: function(record) {
-            // Adiciona se não existir
-            const existing = this.scanRecords.find(r => r.id === record.id);
-            if (!existing) {
-                this.scanRecords.unshift(record);
-                DataAdapter.saveDeliveries(this.scanRecords);
-            }
-        },
+    /* --- Geolocation (opcional) --- */
+    function startGeolocation(){
+        if ("geolocation" in navigator){
+            navigator.geolocation.watchPosition(pos => {
+                userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                if (mapInstance) updateMapLocation();
+            }, err => { console.warn('Geolocation error', err.message); userLocation = null; }, { enableHighAccuracy:true, timeout:5000, maximumAge:0 });
+        }
+    }
 
-        updateDeliveryStatus: function(recordId, status, receivedBy = null) {
-            const record = this.getDeliveryById(recordId);
-            if (record) {
-                record.status = status;
-                record.receivedBy = receivedBy;
-                DataAdapter.saveDeliveries(this.scanRecords);
-                return true;
-            }
-            return false;
-        },
-        
-        getRecordsByLocation: function(recordId) {
-            const primaryRecord = this.getDeliveryById(recordId);
-            if (!primaryRecord) return [];
-            
-            return this.scanRecords.filter(r => 
-                r.clientAddress === primaryRecord.clientAddress
-            );
-        },
+    /* --- Login / Logout --- */
+    document.getElementById('btnLogin').addEventListener('click', () => {
+        const u = document.getElementById('loginUser').value.trim();
+        const p = document.getElementById('loginPass').value.trim();
+        const user = users.find(x => x.username === u && x.password === p);
+        if (user) {
+            currentUser = user;
+            document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
+            dom.loginSection.classList.add('hidden');
+            dom.appContainer.classList.remove('hidden');
+            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            if (currentUser.role === 'admin' || currentUser.role === 'gestor') dom.adminMenuOptions.classList.remove('hidden');
+            else dom.adminMenuOptions.classList.add('hidden');
+            renderDashboard();
+            document.getElementById('loginError').textContent = '';
+            startGeolocation();
+        } else {
+            document.getElementById('loginError').textContent = 'Credenciais inválidas';
+        }
+    });
 
-        getUsers: function() { return this.users; },
-        getUserByCredentials: function(username, password) {
-            return this.users.find(u => u.username === username && u.password === password);
-        },
-        
-        updateUsers: function(newUsers) {
-            this.users = newUsers;
-            DataAdapter.saveUsers(this.users);
-        },
-    };
+    document.getElementById('btnLogout').addEventListener('click', () => {
+        currentUser = null; stopScanner();
+        dom.appContainer.classList.add('hidden'); dom.loginSection.classList.remove('hidden');
+        dom.mobileMenuBtn.classList.add('hidden');
+        dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5"><h2>Até logo</h2></div>`;
+    });
 
-    /* ========================================================= */
-    /* III. CONTROLLER E VIEWS (LÓGICA E INTERFACE)              */
-    /* ========================================================= */
-    
-    /**
-     * AppController: Gerencia o fluxo da aplicação e a interação entre Views e Stores.
-     */
-    const AppController = {
-        init: function() {
-            // Inicialização de Eventos
-            document.getElementById('btnLogin').addEventListener('click', this.handleLogin);
-            document.getElementById('btnLogout').addEventListener('click', this.handleLogout);
-            document.getElementById('btnDashboard').addEventListener('click', () => this.navigateTo('dashboard'));
-            document.getElementById('btnScanner').addEventListener('click', () => this.navigateTo('scanner'));
-            document.getElementById('btnMap').addEventListener('click', () => this.navigateTo('map'));
-            document.getElementById('btnRoutes').addEventListener('click', () => this.navigateTo('routes'));
-            document.getElementById('btnUsers').addEventListener('click', () => this.navigateTo('users'));
-            dom.cameraSelect.addEventListener('change', (e) => this.startScanner(e.target.value));
-            dom.btnToggleManualInput.addEventListener('click', this.toggleManualInput);
-            dom.btnManualConfirm.addEventListener('click', this.handleManualConfirm);
-            
-            // Exportação
-            document.getElementById('btnExport').addEventListener('click', this.toggleExportOptions);
-            document.getElementById('btnExportDaily').addEventListener('click', () => this.handleExport('daily'));
-            document.getElementById('btnExportWeekly').addEventListener('click', () => this.handleExport('weekly'));
-            document.getElementById('btnExportMonthly').addEventListener('click', () => this.handleExport('monthly'));
-            document.getElementById('btnExportAll').addEventListener('click', () => this.handleExport('all'));
-            
-            // Evento global para fechar exportOptions se clicar fora
-            document.addEventListener('click', (e) => {
-                if (dom.exportOptions.style.display === 'flex' && 
-                    !e.target.closest('.export-container')) {
-                    dom.exportOptions.style.display = 'none';
-                }
-            });
-            
-            this.startGeolocation();
-            window.addEventListener('resize', this.handleResize);
+    /* --- Navegação --- */
+    window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
+    document.getElementById('btnDashboard').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); });
+    document.getElementById('btnScanMode').addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); });
+    document.getElementById('btnDeliveries').addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); });
+    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); });
+    document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); });
+    document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); });
 
-            // NOVOS EVENTOS DA MODAL DE CÂMERA/FILTROS
-            if(dom.btnOpenCameraModal) dom.btnOpenCameraModal.addEventListener('click', this.openCameraModal);
-            if(dom.btnCloseCameraModal) dom.btnCloseCameraModal.addEventListener('click', this.closeCameraModal);
-            if(dom.btnAbrirCameraParaComprovante) dom.btnAbrirCameraParaComprovante.addEventListener('click', () => this.handleModalAction('abrirCameraParaComprovante'));
-            if(dom.btnAptsaischanComprovante) dom.btnAptsaischanComprovante.addEventListener('click', () => this.handleModalAction('AptsaischanComprovante'));
-            if(dom.btnAfssranRota) dom.btnAfssranRota.addEventListener('click', () => this.handleModalAction('AfssranRota'));
-            if(dom.btnMesranRota) dom.btnMesranRota.addEventListener('click', () => this.handleModalAction('MesranRota'));
-            if(dom.btnCararIagas) dom.btnCararIagas.addEventListener('click', () => this.handleModalAction('CararIagas'));
-        },
+    document.getElementById('btnExport')?.addEventListener('click', () => {
+        dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
+    });
+    document.getElementById('btnGenerateCSV')?.addEventListener('click', () => {
+        // pega valores dos inputs do HTML
+        const period = document.getElementById('exportPeriod') ? document.getElementById('exportPeriod').value : 'all';
+        const userFilter = document.getElementById('exportUserFilter') ? document.getElementById('exportUserFilter').value.trim() : '';
+        generateCSV(period, userFilter);
+    });
 
-        /* --- Métodos da Nova Modal --- */
-        openCameraModal: function() {
-            dom.cameraModal.style.display = 'flex';
-        },
+    // Botões câmera/manual (existem no HTML)
+    document.getElementById('btnCloseCamera')?.addEventListener('click', () => { stopScanner(); closeCameraView(); renderDashboard(); });
+    document.getElementById('btnTorch')?.addEventListener('click', async () => {
+        if (videoTrack) {
+            try {
+                const caps = videoTrack.getCapabilities();
+                if (caps.torch) {
+                    const settings = videoTrack.getSettings();
+                    await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
+                } else alert('Flash não suportado neste dispositivo');
+            } catch(e){ console.warn(e) }
+        }
+    });
 
-        closeCameraModal: function() {
-            dom.cameraModal.style.display = 'none';
-        },
+    document.getElementById('btnManual')?.addEventListener('click', ()=> {
+        // abre modal básico (HTML já possui modal backdrop)
+        const modal = document.getElementById('modalBackdrop');
+        const input = document.getElementById('manualInput');
+        modal.style.display = 'flex';
+        input.value = '';
+        input.focus();
+    });
+    document.getElementById('manualCancel')?.addEventListener('click', ()=> {
+        document.getElementById('modalBackdrop').style.display = 'none';
+    });
+    document.getElementById('manualSave')?.addEventListener('click', ()=> {
+        const code = document.getElementById('manualInput').value.trim();
+        document.getElementById('modalBackdrop').style.display = 'none';
+        if (code) {
+            handleScannedTracking(code);
+            renderDeliveries();
+        }
+    });
 
-        handleModalAction: function(action) {
-            AppController.closeCameraModal();
+    function setActiveMenu(id){
+        Array.from(document.querySelectorAll('.menu-item')).forEach(el => el.classList.remove('active'));
+        const el = document.getElementById(id);
+        if (el) el.classList.add('active');
+    }
 
-            // Adicione a lógica específica para cada botão aqui.
-            // Por enquanto, apenas exibe um feedback.
-            Swal.fire({
-                title: 'Ação Confirmada',
-                text: `Executando a funcionalidade: ${action}`,
-                icon: 'success',
-                timer: 1500
-            });
+    /* --- Camera / Scanner --- */
+    dom.cameraSelect?.addEventListener('change', (e) => { if (isScanning) startScanner(e.target.value); });
 
-            // Exemplo de como você chamaria outras funções:
-            if (action === 'abrirCameraParaComprovante') {
-                AppController.navigateTo('scanner'); // Chama o scanner, talvez com um modo diferente.
-            } else {
-                AppController.navigateTo('dashboard');
-            }
-        },
-
-        /* --- Autenticação e Navegação --- */
-        handleLogin: function() {
-            const u = document.getElementById('loginUser').value.trim();
-            const p = document.getElementById('loginPass').value.trim();
-            const user = DeliveryStore.getUserByCredentials(u, p);
-            const errorElement = document.getElementById('loginError');
-            
-            if (user) {
-                currentUser = user;
-                document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
-                
-                dom.loginSection.classList.add('hidden');
-                dom.appContainer.classList.remove('hidden'); 
-                if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
-                
-                if (currentUser.role === 'admin' || currentUser.role === 'gestor') {
-                    dom.adminMenuOptions.classList.remove('hidden');
-                    document.getElementById('btnUsers').classList.remove('hidden');
-                } else {
-                    dom.adminMenuOptions.classList.add('hidden');
-                    document.getElementById('btnUsers').classList.add('hidden');
-                }
-
-                AppController.navigateTo('dashboard');
-                errorElement.textContent = '';
-            } else {
-                errorElement.textContent = 'Credenciais inválidas';
-            }
-        },
-
-        handleLogout: function() {
-            currentUser = null;
-            AppController.stopScanner();
-            if (mapInstance) mapInstance.remove();
-            mapInstance = null;
-            dom.appContainer.classList.add('hidden');
-            dom.loginSection.classList.remove('hidden'); 
-            dom.mobileMenuBtn.classList.add('hidden');
-            dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)"><h2>Até logo</h2></div>`;
-            window.removeEventListener('resize', AppController.handleResize);
-        },
-
-        navigateTo: function(viewName, params = null) {
-            // Fecha a sidebar em mobile
-            if (window.innerWidth <= 768 && dom.sidebar.classList.contains('active')) {
-                window.toggleSidebar();
-            }
-
-            AppController.showContent();
-            AppController.closeCameraModal(); // Garante que a modal feche ao navegar
-
-            // Limpa o mapa se sair das views de mapa
-            if (mapInstance && viewName !== 'map' && viewName !== 'routes' && !viewName.includes('details')) {
-                 mapInstance.remove();
-                 mapInstance = null;
-            }
-
-            switch(viewName) {
-                case 'dashboard':
-                    Views.renderDashboard();
-                    break;
-                case 'scanner':
-                    dom.contentArea.style.display = 'none';
-                    dom.cameraView.style.display = 'flex'; 
-                    dom.appContainer.style.display = 'none';
-                    // Esconde a sidebar e ajusta o layout para a câmera
-                    if(window.innerWidth > 768) { dom.sidebar.classList.add('hidden'); } else { dom.sidebar.classList.remove('active'); }
-                    document.getElementById('left-menu').classList.add('hidden'); // Esconde o menu fixo também para a câmera
-                    
-                    this.startScanner();
-                    break;
-                case 'details':
-                    Views.renderSingleDetails(params);
-                    break;
-                case 'multipleDelivery':
-                    Views.renderMultipleDeliveryForm(params);
-                    break;
-                case 'users':
-                    Views.renderUsers();
-                    break;
-                case 'map':
-                    Views.renderMap();
-                    break;
-                case 'routes':
-                    Views.renderRoutes();
-                    break;
-                default:
-                    Views.renderDashboard();
-            }
-            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
-            const btn = document.getElementById('btn' + viewName.charAt(0).toUpperCase() + viewName.slice(1));
-            if(btn) btn.classList.add('active');
-        },
-        
-        showContent: function() {
-            dom.cameraView.style.display = 'none';
-            dom.contentArea.style.display = 'block';
-            
-            dom.appContainer.style.display = 'grid'; 
-            document.getElementById('left-menu').classList.remove('hidden'); // Mostra o menu fixo
-
-            if (window.innerWidth > 768) { 
-                dom.sidebar.classList.remove('hidden'); 
-                // NOVO CÁLCULO: 60px (menu fixo) + 392px (sidebar principal) = 452px
-                dom.appContainer.style.gridTemplateColumns = '452px 1fr'; 
-            } else {
-                dom.sidebar.classList.remove('active');
-            }
-            
-            this.stopScanner();
-            if (dom.exportOptions.style.display === 'flex') {
-                dom.exportOptions.style.display = 'none'; 
-            }
-            dom.feedback.style.opacity = '0'; 
-            
-            dom.manualInputContainer.style.opacity = '0';
-            dom.manualInputContainer.style.pointerEvents = 'none';
-        },
-        
-        handleResize: function() {
-            if (mapInstance) {
-                mapInstance.invalidateSize();
-            }
-             // Reajusta o layout do grid no redimensionamento (desktop)
-            if (window.innerWidth > 768 && dom.appContainer.style.display === 'grid') {
-                const sidebarWidth = dom.sidebar.classList.contains('hidden') ? '0' : '392px';
-                dom.appContainer.style.gridTemplateColumns = `calc(60px + ${sidebarWidth}) 1fr`;
-            } else if (window.innerWidth <= 768) {
-                dom.appContainer.style.gridTemplateColumns = '1fr';
-            }
-        },
-
-        /* --- Geolocation --- */
-        startGeolocation: function() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        userLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
-                        if (mapInstance) Views.updateMapLocation();
-                    },
-                    (error) => { console.warn('Geolocation error:', error.message); userLocation = null; },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
-            }
-        },
-
-        /* --- Controle do Scanner --- */
-        // ... (As funções enumerateDevices, startScanner, stopScanner, tick e handleScan permanecem as mesmas) ...
-        enumerateDevices: async function() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-            dom.cameraSelect.innerHTML = '';
+    async function enumerateDevices(){
+        try {
+            const initialStream = await navigator.mediaDevices.getUserMedia({ video:true });
+            initialStream.getTracks().forEach(t=>t.stop());
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(d => d.kind === 'videoinput');
-            
-            videoDevices.forEach(device => {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.text = device.label || `Câmera ${dom.cameraSelect.options.length + 1}`;
-                dom.cameraSelect.appendChild(option);
-            });
-            dom.cameraSelect.style.display = videoDevices.length > 1 ? 'block' : 'none';
-        },
-
-        startScanner: async function(deviceId = null) { 
-            if (isScanning && !deviceId) return;
-            this.stopScanner(); 
-            
-            await this.enumerateDevices(); 
-
-            const videoDevices = Array.from(dom.cameraSelect.options);
-            let targetDeviceId = deviceId;
-            
-            if (!targetDeviceId && videoDevices.length > 0) {
-                const preferredCamera = videoDevices.find(opt => 
-                    opt.text.toLowerCase().includes('environment') || 
-                    opt.text.toLowerCase().includes('back') || 
-                    opt.text.toLowerCase().includes('traseira')
-                );
-                
-                if (preferredCamera) {
-                    targetDeviceId = preferredCamera.value;
-                } else {
-                    targetDeviceId = videoDevices[0].value;
-                }
-            }
-
-            if (!targetDeviceId && dom.cameraSelect.value) {
-                targetDeviceId = dom.cameraSelect.value;
-            }
-
-            const constraints = {
-                video: targetDeviceId
-                    ? { deviceId: { exact: targetDeviceId } } 
-                    : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-            };
-
-            try {
-                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-                dom.video.srcObject = videoStream;
-                dom.video.setAttribute('playsinline', true);
-                await dom.video.play();
-                isScanning = true;
-                videoTrack = videoStream.getVideoTracks()[0];
-                
-                if (targetDeviceId && dom.cameraSelect.value !== targetDeviceId) {
-                    dom.cameraSelect.value = targetDeviceId;
-                }
-
-                requestAnimationFrame(this.tick);
-            } catch (err) {
-                 Swal.fire({
-                    icon: 'error',
-                    title: 'Erro ao Acessar Câmera',
-                    text: 'Certifique-se de que a câmera está conectada e as permissões foram concedidas.' + (err.message ? ` Mensagem: ${err.message}` : ''),
-                    confirmButtonText: 'Voltar ao Dashboard'
-                }).then(() => {
-                    this.navigateTo('dashboard'); 
+            dom.cameraSelect.innerHTML = '';
+            if (videoDevices.length){
+                videoDevices.forEach((d, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    opt.text = d.label || `Câmera ${i+1}`;
+                    dom.cameraSelect.appendChild(opt);
                 });
-            }
-        },
-        
-        stopScanner: function() { 
-            isScanning = false;
-            if (videoStream) {
-                videoStream.getTracks().forEach(t => t.stop());
-                videoStream = null;
-                videoTrack = null;
-            }
-            dom.video.srcObject = null;
-        },
+                dom.cameraSelect.classList.remove('hidden');
+            } else dom.cameraSelect.classList.add('hidden');
+        } catch(e){ console.warn('enumerateDevices err', e); }
+    }
 
-        tick: function() {
-            if (!isScanning) return;
-            if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const w = dom.video.videoWidth;
-                const h = dom.video.videoHeight;
-                canvas.width = w;
-                canvas.height = h;
-                ctx.drawImage(dom.video, 0, 0, w, h); 
-                
-                const size = Math.min(w, h) * 0.9; 
+    async function startScanner(deviceId=null){
+        if (isScanning && !deviceId) return;
+        stopScanner();
+        const videoDevices = Array.from(dom.cameraSelect.options || []);
+        let targetDeviceId = deviceId;
+        if (!targetDeviceId && videoDevices.length>0) {
+            const preferred = videoDevices.find(o => o.text.toLowerCase().includes('back') || o.text.toLowerCase().includes('traseira') || o.text.toLowerCase().includes('environment'));
+            targetDeviceId = preferred ? preferred.value : videoDevices[0].value;
+        }
+        const constraints = targetDeviceId ? { video:{ deviceId:{ exact: targetDeviceId }}} : { video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } };
+        try {
+            videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+            dom.video.srcObject = videoStream;
+            dom.video.setAttribute('playsinline', true);
+            await dom.video.play();
+            isScanning = true;
+            videoTrack = videoStream.getVideoTracks()[0];
+            if (targetDeviceId) dom.cameraSelect.value = targetDeviceId;
+            requestAnimationFrame(tick);
+        } catch(err){
+            console.error(err);
+            alert('Erro ao acessar câmera: ' + err.message);
+            closeCameraView();
+            renderDashboard();
+        }
+    }
+    function stopScanner(){
+        isScanning = false;
+        if (videoStream){ videoStream.getTracks().forEach(t=>t.stop()); videoStream = null; }
+        dom.video.srcObject = null;
+        videoTrack = null;
+    }
 
-                const sx = (w - size) / 2;
-                const sy = (h - size) / 2;
-                const imageData = ctx.getImageData(sx, sy, size, size);
-                
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "attemptBoth",
-                });
+    function openCameraView(){
+        // Fecha mapa (se houver) antes de abrir câmera
+        removeMapIfExists();
+        dom.contentArea.style.display = 'none';
+        dom.cameraView.style.display = 'flex';
+        dom.appContainer.style.display = 'none';
+        startScanner();
+    }
+    function closeCameraView(){
+        dom.cameraView.style.display = 'none';
+        dom.appContainer.style.display = 'grid';
+        dom.contentArea.style.display = 'block';
+    }
 
-                if (code && code.data) {
-                    AppController.handleScan(code.data);
-                }
-            }
-            requestAnimationFrame(AppController.tick); 
-        },
+    function tick(){
+        if (!isScanning) return;
+        if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const w = dom.video.videoWidth;
+            const h = dom.video.videoHeight;
+            if (w === 0 || h === 0) { requestAnimationFrame(tick); return; }
+            canvas.width = w; canvas.height = h;
+            ctx.drawImage(dom.video, 0, 0, w, h);
+            const size = Math.min(w,h) * 0.9;
+            const sx = (w - size)/2, sy = (h - size)/2;
+            const imageData = ctx.getImageData(sx, sy, size, size);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts:'attemptBoth' });
+            if (code && code.data) handleScannedTracking(code.data.trim());
+        }
+        requestAnimationFrame(tick);
+    }
 
-        handleScan: function(data) {
-            const now = Date.now();
-            if (data === lastScanCode && (now - lastScanTime) < SCAN_DELAY) return;
-            
-            lastScanCode = data;
-            lastScanTime = now;
+    /* --- Quando um rastreio é detectado (manual ou scanner) --- */
+    function handleScannedTracking(raw){
+        // No Formato 4 o raw é algo como BR123456789 (apenas tracking)
+        // Normaliza
+        const tracking = raw.split(/\s/)[0];
+        // Lookup local
+        const details = lookupShipment(tracking);
+        const now = new Date().toISOString();
+        const record = {
+            id: tracking,
+            tracking,
+            date: now,
+            user: currentUser ? currentUser.username : 'unknown',
+            type: details.carrier || 'Genérico',
+            endereco: details.address || '',
+            telefone: details.phone || '',
+            cliente: details.name || '',
+            raw: raw,
+            lat: details.lat || null, // opcional
+            lon: details.lon || null
+        };
+        // adiciona ao topo e salva
+        scanRecords.unshift(record);
+        saveScans();
+        showScanFeedback(record);
+    }
 
-            Utils.beep();
-            Utils.showFeedback(`Leitura Confirmada: ${data.substring(0, 30)}...`, Utils.varCss('--accent')); 
+    /* --- Shipment lookup / edição local --- */
+    function lookupShipment(tracking){
+        // se já existe no DB local -> retorna
+        if (shipments[tracking]) return shipments[tracking];
+        // se não existe, cria placeholder (você pode editar depois)
+        shipments[tracking] = {
+            tracking,
+            name: '',
+            address: 'Endereço desconhecido', // default; você pode editar
+            phone: '',
+            carrier: ''
+        };
+        saveShipments();
+        return shipments[tracking];
+    }
+    // Função para editar dados de um rastreio (usada na UI)
+    window.editShipment = (tracking) => {
+        const s = lookupShipment(tracking);
+        const name = prompt('Nome do cliente:', s.name || '');
+        if (name === null) return;
+        const address = prompt('Endereço completo:', s.address || '');
+        if (address === null) return;
+        const phone = prompt('Telefone:', s.phone || '');
+        if (phone === null) return;
+        s.name = name; s.address = address; s.phone = phone;
+        shipments[tracking] = s; saveShipments();
+        // atualiza quaisquer registros existentes com mesmo tracking
+        scanRecords = scanRecords.map(r => r.tracking === tracking ? ({ ...r, cliente: s.name, endereco: s.address, telefone: s.phone }) : r);
+        saveScans();
+        renderDeliveries(); // refresh
+        alert('Dados do rastreio atualizados.');
+    };
 
-            const record = Utils.parsePayload(data, userLocation, currentUser);
-            
-            // Verifica se a entrega já foi registrada e navega para detalhes se for o caso
-            const existing = DeliveryStore.getDeliveryById(record.id);
-            if (existing) {
-                AppController.stopScanner();
-                AppController.navigateTo('details', record.id);
-                return;
-            }
-            
-            DeliveryStore.addDelivery(record);
+    /* --- Feedback/UI --- */
+    function showScanFeedback(record){
+        dom.feedback.textContent = `Leitura: ${record.tracking} — ${record.cliente || record.endereco || ''}`;
+        dom.feedback.style.opacity = '1';
+        setTimeout(()=> dom.feedback.style.opacity = '0', 2200);
+    }
 
-            // Se o scan for novo, adiciona e volta pro dashboard
-            AppController.stopScanner();
-            Utils.showDashboardFeedback(`Novo item (${record.id}) adicionado.`);
-            AppController.navigateTo('dashboard');
-        },
-        
-        toggleManualInput: function() {
-            const isVisible = dom.manualInputContainer.style.opacity === '1';
-            dom.manualInputContainer.style.opacity = isVisible ? '0' : '1';
-            dom.manualInputContainer.style.pointerEvents = isVisible ? 'none' : 'auto';
-            if (!isVisible) {
-                dom.manualDeliveryId.focus();
-            }
-        },
-
-        handleManualConfirm: function() {
-            const id = dom.manualDeliveryId.value.trim();
-            if (!id) {
-                Utils.showFeedback('ID de entrega vazio!', Utils.varCss('--danger'));
-                return;
-            }
-            
-            const record = Utils.parsePayload(id, userLocation, currentUser);
-            
-            Swal.fire({
-                title: '✅ ID Digitado Confirmado',
-                html: `
-                    <div style="text-align: left; color:var(--content-text-dark);">
-                        <p><strong>ID:</strong> ${record.id}</p>
-                        <p><strong>Status:</strong> Pendente</p>
-                        <hr style="border-color: rgba(0,0,0,0.1)">
-                        <h4>Dados do Destino (Simulação)</h4>
-                        <p><strong>Nome:</strong> ${record.clientName}</p>
-                        <p><strong>Endereço:</strong> ${record.clientAddress}</p>
-                        <p><strong>Telefone:</strong> ${record.clientPhone}</p>
+    /* --- RENDERERS (Dashboard, Deliveries, Users, etc.) --- */
+    function renderDashboard(){
+        // remove mapa se aberto
+        removeMapIfExists();
+        dom.appContainer.style.display = 'grid';
+        dom.cameraView.style.display = 'none';
+        dom.contentArea.style.display = 'block';
+        const html = `
+            <h2>📦 Entregas Realizadas</h2>
+            <p class="small-muted">Total de registros: ${scanRecords.length}</p>
+            <div style="margin-top:12px" class="card">
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                <button class="btn-primary" onclick="window.openCameraProgramatic()">Iniciar Scanner</button>
+                <button class="btn-secondary" onclick="renderDeliveries()">Ver Lista</button>
+                <div style="margin-left:auto" class="small-muted">Usuário: ${currentUser ? currentUser.username : '-'}</div>
+              </div>
+              <div class="list-deliveries">
+                ${scanRecords.slice(0,8).map((r, idx) => `
+                  <div class="delivery-item">
+                    <div style="width:40px;text-align:center"><div class="badge">${idx+1}</div></div>
+                    <div class="grow">
+                      <div class="title">${r.tracking}</div>
+                      <div class="meta">${r.cliente || '—'} • ${r.type} • ${new Date(r.date).toLocaleString()}</div>
+                      <div class="small-muted">${r.endereco || ''}</div>
                     </div>
-                `,
-                icon: 'info',
-                showCancelButton: true,
-                confirmButtonText: 'Confirmar e Salvar',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    DeliveryStore.addDelivery(record); 
-                    Utils.showDashboardFeedback(`Registro Manual ${record.id} Salvo!`);
-                    dom.manualDeliveryId.value = '';
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
+                      <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+        `;
+        dom.contentArea.innerHTML = html;
+    }
+
+    // Expose quick-start camera
+    window.openCameraProgramatic = () => { setActiveMenu('btnScanMode'); openCameraView(); }
+
+    function renderDeliveries(){
+        removeMapIfExists();
+        dom.appContainer.style.display = 'grid';
+        dom.cameraView.style.display = 'none';
+        dom.contentArea.style.display = 'block';
+
+        const html = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>📋 Lista de Entregas</h2></div>
+            <div class="card">
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px">
+                <input id="searchDelivery" placeholder="Buscar por rastreio/endereço/cliente" style="padding:8px;border-radius:8px;border:1px solid #ddd;flex:1"/>
+                <button class="btn-primary" id="btnNewManual">+ Novo (Manual)</button>
+              </div>
+              <div id="deliveriesList" class="list-deliveries">
+                ${scanRecords.map((r, i) => `
+                  <div class="delivery-item" data-tracking="${r.tracking}">
+                    <div style="width:40px;text-align:center"><div class="badge">${i+1}</div></div>
+                    <div class="grow">
+                      <div class="title">${r.tracking} <span class="small-muted"> — ${r.cliente || 'Sem Nome'}</span></div>
+                      <div class="meta">${r.type} • ${new Date(r.date).toLocaleString()}</div>
+                      <div class="small-muted">${r.endereco || ''}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
+                      <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            <div id="deliveryDetailArea"></div>
+        `;
+        dom.contentArea.innerHTML = html;
+
+        document.getElementById('btnNewManual').addEventListener('click', ()=> {
+            const code = prompt('Digite rastreio (ex: BR123456789):');
+            if (code) { handleScannedTracking(code.trim()); renderDeliveries(); }
+        });
+
+        const searchInput = document.getElementById('searchDelivery');
+        searchInput.addEventListener('input', () => {
+            const q = searchInput.value.trim().toLowerCase();
+            const nodes = document.querySelectorAll('#deliveriesList .delivery-item');
+            nodes.forEach(node => {
+                const t = node.dataset.tracking.toLowerCase();
+                const idx = scanRecords.find(r=>r.tracking===node.dataset.tracking);
+                const text = `${t} ${idx.endereco || ''} ${idx.cliente || ''}`.toLowerCase();
+                node.style.display = text.includes(q) ? 'flex' : 'none';
+            });
+        });
+    }
+
+    window.viewDeliveryDetail = (tracking) => {
+        const record = scanRecords.find(r => r.tracking === tracking);
+        if (!record) return alert('Registro não encontrado.');
+        const html = `
+          <div class="card" style="margin-top:12px; position:relative">
+            <button class="close-x" onclick="document.getElementById('deliveryDetailArea').innerHTML = ''">✕</button>
+            <h3>${record.tracking} <small class="small-muted">(${record.type})</small></h3>
+            <p><strong>Cliente:</strong> ${record.cliente || '—'}</p>
+            <p><strong>Endereço:</strong> ${record.endereco || '—'}</p>
+            <p><strong>Telefone:</strong> ${record.telefone || '—'}</p>
+            <p><strong>Usuário:</strong> ${record.user}</p>
+            <p><strong>Data:</strong> ${new Date(record.date).toLocaleString()}</p>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn-primary" onclick="window.editShipment('${record.tracking}')">Editar Dados</button>
+              <button class="btn-secondary" onclick="centerMapToRecord('${record.tracking}')">Mostrar no Mapa</button>
+            </div>
+          </div>
+        `;
+        const area = document.getElementById('deliveryDetailArea');
+        area.innerHTML = html;
+        area.scrollIntoView({ behavior:'smooth' });
+    };
+
+    function renderUsers(){
+        removeMapIfExists();
+        dom.contentArea.innerHTML = `<h2>👥 Gerenciamento de Usuários</h2>
+          <div class="card">
+            <button class="btn-primary" onclick="window.editUser(null)">+ Novo Usuário</button>
+            <div id="userList" style="margin-top:12px">${users.map(u => `
+              <div class="delivery-item" style="align-items:center">
+                <div style="width:40px;text-align:center">${u.username[0].toUpperCase()}</div>
+                <div class="grow"><div style="font-weight:700">${u.username}</div><div class="small-muted">${u.role}</div></div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn-secondary" onclick="window.editUser('${u.id}')">Editar</button>
+                  ${u.id !== currentUser.id ? `<button class="btn-secondary" onclick="window.deleteUser('${u.id}')">Excluir</button>` : ''}
+                </div>
+              </div>`).join('')}</div>
+          </div>`;
+    }
+
+    function renderRoutes(){
+        removeMapIfExists();
+        dom.contentArea.innerHTML = `<h2>🧭 Otimizar Rotas</h2><div class="card"><p class="small-muted">Gerando uma simulação com seus últimos pontos...</p><div id="routeMapObj" style="height:60vh;"></div></div>`;
+        setTimeout(() => {
+            const deliveryPoints = scanRecords.map(r=>({lat: r.lat||CD_LOCATION.lat, lon: r.lon||CD_LOCATION.lon, id: r.tracking}));
+            if (deliveryPoints.length < 2) { document.getElementById('routeMapObj').innerHTML = '<p class="small-muted">Escaneie ao menos 2 entregas para simular rota.</p>'; return; }
+            const route = deliveryPoints.slice(0,10).sort(()=>Math.random()-0.5);
+            // create map for route
+            // remove previous map if any at that container
+            try { if (mapInstance && document.getElementById('routeMapObj')) { mapInstance.remove(); mapInstance = null; } } catch(e){ console.warn(e); }
+            mapInstance = L.map('routeMapObj').setView([route[0].lat, route[0].lon], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
+            const routePoints = route.map((p,i) => {
+                L.marker([p.lat,p.lon]).addTo(mapInstance).bindPopup(`<b>Ponto ${i+1}</b><br>${p.id}`);
+                return [p.lat,p.lon];
+            });
+            if (routePoints.length>1) {
+                L.polyline(routePoints,{color:'#22c55e', weight:5}).addTo(mapInstance);
+                mapInstance.fitBounds(L.polyline(routePoints).getBounds());
+            }
+        },120);
+    }
+
+    /* --- MAPA (PATCH aplicado) ---
+       - centraliza todas as operações do Leaflet em mapInstance
+       - cria o mapa em #mapObj (fallback #mapid)
+       - z-index e position controlados via CSS no HTML
+    */
+
+    // agrupamento de marcadores das entregas
+    let layerGroupEntregas = L.layerGroup();
+
+    // ícones (reaproveitei seus ícones do snippet enviado)
+    const IconeEntrega = {
+        'Pendente': L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] }),
+        'Em Rota': L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] }),
+        'Entregue': L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] }),
+        'Cancelada': L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] }),
+    };
+    const IconeEntregador = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png',
+        iconSize: [25,41], iconAnchor: [12,41], popupAnchor:[1,-34]
+    });
+
+    const DEPOSITO_LAT_LNG = L.latLng(CD_LOCATION.lat, CD_LOCATION.lon);
+    var marcadoresEntregadores = {}; // motoristas em mapa
+
+    // inicializa o mapa no container correto; garante remoção antes
+    function inicializarMapa() {
+        // escolha do container: prefer #mapObj (HTML que enviei) — fallback para #mapid
+        const containerId = document.getElementById('mapObj') ? 'mapObj' : (document.getElementById('mapid') ? 'mapid' : null);
+        if (!containerId) {
+            console.warn("Nenhum container de mapa (#mapObj ou #mapid) encontrado no DOM.");
+            return false;
+        }
+
+        // remove instância anterior, se existir (evita mapa "sobrepondo")
+        if (mapInstance) {
+            try { mapInstance.remove(); } catch (e) { console.warn('Erro removendo mapInstance anterior', e); }
+            mapInstance = null;
+            locationMarker = null;
+        }
+
+        // cria e configura o mapa no container selecionado
+        try {
+            mapInstance = L.map(containerId).setView([CD_LOCATION.lat, CD_LOCATION.lon], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
+
+            // garante que o layerGroup esteja definido e adicionado
+            layerGroupEntregas = L.layerGroup().addTo(mapInstance);
+
+            // force redraw para corrigir problema comum quando o mapa é renderizado dentro de um container invisível
+            setTimeout(() => {
+                try { mapInstance.invalidateSize(); } catch(e) { /* ignore */ }
+            }, 200);
+
+            return true;
+        } catch(e) {
+            console.error("Erro ao inicializar o Leaflet:", e);
+            return false;
+        }
+    }
+
+    // renderiza marcadores no layerGroupEntregas
+    function renderizarMarcadores(entregasFiltradas) {
+        // garante mapa inicializado
+        if (!mapInstance) {
+            const ok = inicializarMapa();
+            if (!ok) return;
+        }
+
+        layerGroupEntregas.clearLayers();
+
+        entregasFiltradas.forEach(entrega => {
+            const lat = entrega.latitude || entrega.lat || CD_LOCATION.lat;
+            const lon = entrega.longitude || entrega.lon || CD_LOCATION.lon;
+            const status = entrega.status || 'Pendente';
+            if (lat && lon) {
+                const ico = IconeEntrega[status] || IconeEntrega['Pendente'];
+                const marker = L.marker([lat, lon], { icon: ico });
+                marker.bindPopup(criarPopupContent(entrega));
+                layerGroupEntregas.addLayer(marker);
+            }
+        });
+
+        // ajusta bounds se houver marcadores
+        const layers = layerGroupEntregas.getLayers();
+        if (layers.length > 0) {
+            const bounds = layerGroupEntregas.getBounds();
+            if (bounds.isValid()) {
+                mapInstance.fitBounds(bounds, { padding: [50,50] });
+            }
+        } else {
+            // se não houver marcadores, centraliza no depósito
+            mapInstance.setView([CD_LOCATION.lat, CD_LOCATION.lon], 13);
+        }
+    }
+
+    // aplica filtros (usa dadosEntregasOriginais se disponível)
+    function aplicarFiltros() {
+        const statusSelecionado = document.getElementById('filtroStatus')?.value || 'Todos';
+        const motoristaSelecionado = document.getElementById('filtroMotorista')?.value || 'Todos';
+        const dataMinima = document.getElementById('filtroData')?.value;
+
+        let entregasFiltradas = dadosEntregasOriginais || [];
+
+        if (statusSelecionado !== 'Todos') {
+            entregasFiltradas = entregasFiltradas.filter(e => e.status === statusSelecionado);
+        }
+
+        if (motoristaSelecionado !== 'Todos') {
+            entregasFiltradas = entregasFiltradas.filter(e => String(e.motorista_id) === motoristaSelecionado);
+        }
+        
+        if (dataMinima) {
+            const dataFiltro = new Date(dataMinima);
+            entregasFiltradas = entregasFiltradas.filter(e => {
+                if (e.previsao_entrega) {
+                    const dataEntrega = new Date(e.previsao_entrega.substring(0, 10)); 
+                    return dataEntrega >= dataFiltro;
+                }
+                return false;
+            });
+        }
+        
+        renderizarMarcadores(entregasFiltradas);
+    }
+
+    async function atualizarPosicoesEntregadores() {
+        const ENDPOINT_POSICOES = '/api/entregadores/posicoes';
+        try {
+            const response = await fetch(ENDPOINT_POSICOES);
+            if (!response.ok) return;
+            const posicoes = await response.json();
+
+            posicoes.forEach(entregador => {
+                const { motorista_id, latitude, longitude, nome, ultima_atualizacao } = entregador;
+                if (!latitude || !longitude) return;
+                const posicao = L.latLng(latitude, longitude);
+                
+                if (marcadoresEntregadores[motorista_id]) {
+                    marcadoresEntregadores[motorista_id].setLatLng(posicao);
+                    const popupContent = `<b>${nome}</b><br>Posição: ${new Date(ultima_atualizacao).toLocaleTimeString()}`;
+                    marcadoresEntregadores[motorista_id].setPopupContent(popupContent);
+
                 } else {
-                    Utils.showFeedback(`Registro Manual ${record.id} Cancelado!`, Utils.varCss('--danger'));
+                    const popupContent = `<b>${nome}</b><br>Posição: ${new Date(ultima_atualizacao).toLocaleTimeString()}`;
+                    const novoMarker = L.marker(posicao, { icon: IconeEntregador })
+                                        .bindPopup(popupContent)
+                                        .addTo(mapInstance);
+                    marcadoresEntregadores[motorista_id] = novoMarker;
                 }
-                dom.manualInputContainer.style.opacity = '0';
-                dom.manualInputContainer.style.pointerEvents = 'none';
             });
-        },
-        
-        handleMarkAsDelivered: function(recordId) {
-            const record = DeliveryStore.getDeliveryById(recordId); 
             
-            if (!record) { 
-                Swal.fire({ icon: 'error', title: 'Erro', text: 'Registro não encontrado.' });
+        } catch (error) {
+            console.error("Erro ao rastrear entregadores:", error);
+        }
+    }
+
+    function desenharRota(lat, lng) {
+        // Se usar L.Routing, certifique-se de incluir o plugin no HTML
+        if (!mapInstance) inicializarMapa();
+        if (!mapInstance) return;
+
+        // remove qualquer routingControl previamente adicionado (se existir)
+        if (window._routingControlInstance) {
+            try { window._routingControlInstance.remove(); } catch(e){/*ignore*/}
+            window._routingControlInstance = null;
+        }
+
+        if (typeof L.Routing === 'undefined') {
+            alert('Plugin de roteamento não disponível. Inclua leaflet-routing-machine se quiser usar rotas.');
+            return;
+        }
+
+        const destino = L.latLng(lat, lng);
+        const ctrl = L.Routing.control({
+            waypoints: [DEPOSITO_LAT_LNG, destino],
+            routeWhileDragging: false,
+            show: true,
+            language: 'pt',
+            autoRoute: true,
+            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+            lineOptions: {
+                styles: [
+                    {color: 'black', opacity: 0.15, weight: 9},
+                    {color: 'white', opacity: 0.8, weight: 6},
+                    {color: '#007bff', opacity: 1, weight: 3}
+                ]
+            }
+        }).addTo(mapInstance);
+
+        window._routingControlInstance = ctrl;
+
+        ctrl.on('routesfound', function(e) {
+            const routes = e.routes;
+            if (routes.length > 0) {
+                const bounds = routes[0].coordinates.reduce((a, b) => a.extend(b), L.latLngBounds());
+                mapInstance.fitBounds(bounds, { padding: [50, 50] });
+            }
+        });
+    }
+
+    // cria conteúdo de popup (reaproveitado)
+    function criarPopupContent(entrega) {
+        const { id, status, endereco, nome_cliente, latitude, longitude } = entrega;
+        return `
+            <div style="min-width: 180px;">
+                <center><b>Entrega #${id} - ${status}</b></center>
+                <hr style="margin: 5px 0;">
+                <b>Cliente:</b> ${nome_cliente||''}<br>
+                <b>Endereço:</b> ${endereco||''}<br>
+                
+                <hr style="margin: 5px 0;">
+                <button onclick="abrirDetalhesEntrega(${id})" 
+                        style="width: 100%; margin-bottom: 5px; padding: 5px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Atualizar Status
+                </button>
+                <button onclick="abrirComprovativoCamera(${id})" 
+                        style="width: 100%; margin-bottom: 5px; padding: 5px; background-color: #ffc107; color: black; border: none; border-radius: 4px; cursor: pointer;">
+                    Comprovativo / QR Code
+                </button>
+                <button onclick="desenharRota(${latitude || CD_LOCATION.lat}, ${longitude || CD_LOCATION.lon})" 
+                        style="width: 100%; padding: 5px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    Mostrar Rota
+                </button>
+            </div>
+        `;
+    }
+
+    function abrirComprovativoCamera(entregaId) {
+        // Se for usar html5-qrcode, inclua a lib no HTML e adapte aqui.
+        const cameraHtml = `<div id="reader" style="width:100%; height: 300px;"></div>`;
+        
+        if (typeof Swal === 'undefined') {
+            alert('Abra o modal de comprovativo (Swal não encontrado).');
+            return;
+        }
+
+        Swal.fire({
+            title: `Comprovativo Entrega #${entregaId}`,
+            html: cameraHtml,
+            showCancelButton: true,
+            showConfirmButton: false,
+            didOpen: () => {
+                if (typeof Html5Qrcode !== 'undefined') {
+                    iniciarQrCodeScanner(entregaId); 
+                } else {
+                    console.warn('Html5Qrcode não encontrado — inclua a biblioteca para usar scanner neste modal.');
+                }
+            },
+            willClose: () => {
+                if (window.qrCodeScanner) {
+                    try { window.qrCodeScanner.clear(); } catch(err){ console.warn(err); }
+                }
+            }
+        });
+    }
+
+    function iniciarQrCodeScanner(entregaId) {
+        if (typeof Html5Qrcode === 'undefined') {
+            Swal.showValidationMessage('Html5Qrcode não está carregado.');
+            return;
+        }
+
+        const html5QrCode = new Html5Qrcode("reader");
+        window.qrCodeScanner = html5QrCode;
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        html5QrCode.start({ facingMode: "environment" }, config,
+            (decodedText, decodedResult) => {
+                html5QrCode.stop().then(() => {
+                    Swal.fire({
+                        title: 'QR Code Lido!',
+                        text: `Código: ${decodedText}. Deseja anexar como comprovativo?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Anexar'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            enviarComprovativoAPI(entregaId, decodedText, 'QR_CODE');
+                        }
+                    });
+                });
+            },
+            (errorMessage) => { /* Ignorar erros de varredura contínua */ }
+        ).catch((err) => {
+            Swal.showValidationMessage(`Erro ao iniciar câmera: ${err}`);
+        });
+    }
+
+    async function enviarComprovativoAPI(id, dado, tipo) {
+        console.log(`Enviando ${tipo} para a Entrega #${id}: ${dado}`);
+
+        try {
+            const response = await fetch(`/api/entregas/${id}/comprovante`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tipo_comprovante: tipo, dado: dado })
+            });
+            
+            if (!response.ok) throw new Error('Falha ao enviar comprovante');
+
+            if (typeof Swal !== 'undefined') Swal.fire('Sucesso!', 'Comprovativo enviado e anexado à entrega.', 'success');
+            else alert('Sucesso! Comprovativo enviado.');
+
+        } catch (error) {
+            console.error("Erro no envio de comprovativo:", error);
+            if (typeof Swal !== 'undefined') Swal.fire('Erro!', 'Não foi possível enviar o comprovativo.', 'error');
+            else alert('Erro ao enviar comprovativo.');
+        }
+    }
+
+    // função para centralizar mapa em um registro
+    window.centerMapToRecord = (tracking) => {
+        const rec = scanRecords.find(r => r.tracking === tracking);
+        if (!rec) return alert('Registro não encontrado');
+        renderMap(); // abre o mapa
+        setTimeout(() => {
+            try {
+                const lat = rec.lat || rec.latitude || CD_LOCATION.lat;
+                const lon = rec.lon || rec.longitude || CD_LOCATION.lon;
+                if (mapInstance) mapInstance.setView([lat, lon], 15);
+            } catch(e){ console.warn(e) }
+        }, 300);
+    };
+
+    // renderMap: cria container #mapObj (está no HTML) e inicializa o mapa
+    function renderMap(){
+        // remove qualquer mapa anterior para evitar sobreposição
+        removeMapIfExists();
+
+        dom.appContainer.style.display = 'grid';
+        dom.cameraView.style.display = 'none';
+        dom.contentArea.style.display = 'block';
+
+        dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()">✕</button><h2>🗺️ Mapa de Entregas</h2></div>
+            <div class="card"><p class="small-muted">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj"></div></div>`;
+
+        // Inicializa mapa com delay pequeno para garantir que o container esteja visível
+        setTimeout(() => {
+            const ok = inicializarMapa();
+            if (!ok) {
+                // falha ao inicializar leaflet
+                dom.contentArea.querySelector('#mapObj').innerHTML = '<p class="small-muted">Falha ao inicializar o mapa.</p>';
                 return;
             }
 
-            if (record.status !== 'pending') {
-                 Swal.fire({
-                    title: 'Entrega Já Confirmada', 
-                    text: `A entrega ${recordId} já foi marcada como ${record.status.toUpperCase()}.`, 
-                    icon: 'info',
-                    confirmButtonText: 'OK'
-                });
-                return;
-            }
+            // adiciona marcadores das entregas (usando scanRecords)
+            // se você quiser usar dadosEntregasOriginais, pode trocar aqui
+            const entregasParaMostrar = scanRecords.map(r => ({
+                id: r.tracking,
+                latitude: r.lat || CD_LOCATION.lat,
+                longitude: r.lon || CD_LOCATION.lon,
+                status: r.type || 'Pendente',
+                nome_cliente: r.cliente || '',
+                endereco: r.endereco || ''
+            }));
+            renderizarMarcadores(entregasParaMostrar);
 
-            Swal.fire({
-                title: `Recebedor da Entrega ${recordId}`, 
-                input: 'text', 
-                inputLabel: 'Nome completo do recebedor:',
-                inputPlaceholder: 'Digite o nome aqui', 
-                showCancelButton: true, 
-                confirmButtonText: 'Confirmar Entrega',
-                cancelButtonText: 'Cancelar',
-                inputValidator: (value) => { if (!value) { return 'Você precisa digitar o nome do recebedor!' } }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    DeliveryStore.updateDeliveryStatus(recordId, 'delivered', result.value);
-                    Utils.showDashboardFeedback(`Entrega ${recordId} confirmada!`);
-                    this.navigateTo('dashboard'); 
-                }
-            });
-        },
-        
-        handleRegisterOccurrence: function(recordId) {
-            Swal.fire({
-                title: 'Tipo de Ocorrência',
-                input: 'select',
-                inputOptions: {
-                    'occurrence': 'Ocorrência (Geral)',
-                    'canceled': 'Cancelado',
-                    'refused': 'Recusado pelo Cliente',
-                    'address_error': 'Erro de Endereço',
-                    'other': 'Outro Motivo'
-                },
-                inputPlaceholder: 'Selecione o Status',
-                showCancelButton: true,
-                confirmButtonText: 'Registrar',
-                cancelButtonText: 'Voltar',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return 'Você precisa selecionar um status!';
-                    }
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    const statusType = result.value;
-                    let newStatus;
-                    let recebedor = null; 
-                    
-                    if (statusType === 'canceled') {
-                        newStatus = 'Canceled';
-                    } else {
-                        newStatus = `Occurrence: ${statusType}`;
-                    }
-                    
-                    DeliveryStore.updateDeliveryStatus(recordId, newStatus, recebedor);
-                    Utils.showDashboardFeedback(`Entrega ${recordId} marcada como ${newStatus}.`);
-                    this.navigateTo('dashboard');
-                }
-            });
-        },
+            // atualiza posição do usuário no mapa (se disponível)
+            updateMapLocation();
 
-        handleMultipleDeliverySubmission: function(recordIds) {
-            const form = document.getElementById('multipleDeliveryForm');
-            const allRecordsDelivered = [];
-            let allValid = true;
+        }, 120);
+    }
 
-            recordIds.forEach(recordId => {
-                const recebedorInput = form.querySelector(`#recebedor_${recordId}`);
-                const recebedor = recebedorInput ? recebedorInput.value.trim() : '';
-                
-                if (!recebedor) { 
-                    allValid = false; 
-                    recebedorInput.style.border = '2px solid var(--danger)'; 
-                    recebedorInput.focus(); 
-                    return; 
-                }
-                recebedorInput.style.border = '1px solid #ccc'; 
-                allRecordsDelivered.push({ id: recordId, recebedor: recebedor });
-            });
-            
-            if (allValid) {
-                Swal.fire({
-                    title: 'Confirmar Entregas?',
-                    text: `Você irá confirmar a entrega de ${allRecordsDelivered.length} pacotes.`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sim, Confirmar Todos',
-                    cancelButtonText: 'Voltar e Corrigir'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        let successCount = 0;
-                        allRecordsDelivered.forEach(item => {
-                            const success = DeliveryStore.updateDeliveryStatus(item.id, 'delivered', item.recebedor);
-                            if (success) successCount++;
-                        });
-                        
-                        Utils.showDashboardFeedback(`Baixa simultânea concluída para ${successCount} pacotes!`);
-                        this.navigateTo('dashboard');
-                    }
-                });
-            } else {
-                Swal.fire('Atenção', 'Preencha o nome do recebedor para todos os pacotes antes de finalizar.', 'warning');
-            }
-        },
-        
-        // --- Exportação ---
-        toggleExportOptions: function() {
-            dom.exportOptions.style.display = dom.exportOptions.style.display === 'flex' ? 'none' : 'flex';
-        },
-        
-        handleExport: function(filter) {
-            const allRecords = DeliveryStore.getDeliveries();
-            let filteredRecords = [];
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+    function removeMapIfExists(){
+        if (mapInstance) {
+            try { mapInstance.remove(); } catch(e){ console.warn(e); }
+            mapInstance = null;
+            locationMarker = null;
+            layerGroupEntregas = L.layerGroup();
+        }
+        const elMap = document.getElementById('mapObj');
+        if (elMap) elMap.innerHTML = '';
+        const elRoute = document.getElementById('routeMapObj');
+        if (elRoute) elRoute.innerHTML = '';
+    }
 
-            if (filter === 'daily') {
-                filteredRecords = allRecords.filter(r => new Date(r.date) >= today);
-            } else if (filter === 'weekly') {
-                const oneWeekAgo = new Date(today);
-                oneWeekAgo.setDate(today.getDate() - 7);
-                filteredRecords = allRecords.filter(r => new Date(r.date) >= oneWeekAgo);
-            } else if (filter === 'monthly') {
-                const oneMonthAgo = new Date(today);
-                oneMonthAgo.setMonth(today.getMonth() - 1);
-                filteredRecords = allRecords.filter(r => new Date(r.date) >= oneMonthAgo);
-            } else {
-                filteredRecords = allRecords;
-            }
+    function updateMapLocation(){
+        if (!mapInstance) return;
+        const lat = userLocation ? userLocation.lat : CD_LOCATION.lat;
+        const lon = userLocation ? userLocation.lon : CD_LOCATION.lon;
+        const currentLocEl = document.getElementById('currentLoc');
+        if (currentLocEl) currentLocEl.textContent = `(${lat.toFixed(6)}, ${lon.toFixed(6)})`;
+        if (locationMarker) {
+            locationMarker.setLatLng([lat, lon]);
+        } else {
+            locationMarker = L.marker([lat, lon], {
+                icon: L.divIcon({ className:'current-location-marker', html:'<div style="background:#ef4444;border:3px solid white;border-radius:50%;width:18px;height:18px"></div>' })
+            }).addTo(mapInstance).bindPopup('Sua Localização Atual');
+        }
+    }
 
-            if(!filteredRecords.length) return Swal.fire('Aviso', `Nenhum dado encontrado para o filtro: ${filter}.`, 'warning');
-            
-            let csv = 'ID,TIPO,DATA,HORA,USUARIO,LAT,LON,RAW,STATUS,NOME_CLIENTE,ENDERECO_CLIENTE,TELEFONE_CLIENTE,RECEBEDOR\n'; 
-            filteredRecords.forEach(r => {
-                const scanDate = new Date(r.date);
-                const dateStr = scanDate.toLocaleDateString('pt-BR');
-                const timeStr = scanDate.toLocaleTimeString('pt-BR');
-                const escape = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
-                
-                csv += `${r.id},${r.type},${dateStr},${timeStr},${r.user},${r.lat.toFixed(6)},${r.lon.toFixed(6)},${escape(r.raw)},${r.status || 'pending'},${escape(r.clientName)},${escape(r.clientAddress)},${escape(r.clientPhone)},${escape(r.receivedBy)}\n`;
-            });
-            
-            const filename = `relatorio_pegazus_${filter}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`;
-            const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
+    /* --- CSV Export (agora usando endereço no lugar de lat/lon) --- */
+    function generateCSV(period='all', userFilter=''){
+        let filtered = [];
+        const today = new Date(); today.setHours(0,0,0,0);
+        if (period === 'daily') filtered = scanRecords.filter(r => new Date(r.date) >= today);
+        else if (period === 'weekly') { const oneWeek = new Date(today); oneWeek.setDate(today.getDate()-7); filtered = scanRecords.filter(r => new Date(r.date) >= oneWeek); }
+        else if (period === 'monthly') { const oneMonth = new Date(today); oneMonth.setMonth(today.getMonth()-1); filtered = scanRecords.filter(r => new Date(r.date) >= oneMonth); }
+        else filtered = scanRecords.slice();
 
-            dom.exportOptions.style.display = 'none';
-            Swal.fire('Sucesso', 'Exportação CSV concluída!', 'success');
-        },
+        if (userFilter) filtered = filtered.filter(r => r.user === userFilter);
 
-        // --- CRUD de Usuários ---
-        handleCreateUser: function(user, pass, role) {
-            const users = DeliveryStore.getUsers();
-            if (users.some(u => u.username === user)) {
-                return { success: false, message: 'Usuário já existe.' };
-            }
-            
-            const newId = 'u' + (users.length + 1);
-            const newUser = { 
-                id: newId, 
-                username: user, 
-                password: pass, 
-                role: role,
-                creatorId: currentUser.id
-            };
+        if (!filtered.length) { return alert('Nenhum dado encontrado para o filtro.'); }
+
+        // CSV columns: DATA,HORA,USUARIO,RASTREAMENTO,CLIENTE,ENDERECO,TELEFONE,TYPE,RAW
+        let csv = 'DATA,HORA,USUARIO,RASTREAMENTO,CLIENTE,ENDERECO,TELEFONE,TIPO,RAW\n';
+        filtered.forEach(r => {
+            const d = new Date(r.date);
+            const dateStr = d.toLocaleDateString('pt-BR');
+            const timeStr = d.toLocaleTimeString('pt-BR');
+            const safe = s => `"${(s||'').toString().replace(/"/g,'""')}"`;
+            csv += `${dateStr},${timeStr},${r.user},${r.tracking},${safe(r.cliente)},${safe(r.endereco)},${safe(r.telefone)},${r.type},${safe(r.raw)}\n`;
+        });
+
+        const filename = `relatorio_pegazus_${period}_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.csv`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+        dom.exportOptions.style.display = 'none';
+    }
+
+    /* --- User CRUD helpers kept in global scope (as in original) --- */
+    window.editUser = (userId) => {
+        const userToEdit = userId ? users.find(u => u.id === userId) : null;
+        if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
+            return alert('Você não tem permissão para editar este usuário.');
+        }
+        const isAdmin = currentUser.role === 'admin';
+        const isSelf = userToEdit && userToEdit.id === currentUser.id;
+        const username = userToEdit ? userToEdit.username : prompt('Usuário:');
+        if (username === null) return;
+        const password = prompt('Senha (deixe em branco para manter):') || (userToEdit ? userToEdit.password : '');
+        const role = isAdmin || isSelf ? prompt('Papel (colaborador/gestor/admin):', (userToEdit?userToEdit.role:'colaborador')) : (userToEdit?userToEdit.role:'colaborador');
+        if (!userId) {
+            const newUser = { id:'u'+Date.now(), username, password, role: (currentUser.role==='gestor' && role!=='colaborador') ? 'colaborador' : role, creatorId: currentUser.id };
             users.push(newUser);
-            DeliveryStore.updateUsers(users);
-            return { success: true, message: `Usuário ${user} criado com sucesso!` };
-        },
-
-        handleUpdateUser: function(id, newUsername, newPassword, newRole) {
-            const users = DeliveryStore.getUsers();
-            const index = users.findIndex(u => u.id === id);
-
-            if (index === -1) {
-                return { success: false, message: 'Usuário não encontrado.' };
-            }
-
-            const user = users[index];
-            if (user.id !== currentUser.id && currentUser.role !== 'admin' && currentUser.role !== 'gestor') {
-                return { success: false, message: 'Sem permissão para editar outros usuários.' };
-            }
-
-            user.username = newUsername;
-            user.password = newPassword || user.password; 
-            user.role = newRole; 
-
-            DeliveryStore.updateUsers(users);
-            return { success: true, message: `Usuário ${user.username} atualizado!` };
-        },
-
-        handleDeleteUser: function(id) {
-            if (currentUser.role !== 'admin') {
-                return { success: false, message: 'Apenas Administradores podem excluir usuários.' };
-            }
-            if (id === currentUser.id) {
-                return { success: false, message: 'Você não pode excluir a si mesmo.' };
-            }
-            
-            const users = DeliveryStore.getUsers().filter(u => u.id !== id);
-            DeliveryStore.updateUsers(users);
-            return { success: true, message: 'Usuário excluído com sucesso.' };
-        },
-    };
-    
-    // As funções Views e Utils teriam que ser definidas aqui ou importadas de outros arquivos
-    // Para fins de demonstração, assumimos que elas existem e definimos o básico aqui.
-
-    const Views = {
-        renderDashboard: function() {
-            // Lógica para renderizar o dashboard
-            dom.contentArea.innerHTML = `<h2>Dashboard</h2><p>Exibindo um resumo das entregas e rotas...</p>`;
-            // ... (código completo de renderização do dashboard aqui)
-        },
-        renderSingleDetails: function(recordId) {
-            // Lógica para renderizar detalhes de uma única entrega
-            dom.contentArea.innerHTML = `<h2>Detalhes da Entrega ${recordId}</h2><p>Informações detalhadas...</p>`;
-        },
-        renderMultipleDeliveryForm: function(records) {
-             // Lógica para renderizar o formulário de baixa múltipla
-             dom.contentArea.innerHTML = `<h2>Baixa Múltipla</h2><p>Formulário para baixa simultânea...</p>`;
-        },
-        renderUsers: function() {
-             // Lógica para renderizar a gestão de usuários
-             dom.contentArea.innerHTML = `<h2>Gestão de Usuários</h2><p>Tabela de usuários e formulário de cadastro...</p>`;
-        },
-        renderMap: function() {
-             // Lógica para renderizar o mapa
-             dom.contentArea.innerHTML = `<div id="map-content"><div id="map" style="height: 100%;"></div></div>`;
-             // Lógica de inicialização do Leaflet aqui...
-        },
-        renderRoutes: function() {
-             // Lógica para renderizar rotas
-             dom.contentArea.innerHTML = `<h2>Otimização de Rotas</h2><p>Visualização e cálculo de rotas...</p>`;
-        },
-        updateMapLocation: function() {
-             // Lógica para atualizar a posição no mapa
-             if (mapInstance && userLocation && locationMarker) {
-                 locationMarker.setLatLng([userLocation.lat, userLocation.lon]);
-             }
+        } else {
+            const idx = users.findIndex(u=>u.id===userId);
+            if (idx>=0){ users[idx].password = password || users[idx].password; if (isAdmin || isSelf) users[idx].role = role; }
         }
+        saveUsers(); renderUsers();
+    };
+    window.deleteUser = (userId) => {
+        if (userId === currentUser.id) return alert('Você não pode excluir seu próprio perfil enquanto logado.');
+        if (!confirm('Excluir usuário?')) return;
+        users = users.filter(u => u.id !== userId); saveUsers(); renderUsers();
     };
 
-    const Utils = {
-        beep: function() {
-            // Simula um som de beep
-             console.log('BEEP!');
-        },
-        showFeedback: function(msg, color) {
-            dom.feedback.textContent = msg;
-            dom.feedback.style.backgroundColor = color;
-            dom.feedback.style.opacity = '1';
-            setTimeout(() => { dom.feedback.style.opacity = '0'; }, 3000);
-        },
-        showDashboardFeedback: function(msg) {
-             const fb = document.getElementById('dashboardFeedback');
-             fb.textContent = msg;
-             fb.classList.remove('hidden');
-             fb.classList.add('show');
-             setTimeout(() => { fb.classList.remove('show'); fb.classList.add('hidden'); }, 4000);
-        },
-        varCss: function(name) {
-             // Obtém o valor de uma variável CSS
-             return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-        },
-        parsePayload: function(data, location, user) {
-             // Simulação de parsing e enriquecimento de dados
-             const idPart = data.substring(0, 10);
-             const randomId = idPart + Math.random().toString(36).substring(2, 6);
-             return {
-                 id: randomId,
-                 raw: data,
-                 user: user ? user.username : 'unknown',
-                 date: Date.now(),
-                 lat: location ? location.lat : CD_LOCATION.lat,
-                 lon: location ? location.lon : CD_LOCATION.lon,
-                 status: 'pending',
-                 // Dados simulados baseados no ID
-                 clientName: `Cliente ${randomId.slice(-4)}`,
-                 clientAddress: `Rua Simulação ${parseInt(randomId, 36) % 100}`,
-                 clientPhone: `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
-                 type: 'Package'
-             };
-        }
-    };
+    /* --- Inicialização final --- */
+    enumerateDevices();
+    // show empty dashboard by default (if logged in)
+    if (currentUser) renderDashboard();
 
-    // Inicializa a aplicação
-    AppController.init();
-    // Por padrão, a tela de login é a primeira a aparecer.
-    // O AppController.handleLogin() se encarregará de chamar AppController.navigateTo('dashboard');
+    // Exports for some helper functions to global scope for buttons from HTML
+    window.renderDashboard = renderDashboard;
+    window.renderDeliveries = renderDeliveries;
+    window.renderMap = renderMap;
+    window.renderRoutes = renderRoutes;
+    window.renderUsers = renderUsers;
+    window.generateCSV = generateCSV;
+    window.lookupShipment = lookupShipment;
 });
