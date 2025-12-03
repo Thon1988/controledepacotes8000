@@ -1,543 +1,211 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pegazus Scanner (Logística)</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20n6n9f+e46C383x29x5e7C584a3b7C584a3b7" crossorigin=""></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p60rM96R8+eE2+d5A47C584a3b7" crossorigin=""/>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsqr.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>PegazusLog — Scanner Integrado</title>
 
-    <style>
-        :root {
-            --primary: #3498db;
-            --accent: #2ecc71;
-            --danger: #e74c3c;
-            --background-light: #ecf0f1;
-            --sidebar-bg: #2c3e50;
-            --content-text-dark: #34495e;
-            --modal-bg: #fefefe;
-        }
-        
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--background-light);
-            color: var(--content-text-dark);
-            overflow-x: hidden;
-        }
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <!-- se usar routing (osrm) e html5-qrcode, carregue-os também quando precisar -->
 
-        /* Menu Lateral Fixo Esquerdo (Novo da Imagem) */
-        #left-menu {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 60px; /* Largura estreita */
-            height: 100vh;
-            background-color: var(--sidebar-bg); /* Cor escura do menu */
-            padding-top: 50px;
-            z-index: 101;
-            box-shadow: 3px 0 5px rgba(0,0,0,0.2);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+  <!-- app.js (separado) -->
+  <script src="app.js" defer></script>
 
-        .left-menu-item {
-            display: block;
-            width: 100%;
-            text-align: center;
-            padding: 15px 0;
-            color: #ecf0f1;
-            text-decoration: none;
-            font-size: 10px;
-            line-height: 1.2;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .left-menu-item:hover, .left-menu-item.active {
-            background-color: #34495e;
-        }
-        
-        .left-menu-item.hidden { display: none; }
+  <style>
+    /* --- (mantive e expandi seu CSS) --- */
+    :root{
+      --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
+      --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
+      --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
+      --radius:25px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
 
-        /* Container Principal da Aplicação */
-        .app {
-            display: grid;
-            /* 60px (menu fixo) + 392px (sidebar principal) = 452px */
-            grid-template-columns: 452px 1fr;
-            min-height: 100vh;
-            padding-left: 0; /* O deslocamento é feito pelo grid, mas mantemos o padding 0 */
-        }
-        
-        .app.hidden { display: none; }
+    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+    body{
+      margin:0; background:linear-gradient(180deg,var(--bg) 0%, #000 100%); color:var(--content-text-dark);
+      min-height:100vh; display:flex; justify-content:center; align-items:center;
+      font-size:14px;
+    }
 
-        /* Sidebar Principal (Menu de Navegação do JS) */
-        #sidebar {
-            position: fixed;
-            top: 0;
-            left: 60px; /* Posiciona a sidebar principal após o novo menu fixo */
-            width: 392px; /* 452px - 60px */
-            height: 100vh;
-            background-color: #f8f8f8;
-            padding: 20px;
-            box-sizing: border-box;
-            overflow-y: auto;
-            z-index: 100;
-            transition: transform 0.3s ease;
-            box-shadow: 3px 0 5px rgba(0,0,0,0.1);
-        }
+    .app{
+      display:grid; grid-template-columns:392px 1fr; width:100vw; height:100vh; background:var(--content-bg-light);
+      max-width:100%; max-height:100%; overflow:hidden;
+    }
 
-        #sidebar.hidden {
-            /* Se a sidebar principal estiver oculta, o container do app ajusta o grid */
-            transform: translateX(-392px);
-            left: 60px; /* Mantém a posição original */
-        }
+    /* Sidebar deve ficar sempre acima do mapa */
+    .sidebar{
+      background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
+      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:60; /* z-index alto */
+    }
+    .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
+    .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
+    .menu-item:hover{ background:rgba(56,189,248,0.08); color:var(--accent);}
+    .menu-item.active{ background:var(--accent); color:var(--panel); font-weight:700;}
 
-        /* Área de Conteúdo Principal */
-        #contentArea {
-            grid-column: 2 / 3;
-            padding: 20px;
-            padding-left: 472px; /* Ajusta o padding para compensar a sidebar e o menu fixo */
-            width: 100%;
-            box-sizing: border-box;
-            transition: padding-left 0.3s ease;
-        }
+    .sidebar-footer{ margin-top:auto; padding-top:15px; border-top:1px solid rgba(255,255,255,0.06); }
+    .user-info{ font-size:14px; color:var(--muted); }
+    .user-info strong{ color:var(--text); font-weight:600; }
 
-        /* Ajuste do conteúdo quando a sidebar está oculta */
-        .app[style*="grid-template-columns: 60px 1fr;"] #contentArea {
-            padding-left: 80px; /* 60px + 20px de padding */
-        }
+    .main{ padding:24px; overflow-y:auto; height:100%; position:relative; }
+    .main h2{ margin-top:0; color:var(--content-text-dark); }
+    .user-form-card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
 
-        /* Login Section */
-        #loginSection {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
+    .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
+    .btn-primary:hover{ background:var(--accent-dark); }
+    .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
 
-        .login-box {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            width: 300px;
-            text-align: center;
-        }
-        
-        .login-box input, .login-box button {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        
-        .login-box button {
-            background-color: var(--primary);
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
+    /* camera view */
+    #cameraView{ position:fixed; inset:0; background:black; display:none; justify-content:center; align-items:center; z-index:1000; }
+    #videoElement{ width:100%; height:100%; object-fit:cover; }
+    .scan-overlay{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90vmin; height:90vmin; max-width:420px; max-height:420px; border:4px solid rgba(255,255,255,0.5); border-radius:15px; z-index:1001; transition:border-color .3s; }
+    #feedbackMsg{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--content-text-dark); padding:10px 20px; border-radius:10px; z-index:1002; opacity:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-        /* Camera View (Scanner) */
-        #cameraView {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background-color: black;
-            z-index: 200;
-        }
-        
-        #videoElement {
-            max-width: 100%;
-            max-height: 100%;
-            transform: scaleX(-1); /* Inverte a imagem da câmera se necessário */
-        }
-        
-        #scan-focus {
-            position: absolute;
-            width: 70vw; 
-            height: 70vw;
-            max-width: 300px;
-            max-height: 300px;
-            border: 2px solid var(--accent);
-            z-index: 201;
-            box-sizing: border-box;
-            pointer-events: none; 
-            box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4); 
-        }
+    .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
+    .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
+    .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
 
-        /* Feedback Flutuante */
-        #feedbackMsg {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background-color: var(--primary);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            z-index: 300;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
+    #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
 
-        #dashboardFeedback {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--primary);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            z-index: 100;
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
-        #dashboardFeedback.show { opacity: 1; }
+    /* export options */
+    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:30; min-width:220px; }
+    #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
 
-        /* Modal de Configuração de Câmera/Filtros (Referência da Imagem) */
-        .modal {
-            display: none; /* Escondido por padrão */
-            position: fixed;
-            z-index: 200;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4); /* Fundo semi-transparente */
-            justify-content: center;
-            align-items: center;
-        }
+    /* deliveries list */
+    .deliveries-list{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
+    .delivery-item{ display:flex; gap:12px; align-items:flex-start; background:var(--content-card-bg); padding:12px; border-radius:10px; border-left:4px solid var(--accent); }
+    .delivery-id{ font-weight:700; }
+    .delivery-meta{ font-size:12px; color:#6b7280; margin-top:6px; }
 
-        .modal-content {
-            background-color: var(--modal-bg);
-            padding: 20px;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            border-top: 5px solid var(--primary);
-        }
+    /* header for content with X */
+    .view-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+    .close-btn{ background:transparent; border:none; font-size:20px; cursor:pointer; padding:6px; }
 
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background-color: var(--primary);
-            color: white;
-            margin: -20px -20px 15px -20px;
-            padding: 15px 20px;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
+    /* modal manual input */
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
+    .modal{ background:white; padding:16px; border-radius:12px; width:90%; max-width:420px; }
+    .modal h3{ margin:0 0 8px 0; }
+    .modal input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
 
-        .modal-header h2 { margin: 0; font-size: 1.2em;}
+    /* --- PATCH MAPA: ajuste de z-index / container --- */
+    /* garante que o leaflet fique abaixo da sidebar */
+    #mapObj {
+      position: relative;
+      z-index: 1; /* baixo -> sidebar com z-index:60 fica acima */
+      height: 60vh; /* mesmo valor que você já usava no código JS */
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    /* força a camada do Leaflet a ficar com z-index baixo */
+    .leaflet-container {
+      z-index: 1 !important;
+    }
 
-        .close-btn {
-            color: white;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 1;
-        }
-        
-        .modal-field-group { margin-bottom: 15px; }
-        
-        .modal-field-group label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #555;
-            font-size: 0.9em;
-        }
-
-        .modal-field-group select, .modal-field-group input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 1em;
-        }
-
-        .modal-button-group button {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 8px;
-            border: none;
-            border-radius: 4px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-
-        /* Cores baseadas na imagem para os botões da modal */
-        #abrirCameraParaComprovante { background-color: var(--primary); }
-        #AptsaischanComprovante { background-color: #4CAF50; } /* Verde - Ações de sucesso */
-        #AfssranRota { background-color: #2196F3; } /* Azul claro */
-        #MesranRota { background-color: #673AB7; } /* Roxo */
-        #CararIagas { background-color: #FF9800; } /* Laranja */
-
-        /* Mobile Adjustments */
-        #mobileMenuBtn {
-            position: fixed;
-            top: 10px;
-            left: 70px; /* Afastado do novo menu fixo */
-            z-index: 102;
-            padding: 10px;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        @media (max-width: 768px) {
-            .app {
-                grid-template-columns: 1fr;
-            }
-            
-            #left-menu {
-                width: 50px; /* Um pouco menor no mobile */
-            }
-
-            #sidebar {
-                transform: translateX(-100%);
-                left: 50px; /* Posiciona no novo menu fixo */
-                width: calc(100% - 50px);
-                box-shadow: 5px 0 10px rgba(0,0,0,0.3);
-            }
-            
-            #sidebar.active {
-                transform: translateX(0);
-            }
-
-            #contentArea {
-                padding: 20px;
-                grid-column: 1 / 2; 
-            }
-            
-            #mobileMenuBtn {
-                display: block;
-            }
-            
-            .left-menu-item { font-size: 9px; padding: 10px 0; }
-        }
-    </style>
+    @media(max-width:900px){
+      .app{ grid-template-columns:1fr; }
+      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:80; }
+      .sidebar.active{ transform:translateX(0); }
+      .main{ padding:16px; }
+      .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
+      .camera-controls .left{ gap:6px; }
+    }
+  </style>
 </head>
 <body>
-    
-    <nav id="left-menu">
-        <a href="#" class="left-menu-item" title="Ounbod">
-            <span style="font-size: 18px;">🏠</span>
-            Ounbod
-        </a>
-        <a href="#" class="left-menu-item" title="Fip Ailes">
-            <span style="font-size: 18px;">📋</span>
-            Fip Ailes
-        </a>
-        <a href="#" class="left-menu-item active" id="btnComar">
-            <span style="font-size: 18px;">📸</span>
-            Comãr
-        </a>
-        <a href="#" class="left-menu-item" title="Flip">
-            <span style="font-size: 18px;">🔄</span>
-            Flip
-        </a>
-        <a href="#" class="left-menu-item" title="Mosmmaes">
-            <span style="font-size: 18px;">📝</span>
-            Mosmmaes
-        </a>
-        <a href="#" class="left-menu-item" title="Steormias">
-            <span style="font-size: 18px;">⚙️</span>
-            Steormias
-        </a>
-        <a href="#" class="left-menu-item" title="Oolcolleticts">
-            <span style="font-size: 18px;">📦</span>
-            Oolcolleticts
-        </a>
-        <a href="#" class="left-menu-item" title="Nor So">
-            <span style="font-size: 18px;">📍</span>
-            Nor So
-        </a>
-        <a href="#" class="left-menu-item" title="Norlaga">
-            <span style="font-size: 18px;">🗺️</span>
-            Norlaga
-        </a>
-        <a href="#" class="left-menu-item" title="Mateapas">
-            <span style="font-size: 18px;">🔗</span>
-            Mateapas
-        </a>
-        <a href="#" class="left-menu-item" title="Noorrâs">
-            <span style="font-size: 18px;">🔔</span>
-            Noorrâs
-        </a>
-    </nav>
 
-    <button id="mobileMenuBtn" class="hidden">☰</button>
+  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
-    <section id="loginSection">
-        <div class="login-box">
-            <h2>Pegazus Login</h2>
-            <input type="text" id="loginUser" placeholder="Usuário (ex: thon)" required>
-            <input type="password" id="loginPass" placeholder="Senha (ex: 882010)" required>
-            <button id="btnLogin">Entrar</button>
-            <p id="loginError" style="color: var(--danger); font-size: 0.9em;"></p>
-        </div>
-    </section>
-
-    <div class="app hidden" id="appContainer">
-        
-        <aside id="sidebar">
-             <div class="sidebar-header">
-                <h3>Captura de Foto/ QR Code</h3>
-                <span id="displayUser" style="font-size: 0.8em;"></span>
-            </div>
-
-            <nav id="menuSection">
-                <button class="menu-item active" id="btnDashboard">Dashboard</button>
-                <button class="menu-item" id="btnScanner">Scanner QR/Câmera</button>
-                <button class="menu-item" id="btnMap">Mapa de Entregas</button>
-                <button class="menu-item" id="btnRoutes">Rotas Otimizadas</button>
-            </nav>
-
-            <div id="adminMenuOptions" class="hidden" style="margin-top: 20px;">
-                <hr>
-                <h4>Admin/Gestor</h4>
-                <button class="menu-item" id="btnUsers">Gerenciar Usuários</button>
-                <div class="export-container" style="position: relative;">
-                    <button class="menu-item" id="btnExport">Exportar Dados (CSV)</button>
-                    <div id="exportOptions" style="display: none; flex-direction: column; padding: 10px; border: 1px solid #ddd; border-top: none; position: absolute; background: white; z-index: 99; width: calc(100% - 20px);">
-                        <button id="btnExportDaily" style="padding: 5px; margin-bottom: 5px;">Dia</button>
-                        <button id="btnExportWeekly" style="padding: 5px; margin-bottom: 5px;">Semana</button>
-                        <button id="btnExportMonthly" style="padding: 5px; margin-bottom: 5px;">Mês</button>
-                        <button id="btnExportAll" style="padding: 5px;">Tudo</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="margin-top: 20px;">
-                <button id="btnLogout" style="background-color: var(--danger); color: white; padding: 10px; width: 100%; border: none; border-radius: 4px; cursor: pointer;">Sair</button>
-            </div>
-            
-            <div id="manualInputContainer" style="margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 4px; background: #fff; opacity: 0; transition: opacity 0.3s; pointer-events: none;">
-                <h5>Entrada Manual</h5>
-                <input type="text" id="manualDeliveryId" placeholder="ID da Entrega" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px;">
-                <button id="btnManualConfirm" style="width: 100%; padding: 8px; background-color: var(--accent); color: white; border: none; border-radius: 4px;">Confirmar ID</button>
-            </div>
-            <button id="btnToggleManualInput" style="margin-top: 10px; padding: 5px 10px; background-color: #f39c12; color: white; border: none; border-radius: 4px; width: 100%;">ID Manual</button>
-
-        </aside>
-
-        <main id="contentArea">
-            <div style="text-align:center;margin-top:20vh;opacity:0.5; color:var(--content-text-dark)">
-                <h2>Bem-vindo ao Pegazus!</h2>
-                <p>Navegue pelo menu lateral.</p>
-            </div>
-        </main>
-        
-        <div id="dashboardFeedback" class="hidden">Mensagem de Sucesso!</div>
+  <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
+    <div class="login-card" style="width:92%;max-width:420px;">
+      <h1 style="margin:0 0 18px 0; color:var(--accent)">PegazusLog</h1>
+      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
+      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
+      <button id="btnLogin" class="btn-primary" style="width:100%; margin-top:8px;">Entrar</button>
+      <p id="loginError" style="margin-top:8px;color:var(--danger)"></p>
     </div>
-    
-    <section id="cameraView">
-        <video id="videoElement" style="width: 100%; height: 100%; object-fit: cover;"></video>
-        <div id="scan-focus"></div>
-        <select id="cameraSelect" style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 202;"></select>
-    </section>
+  </section>
 
-    <div id="feedbackMsg"></div>
+  <div class="app hidden">
+    <aside id="sidebar" class="sidebar" aria-hidden="false">
+      <div class="logo">📦 <span style="margin-left:6px">PegazusLog</span></div>
 
-    <div id="cameraModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Câmera Modal</h2>
-                <span class="close-btn">&times;</span>
-            </div>
+      <div id="menuSection">
+        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
+        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
+        <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
+        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
+        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
 
-            <div class="modal-body">
-                <div class="modal-field-group">
-                    <label for="modal-status">Filtros: Status</label>
-                    <select id="modal-status">
-                        <option>Todos</option>
-                        <option>Pendentes</option>
-                        <option>Entregues</option>
+        <div id="adminMenuOptions" style="margin-top:12px;">
+            <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
+            <div id="btnUsers" class="menu-item">👥 Usuários</div>
+
+            <div class="export-container menu-item" style="align-items:flex-start;">
+                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
+                    ⬇️ Exportar Dados
+                </button>
+                <div id="exportOptions" aria-hidden="true">
+                    <label style="font-size:13px;margin-bottom:6px">Buscar por usuário (login)</label>
+                    <input id="exportUserFilter" placeholder="Digite o login (opcional)"/>
+                    <label style="font-size:13px;margin-bottom:6px">Período</label>
+                    <select id="exportPeriod">
+                      <option value="daily">Últimas 24h</option>
+                      <option value="weekly">Últimos 7 dias</option>
+                      <option value="monthly">Últimos 30 dias</option>
+                      <option value="all">Todos os Dados</option>
                     </select>
-                </div>
-
-                <div class="modal-field-group">
-                    <label for="modal-fatus">Fatus:</label>
-                    <select id="modal-fatus">
-                        <option>Em Rota</option>
-                        <option>No CD</option>
-                        <option>Em Separação</option>
-                    </select>
-                </div>
-
-                <div class="modal-field-group">
-                    <label for="modal-potra">Potra:</label>
-                    <select id="modal-potra">
-                        <option>Entregue</option>
-                        <option>Não Entregue</option>
-                    </select>
-                </div>
-
-                <div class="modal-field-group">
-                    <label for="modal-data">Data:</label>
-                    <input type="text" id="modal-data" placeholder="Data">
-                </div>
-
-                <div class="modal-button-group">
-                    <button id="abrirCameraParaComprovante">abrir Camera Para Comprovante (id)</button>
-                    <button id="AptsaischanComprovante">Aptsaischan Comprovante (id)</button>
-                    <button id="AfssranRota">Afssran Rota (F28e77 / 32.5)</button>
-                    <button id="MesranRota">Mesran Rota (007bi ff (Bf 5)</button>
-                    <button id="CararIagas">Carar Iagas (sians)</button>
+                    <button id="btnGenerateCSV" class="btn-primary" style="width:100%;">Gerar CSV</button>
                 </div>
             </div>
         </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
+        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="contentArea">
+        <!-- Conteúdo dinâmico é injetado aqui -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Camera / Scanner view -->
+  <section id="cameraView">
+    <video id="videoElement" playsinline></video>
+    <div class="scan-overlay" aria-hidden="true"></div>
+
+    <div class="camera-controls">
+      <div class="left">
+        <button class="icon" id="btnCloseCamera" title="Fechar">✕</button>
+      </div>
+
+      <div class="right">
+        <select id="cameraSelect" class="hidden"></select>
+        <button class="icon" id="btnTorch" title="Flash">💡</button>
+        <button class="icon" id="btnManual" title="Inserir rastreio manual">✏️</button>
+      </div>
     </div>
-    
-    <script src="script.js"></script>
-    
-    <script>
-        // Funções de toggle da sidebar para o botão mobile (permanecem aqui para fácil acesso)
-        window.toggleSidebar = function() {
-            const sidebar = document.getElementById('sidebar');
-            const app = document.getElementById('appContainer');
-            
-            if (window.innerWidth <= 768) {
-                // Apenas alterna a classe 'active' no mobile
-                sidebar.classList.toggle('active');
-            } else {
-                 // Alterna a classe 'hidden' no desktop
-                 const isHidden = sidebar.classList.toggle('hidden');
-                 
-                 // Ajusta o grid para 60px (menu lateral) OU 452px (menu lateral + sidebar)
-                 app.style.gridTemplateColumns = isHidden ? '60px 1fr' : '452px 1fr';
-                 // Ajusta o padding da contentArea
-                 document.getElementById('contentArea').style.paddingLeft = isHidden ? '80px' : '472px';
-            }
-        }
-        
-        // Listener para o botão mobile
-        document.getElementById('mobileMenuBtn').addEventListener('click', window.toggleSidebar);
-    </script>
+
+    <div id="feedbackMsg" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- Modal para inserção manual -->
+  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 id="modalTitle">Inserir rastreio manual</h3>
+      <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button id="manualCancel" class="btn-secondary">Cancelar</button>
+        <button id="manualSave" class="btn-primary">Salvar</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
