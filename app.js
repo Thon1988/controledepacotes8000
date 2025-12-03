@@ -1,4 +1,4 @@
-/* app.js — versão integrada e aprimorada (PATCH: Esconder Sidebar após clique) */
+/* app.js — versão integrada e aprimorada (PATCH: Remoção do Menu Fixo) */
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- KEYS e Estado --- */
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // NOVO: Modal Câmera/Filtros
         cameraModal: document.getElementById('cameraModal'),
-        btnComar: document.getElementById('btnComar'),
+        btnComar: document.getElementById('btnComar'), // Botão movido para a sidebar principal
         btnCloseCameraModal: document.getElementById('btnCloseCameraModal'),
         btnAbrirCameraParaComprovante: document.getElementById('abrirCameraParaComprovante'),
         btnAptsaischanComprovante: document.getElementById('AptsaischanComprovante'),
@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Navegação --- */
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
 
-    // NOVO: Função para fechar a sidebar se estiver aberta (útil no mobile)
+    // Função para fechar a sidebar se estiver aberta (útil no mobile)
     function closeSidebarIfActive() {
         if (dom.sidebar.classList.contains('active')) {
             window.toggleSidebar();
@@ -153,10 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); closeSidebarIfActive(); });
     document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); closeSidebarIfActive(); });
     document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); closeSidebarIfActive(); });
+    // O botão 'btnDashboardMobile' e seu listener foram removidos
     
-    // Listener do menu fixo (mobile dashboard button)
-    document.getElementById('btnDashboardMobile').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); closeSidebarIfActive(); });
-
     document.getElementById('btnExport').addEventListener('click', () => {
         if (dom.exportOptions) dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
     });
@@ -184,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (code) { handleScannedTracking(code.trim()); alert('Rastreio inserido manualmente.'); }
     });
     
-    /* --- NOVO: Lógica da Modal Câmera/Filtros --- */
+    /* --- Lógica da Modal Câmera/Filtros --- */
     
     function openCameraModal() {
         if (!currentUser) return alert('Faça login primeiro.');
@@ -194,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Garante que o scanner e mapa estejam fechados
         stopScanner();
         removeMapIfExists();
+        closeSidebarIfActive(); // Adicionado para fechar a sidebar após abrir a modal
     }
 
     function closeCameraModal() {
@@ -251,16 +250,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function setActiveMenu(id){
+        // Apenas itera sobre os itens do menu principal
         Array.from(document.querySelectorAll('.menu-item')).forEach(el => el.classList.remove('active'));
-        Array.from(document.querySelectorAll('.left-menu-item')).forEach(el => el.classList.remove('active'));
+        // Linha Array.from(document.querySelectorAll('.left-menu-item')).forEach(el => el.classList.remove('active')); REMOVIDA
         
         const el = document.getElementById(id);
         if (el) el.classList.add('active');
         
-        // Ativa o item correspondente no menu fixo
-        if (id === 'btnDashboard' && document.getElementById('btnDashboardMobile')) {
-             document.getElementById('btnDashboardMobile').classList.add('active');
-        }
+        // O Listener do dashboard mobile foi removido. Apenas o item da sidebar é ativado.
     }
 
     /* --- Camera / Scanner --- */
