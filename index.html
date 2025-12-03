@@ -32,44 +32,11 @@
     
     .hidden { display: none !important; }
 
-    /* --------------------- Menu Lateral Fixo Esquerdo --------------------- */
-    #left-menu {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 60px;
-        height: 100vh;
-        background-color: #2c3e50; /* Cor escura do menu */
-        padding-top: 50px;
-        z-index: 101;
-        box-shadow: 3px 0 5px rgba(0,0,0,0.2);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .left-menu-item {
-        display: block;
-        width: 100%;
-        text-align: center;
-        padding: 15px 0;
-        color: #ecf0f1;
-        text-decoration: none;
-        font-size: 10px;
-        line-height: 1.2;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }
-    
-    .left-menu-item:hover, .left-menu-item.active {
-        background-color: #34495e;
-    }
-
     /* --------------------- Ajustes de Layout e Sidebar --------------------- */
 
     .app{
-      /* Ajuste a largura total do grid */
-      display:grid; grid-template-columns:332px 1fr; /* 392px da sidebar - 60px do menu lateral */
+      /* O layout volta a ter a sidebar (332px) e o main content */
+      display:grid; grid-template-columns:332px 1fr;
       width:100vw; height:100vh; background:var(--content-bg-light);
       max-width:100%; max-height:100%; overflow:hidden;
     }
@@ -77,16 +44,16 @@
     .sidebar{
       background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
       box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; 
-      /* Posição ajustada para ficar ao lado do menu fixo, dentro do grid */
+      /* Volta para a posição original no grid */
       grid-column: 1 / 2;
-      width: 392px; /* Mantém a largura original da sidebar */
-      transform: translateX(60px); /* Move a sidebar para a direita, fora do grid realocado */
+      width: 332px; /* Largura original */
+      transform: translateX(0); /* Remove o deslocamento */
     }
     
     .main{ 
       padding:24px; overflow-y:auto; height:100%; position:relative; 
-      /* Ajusta o padding para a área de conteúdo */
-      padding-left: calc(24px + 60px); 
+      /* Remove o padding extra que compensava o menu fixo */
+      padding-left: 24px; 
     }
     
     .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
@@ -188,8 +155,7 @@
       .sidebar.active{ transform:translateX(0); }
       .main{ padding:16px; padding-left: 16px; } /* Ajusta o padding de volta */
       .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
-      .camera-controls .left{ gap:6px; }
-      #left-menu { display: none; } /* Esconde o menu fixo no mobile, usando o menu principal */
+      /* Remove referências ao menu fixo: */
       #mobileMenuBtn { 
           position: fixed; 
           top: 10px; 
@@ -207,25 +173,6 @@
 </head>
 <body>
   
-  <nav id="left-menu">
-      <div style="padding:15px 0; font-size:24px; color:var(--accent);">📦</div>
-      <a href="#" class="left-menu-item" id="btnComar">
-          <span style="font-size: 18px;">📸</span> Comãr
-      </a>
-      <a href="#" class="left-menu-item" id="btnDashboardMobile">
-          <span style="font-size: 18px;">🏠</span> Ounbod
-      </a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">📋</span> Fip Ailes</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">🔄</span> Flip</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">📝</span> Mosmmaes</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">⚙️</span> Steormias</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">📦</span> Oolcolleticts</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">📍</span> Nor So</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">🗺️</span> Norlaga</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">🔗</span> Mateapas</a>
-      <a href="#" class="left-menu-item"><span style="font-size: 18px;">🔔</span> Noorrâs</a>
-  </nav>
-
   <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
   <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
@@ -252,6 +199,7 @@
         <div id="adminMenuOptions" style="margin-top:12px;">
             <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
             <div id="btnUsers" class="menu-item">👥 Usuários</div>
+            <div id="btnComar" class="menu-item">📸 Comãr (Filtros)</div>
 
             <div class="export-container menu-item" style="align-items:flex-start;">
                 <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
@@ -356,10 +304,6 @@
 
               <div class="modal-button-group" style="margin-top: 15px;">
                   <button id="abrirCameraParaComprovante">abrir Camera Para Comprovante (id)</button>
-                  <button id="AptsaischanComprovante">Aptsaischan Comprovante (id)</button>
-                  <button id="AfssranRota">Afssran Rota (F28e77 / 32.5)</button>
-                  <button id="MesranRota">Mesran Rota (007bi ff (Bf 5)</button>
-                  <button id="CararIagas">Carar Iagas (sians)</button>
               </div>
           </div>
       </div>
