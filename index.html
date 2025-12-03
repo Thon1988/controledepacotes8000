@@ -1,313 +1,665 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>PegazusLog — Scanner Integrado</title>
+/* app.js — versão integrada e aprimorada (PATCH: Modal Comar Logic) */
+document.addEventListener('DOMContentLoaded', () => {
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    /* --- KEYS e Estado --- */
+    const STORAGE_KEY_USERS = 'pegazus_users_v4';
+    const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
+    const STORAGE_KEY_SHIPMENTS = 'pegazus_shipments_v1'; // DB local de rastreios -> cliente/endereço/telefone
+    const DEFAULT_USERS = [
+        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
+        { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
+        { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
+    ];
+    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
 
-  <script src="app.js" defer></script>
+    let currentUser = null;
+    let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
+    let shipments = JSON.parse(localStorage.getItem(STORAGE_KEY_SHIPMENTS) || '{}'); // mapa tracking -> details
+    let users = loadUsers();
 
-  <style>
-    /* --- Estilos Existentes --- */
-    :root{
-      --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
-      --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
-      --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
-      --warning: #f39c12; /* Adicionado para botões da modal */
-      --primary: #3498db; /* Adicionado para cabeçalho da modal */
-      --radius:25px;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    let videoStream = null, isScanning = false, videoTrack = null;
+    const SCAN_DELAY = 1000;
+    let lastScanCode = '', lastScanTime = 0;
+    let userLocation = null;
+    let mapInstance = null;
+    let locationMarker = null;
+
+    /* --- DOM --- */
+    const dom = {
+        loginSection: document.getElementById('loginSection'),
+        menuSection: document.getElementById('menuSection'),
+        appContainer: document.querySelector('.app'),
+        contentArea: document.getElementById('contentArea'),
+        cameraView: document.getElementById('cameraView'),
+        video: document.getElementById('videoElement'),
+        sidebar: document.getElementById('sidebar'),
+        mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+        feedback: document.getElementById('feedbackMsg'),
+        cameraSelect: document.getElementById('cameraSelect'),
+        exportOptions: document.getElementById('exportOptions'),
+        adminMenuOptions: document.getElementById('adminMenuOptions'),
+        exportPeriod: document.getElementById('exportPeriod'),
+        exportUserFilter: document.getElementById('exportUserFilter'),
+        btnGenerateCSV: document.getElementById('btnGenerateCSV'),
+        // --- NOVOS ELEMENTOS DO MODAL COMAR ---
+        btnComar: document.getElementById('btnComar'),
+        cameraModal: document.getElementById('cameraModal'),
+        btnCloseCameraModal: document.getElementById('btnCloseCameraModal'),
+        btnAbrirCamera: document.getElementById('abrirCameraParaComprovante'),
+        btnAptsaischan: document.getElementById('AptsaischanComprovante'),
+        btnAfssran: document.getElementById('AfssranRota'),
+        btnMesran: document.getElementById('MesranRota'),
+        btnCararIagas: document.getElementById('CararIagas')
+    };
+
+    /* --- Inicialização --- */
+    function loadUsers() {
+        const raw = localStorage.getItem(STORAGE_KEY_USERS);
+        if(!raw) { localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS)); return DEFAULT_USERS; }
+        const existingUsers = JSON.parse(raw);
+        const thonExists = existingUsers.some(u => u.username === 'thon');
+        if (!thonExists) existingUsers.push(DEFAULT_USERS[0]);
+        else {
+            const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
+            existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
+            existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
+        }
+        return existingUsers;
+    }
+    function saveUsers(){ localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users)); }
+    function saveScans(){ localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords)); }
+    function saveShipments(){ localStorage.setItem(STORAGE_KEY_SHIPMENTS, JSON.stringify(shipments)); }
+
+    /* --- Geolocation (opcional) --- */
+    function startGeolocation(){
+        if ("geolocation" in navigator){
+            navigator.geolocation.watchPosition(pos => {
+                userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                if (mapInstance) updateMapLocation();
+            }, err => { console.warn('Geolocation error', err.message); userLocation = null; }, { enableHighAccuracy:true, timeout:5000, maximumAge:0 });
+        }
     }
 
-    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-    body{
-      margin:0; background:linear-gradient(180deg,var(--bg) 0%, #000 100%); color:var(--content-text-dark);
-      min-height:100vh; display:flex; justify-content:center; align-items:center;
-      font-size:14px;
+    /* --- Login / Logout --- */
+    document.getElementById('btnLogin').addEventListener('click', () => {
+        const u = document.getElementById('loginUser').value.trim();
+        const p = document.getElementById('loginPass').value.trim();
+        const user = users.find(x => x.username === u && x.password === p);
+        if (user) {
+            currentUser = user;
+            document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
+            dom.loginSection.classList.add('hidden');
+            dom.appContainer.classList.remove('hidden');
+            if(window.innerWidth <= 768) dom.mobileMenuBtn.classList.remove('hidden');
+            if (currentUser.role === 'admin' || currentUser.role === 'gestor') dom.adminMenuOptions.classList.remove('hidden');
+            else dom.adminMenuOptions.classList.add('hidden');
+            renderDashboard();
+            document.getElementById('loginError').textContent = '';
+            startGeolocation();
+        } else {
+            document.getElementById('loginError').textContent = 'Credenciais inválidas';
+        }
+    });
+
+    document.getElementById('btnLogout').addEventListener('click', () => {
+        currentUser = null; stopScanner();
+        dom.appContainer.classList.add('hidden'); dom.loginSection.classList.remove('hidden');
+        dom.mobileMenuBtn.classList.add('hidden');
+        dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5"><h2>Até logo</h2></div>`;
+    });
+
+    /* --- Navegação --- */
+    window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
+    document.getElementById('btnDashboard').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); });
+    document.getElementById('btnScanMode').addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); });
+    document.getElementById('btnDeliveries').addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); });
+    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); });
+    document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); });
+    document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); });
+
+    // --- LÓGICA DO MODAL COMAR (FILTROS) ---
+    if (dom.btnComar) dom.btnComar.addEventListener('click', () => {
+        setActiveMenu('btnComar');
+        // Fecha mapa se aberto e oculta conteúdo principal
+        removeMapIfExists();
+        if (dom.contentArea) dom.contentArea.style.display = 'none';
+        // Mostra o modal
+        if (dom.cameraModal) dom.cameraModal.style.display = 'flex';
+    });
+
+    if (dom.btnCloseCameraModal) dom.btnCloseCameraModal.addEventListener('click', () => {
+        if (dom.cameraModal) dom.cameraModal.style.display = 'none';
+        // Retorna ao dashboard
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+
+    // --- HANDLERS DE AÇÃO DO MODAL ---
+    if (dom.btnAbrirCamera) dom.btnAbrirCamera.addEventListener('click', () => {
+        alert('Ação simulada: Reabrindo o scanner para comprovante...');
+        dom.cameraModal.style.display = 'none';
+        setActiveMenu('btnScanMode');
+        openCameraView();
+    });
+
+    if (dom.btnAptsaischan) dom.btnAptsaischan.addEventListener('click', () => {
+        alert('Ação simulada: Envio de comprovante processado com sucesso!');
+        dom.cameraModal.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+
+    if (dom.btnAfssran) dom.btnAfssran.addEventListener('click', () => {
+        alert('Ação simulada: Rota F28e77 definida e centralizada no mapa.');
+        dom.cameraModal.style.display = 'none';
+        setActiveMenu('btnMap');
+        renderMap(); // Abre o mapa, simulando a navegação
+    });
+
+    if (dom.btnMesran) dom.btnMesran.addEventListener('click', () => {
+        alert('Ação simulada: Rota 007bi ff (Bf 5) marcada como concluída no sistema.');
+        dom.cameraModal.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+
+    if (dom.btnCararIagas) dom.btnCararIagas.addEventListener('click', () => {
+        alert('Ação simulada: Todas as flags de entregas anteriores foram removidas (Limpeza de cache de rotas).');
+        dom.cameraModal.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        if (currentUser) renderDashboard();
+    });
+    // --- FIM LÓGICA MODAL COMAR ---
+
+    document.getElementById('btnExport').addEventListener('click', () => {
+        if (dom.exportOptions) dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
+    });
+    if (dom.btnGenerateCSV) dom.btnGenerateCSV.addEventListener('click', () => generateCSV(dom.exportPeriod.value, dom.exportUserFilter.value.trim()));
+
+    const btnCloseCamera = document.getElementById('btnCloseCamera');
+    if (btnCloseCamera) btnCloseCamera.addEventListener('click', () => { stopScanner(); closeCameraView(); renderDashboard(); });
+
+    const btnTorch = document.getElementById('btnTorch');
+    const btnManual = document.getElementById('btnManual');
+    if (btnTorch) btnTorch.addEventListener('click', async () => {
+        if (videoTrack) {
+            try {
+                const caps = videoTrack.getCapabilities();
+                if (caps.torch) {
+                    const settings = videoTrack.getSettings();
+                    await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
+                } else alert('Flash não suportado neste dispositivo');
+            } catch(e){ console.warn(e) }
+        }
+    });
+    if (btnManual) btnManual.addEventListener('click', () => {
+        // open simple prompt for manual tracking
+        const code = prompt('Digite o número de rastreio (ex: BR123456789):');
+        if (code) { handleScannedTracking(code.trim()); alert('Rastreio inserido manualmente.'); }
+    });
+
+    function setActiveMenu(id){
+        Array.from(document.querySelectorAll('.menu-item')).forEach(el => el.classList.remove('active'));
+        const el = document.getElementById(id);
+        if (el) el.classList.add('active');
     }
-    
-    .hidden { display: none !important; }
 
-    /* --------------------- Ajustes de Layout e Sidebar --------------------- */
+    /* --- Camera / Scanner --- */
+    if (dom.cameraSelect) dom.cameraSelect.addEventListener('change', (e) => { if (isScanning) startScanner(e.target.value); });
 
-    .app{
-      /* O layout volta a ter a sidebar (332px) e o main content */
-      display:grid; grid-template-columns:332px 1fr;
-      width:100vw; height:100vh; background:var(--content-bg-light);
-      max-width:100%; max-height:100%; overflow:hidden;
+    async function enumerateDevices(){
+        try {
+            const initialStream = await navigator.mediaDevices.getUserMedia({ video:true });
+            initialStream.getTracks().forEach(t=>t.stop());
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+            if (dom.cameraSelect) {
+                dom.cameraSelect.innerHTML = '';
+                if (videoDevices.length){
+                    videoDevices.forEach((d, i) => {
+                        const opt = document.createElement('option');
+                        opt.value = d.deviceId;
+                        opt.text = d.label || `Câmera ${i+1}`;
+                        dom.cameraSelect.appendChild(opt);
+                    });
+                    dom.cameraSelect.classList.remove('hidden');
+                } else dom.cameraSelect.classList.add('hidden');
+            }
+        } catch(e){ console.warn('enumerateDevices err', e); }
     }
 
-    .sidebar{
-      background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
-      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; 
-      /* Volta para a posição original no grid */
-      grid-column: 1 / 2;
-      width: 332px; /* Largura original */
-      transform: translateX(0); /* Remove o deslocamento */
+    async function startScanner(deviceId=null){
+        if (isScanning && !deviceId) return;
+        stopScanner();
+        const videoDevices = dom.cameraSelect ? Array.from(dom.cameraSelect.options) : [];
+        let targetDeviceId = deviceId;
+        if (!targetDeviceId && videoDevices.length>0) {
+            const preferred = videoDevices.find(o => o.text.toLowerCase().includes('back') || o.text.toLowerCase().includes('traseira') || o.text.toLowerCase().includes('environment'));
+            targetDeviceId = preferred ? preferred.value : videoDevices[0].value;
+        }
+        const constraints = targetDeviceId ? { video:{ deviceId:{ exact: targetDeviceId }}} : { video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} } };
+        try {
+            videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+            dom.video.srcObject = videoStream;
+            dom.video.setAttribute('playsinline', true);
+            await dom.video.play();
+            isScanning = true;
+            videoTrack = videoStream.getVideoTracks()[0];
+            if (targetDeviceId && dom.cameraSelect) dom.cameraSelect.value = targetDeviceId;
+            requestAnimationFrame(tick);
+        } catch(err){
+            console.error(err);
+            alert('Erro ao acessar câmera: ' + (err && err.message ? err.message : err));
+            closeCameraView();
+            renderDashboard();
+        }
     }
-    
-    .main{ 
-      padding:24px; overflow-y:auto; height:100%; position:relative; 
-      /* Remove o padding extra que compensava o menu fixo */
-      padding-left: 24px; 
+    function stopScanner(){
+        isScanning = false;
+        if (videoStream){ videoStream.getTracks().forEach(t=>t.stop()); videoStream = null; }
+        if (dom.video) dom.video.srcObject = null;
+        videoTrack = null;
     }
-    
-    .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
-    .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
-    .menu-item:hover{ background:rgba(56,189,248,0.08); color:var(--accent);}
-    .menu-item.active{ background:var(--accent); color:var(--panel); font-weight:700;}
 
-    .sidebar-footer{ margin-top:auto; padding-top:15px; border-top:1px solid rgba(255,255,255,0.06); }
-    .user-info{ font-size:14px; color:var(--muted); }
-    .user-info strong{ color:var(--text); font-weight:600; }
-
-    .main h2{ margin-top:0; color:var(--content-text-dark); }
-    .user-form-card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
-
-    .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
-    .btn-primary:hover{ background:var(--accent-dark); }
-    .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
-    
-    /* modal manual input (reaproveitado para a nova modal) */
-    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
-    .modal-pegazus { 
-        background:white; 
-        padding:16px; 
-        border-radius:12px; 
-        width:90%; 
-        max-width:420px; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
+    function openCameraView(){
+        // Fecha mapa (se houver) antes de abrir câmera
+        removeMapIfExists();
+        if (dom.contentArea) dom.contentArea.style.display = 'none';
+        if (dom.cameraView) dom.cameraView.style.display = 'flex';
+        if (dom.appContainer) dom.appContainer.style.display = 'none';
+        startScanner();
     }
-    .modal-pegazus h3{ margin:0 0 8px 0; }
-    .modal-pegazus input, .modal-pegazus select { width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
-    
-    /* Estilos específicos da Câmera Modal */
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background-color: var(--primary);
-        color: white;
-        margin: -16px -16px 15px -16px;
-        padding: 15px 16px;
-        border-top-left-radius: 12px;
-        border-top-right-radius: 12px;
+    function closeCameraView(){
+        if (dom.cameraView) dom.cameraView.style.display = 'none';
+        if (dom.appContainer) dom.appContainer.style.display = 'grid';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
     }
-    .modal-button-group button {
-        display: block;
-        width: 100%;
-        padding: 12px;
-        margin-bottom: 8px;
-        border: none;
-        border-radius: 8px;
-        color: white;
-        font-weight: bold;
-        cursor: pointer;
-        transition: opacity 0.2s;
+
+    function tick(){
+        if (!isScanning) return;
+        if (dom.video && dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const w = dom.video.videoWidth;
+            const h = dom.video.videoHeight;
+            if (w === 0 || h === 0) { requestAnimationFrame(tick); return; }
+            canvas.width = w; canvas.height = h;
+            ctx.drawImage(dom.video, 0, 0, w, h);
+            const size = Math.min(w,h) * 0.9;
+            const sx = (w - size)/2, sy = (h - size)/2;
+            const imageData = ctx.getImageData(sx, sy, size, size);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts:'attemptBoth' });
+            if (code && code.data) handleScannedTracking(code.data.trim());
+        }
+        requestAnimationFrame(tick);
     }
-    .modal-button-group button:hover { opacity: 0.8; }
 
-    #abrirCameraParaComprovante { background-color: var(--primary); }
-    #AptsaischanComprovante { background-color: var(--success); }
-    #AfssranRota { background-color: #2196F3; } /* Azul */
-    #MesranRota { background-color: #673AB7; } /* Roxo */
-    #CararIagas { background-color: var(--warning); }
-    /* Fim dos estilos específicos da Modal */
-
-    /* camera view */
-    #cameraView{ position:fixed; inset:0; background:black; display:none; justify-content:center; align-items:center; z-index:1000; }
-    #videoElement{ width:100%; height:100%; object-fit:cover; }
-    .scan-overlay{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90vmin; height:90vmin; max-width:420px; max-height:420px; border:4px solid rgba(255,255,255,0.5); border-radius:15px; z-index:1001; transition:border-color .3s; }
-    #feedbackMsg{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--content-text-dark); padding:10px 20px; border-radius:10px; z-index:1002; opacity:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-    .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
-    .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
-    .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
-
-    #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
-
-    /* export options */
-    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:60; min-width:220px; }
-    #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
-
-    /* deliveries list */
-    .deliveries-list{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
-    .delivery-item{ display:flex; gap:12px; align-items:flex-start; background:var(--content-card-bg); padding:12px; border-radius:10px; border-left:4px solid var(--accent); }
-    .delivery-id{ font-weight:700; }
-    .delivery-meta{ font-size:12px; color:#6b7280; margin-top:6px; }
-
-    /* header for content with X */
-    .view-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-    .close-btn{ background:transparent; border:none; font-size:20px; cursor:pointer; padding:6px; }
-
-    /* ensure map wrapper stays behind sidebar */
-    .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
-
-    /* responsive adjustments */
-    @media(max-width:900px){
-      /* Reverte o layout para o padrão mobile */
-      .app{ grid-template-columns:1fr; }
-      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:60; }
-      .sidebar.active{ transform:translateX(0); }
-      .main{ padding:16px; padding-left: 16px; } /* Ajusta o padding de volta */
-      .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
-      /* Remove referências ao menu fixo: */
-      #mobileMenuBtn { 
-          position: fixed; 
-          top: 10px; 
-          left: 10px; 
-          z-index: 70; /* Acima da sidebar */
-          background: rgba(0,0,0,0.5);
-          color: white;
-          padding: 8px 12px;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-      }
+    /* --- Quando um rastreio é detectado (manual ou scanner) --- */
+    function handleScannedTracking(raw){
+        // No Formato 4 o raw é algo como BR123456789 (apenas tracking)
+        // Normaliza
+        const tracking = raw.split(/\s/)[0];
+        // Lookup local
+        const details = lookupShipment(tracking);
+        const now = new Date().toISOString();
+        const record = {
+            id: tracking,
+            tracking,
+            date: now,
+            user: currentUser ? currentUser.username : 'unknown',
+            type: details.carrier || 'Genérico',
+            endereco: details.address || '',
+            telefone: details.phone || '',
+            cliente: details.name || '',
+            raw: raw
+        };
+        // adiciona ao topo e salva
+        scanRecords.unshift(record);
+        saveScans();
+        showScanFeedback(record);
     }
-  </style>
-</head>
-<body>
-  
-  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
-  <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
-    <div class="login-card" style="width:92%;max-width:420px;">
-      <h1 style="margin:0 0 18px 0; color:var(--accent)">PegazusLog</h1>
-      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
-      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
-      <button id="btnLogin" class="btn-primary" style="width:100%; margin-top:8px;">Entrar</button>
-      <p id="loginError" style="margin-top:8px;color:var(--danger)"></p>
-    </div>
-  </section>
+    /* --- Shipment lookup / edição local --- */
+    function lookupShipment(tracking){
+        // se já existe no DB local -> retorna
+        if (shipments[tracking]) return shipments[tracking];
+        // se não existe, cria placeholder (você pode editar depois)
+        shipments[tracking] = {
+            tracking,
+            name: '',
+            address: 'Endereço desconhecido', // default; você pode editar
+            phone: '',
+            carrier: ''
+        };
+        saveShipments();
+        return shipments[tracking];
+    }
+    // Função para editar dados de um rastreio (usada na UI)
+    window.editShipment = (tracking) => {
+        const s = lookupShipment(tracking);
+        const name = prompt('Nome do cliente:', s.name || '');
+        if (name === null) return;
+        const address = prompt('Endereço completo:', s.address || '');
+        if (address === null) return;
+        const phone = prompt('Telefone:', s.phone || '');
+        if (phone === null) return;
+        s.name = name; s.address = address; s.phone = phone;
+        shipments[tracking] = s; saveShipments();
+        // atualiza quaisquer registros existentes com mesmo tracking
+        scanRecords = scanRecords.map(r => r.tracking === tracking ? ({ ...r, cliente: s.name, endereco: s.address, telefone: s.phone }) : r);
+        saveScans();
+        renderDeliveries(); // refresh
+        alert('Dados do rastreio atualizados.');
+    };
 
-  <div class="app hidden">
-    <aside id="sidebar" class="sidebar" aria-hidden="false">
-      <div class="logo">📦 <span style="margin-left:6px">PegazusLog</span></div>
+    /* --- Feedback/UI --- */
+    function showScanFeedback(record){
+        dom.feedback.textContent = `Leitura: ${record.tracking} — ${record.cliente || record.endereco || ''}`;
+        dom.feedback.style.opacity = '1';
+        setTimeout(()=> dom.feedback.style.opacity = '0', 2200);
+    }
 
-      <div id="menuSection">
-        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
-        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
-        <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
-        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
-        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
-
-        <div id="adminMenuOptions" style="margin-top:12px;">
-            <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
-            <div id="btnUsers" class="menu-item">👥 Usuários</div>
-            <div id="btnComar" class="menu-item">📸 Comãr (Filtros)</div>
-
-            <div class="export-container menu-item" style="align-items:flex-start;">
-                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
-                    ⬇️ Exportar Dados
-                </button>
-                <div id="exportOptions" aria-hidden="true">
-                    <label style="font-size:13px;margin-bottom:6px">Buscar por usuário (login)</label>
-                    <input id="exportUserFilter" placeholder="Digite o login (opcional)"/>
-                    <label style="font-size:13px;margin-bottom:6px">Período</label>
-                    <select id="exportPeriod">
-                      <option value="daily">Últimas 24h</option>
-                      <option value="weekly">Últimos 7 dias</option>
-                      <option value="monthly">Últimos 30 dias</option>
-                      <option value="all">Todos os Dados</option>
-                    </select>
-                    <button id="btnGenerateCSV" class="btn-primary" style="width:100%;">Gerar CSV</button>
-                </div>
+    /* --- RENDERERS --- */
+    function renderDashboard(){
+        // remove mapa se aberto
+        removeMapIfExists();
+        if (dom.appContainer) dom.appContainer.style.display = 'grid';
+        if (dom.cameraView) dom.cameraView.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
+        const html = `
+            <h2>📦 Entregas Realizadas</h2>
+            <p class="small-muted">Total de registros: ${scanRecords.length}</p>
+            <div style="margin-top:12px" class="card">
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+                <button class="btn-primary" onclick="window.openCameraProgramatic()">Iniciar Scanner</button>
+                <button class="btn-secondary" onclick="renderDeliveries()">Ver Lista</button>
+                <div style="margin-left:auto" class="small-muted">Usuário: ${currentUser ? currentUser.username : '-'}</div>
+              </div>
+              <div class="list-deliveries">
+                ${scanRecords.slice(0,8).map((r, idx) => `
+                  <div class="delivery-item">
+                    <div style="width:40px;text-align:center"><div class="badge">${idx+1}</div></div>
+                    <div class="grow">
+                      <div class="title">${r.tracking}</div>
+                      <div class="meta">${r.cliente || '—'} • ${r.type} • ${new Date(r.date).toLocaleString()}</div>
+                      <div class="small-muted">${r.endereco || ''}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
+                      <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
-        </div>
-      </div>
+        `;
+        dom.contentArea.innerHTML = html;
+    }
 
-      <div class="sidebar-footer">
-        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
-        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
-      </div>
-    </aside>
+    // Expose quick-start camera
+    window.openCameraProgramatic = () => { setActiveMenu('btnScanMode'); openCameraView(); }
 
-    <main class="main">
-      <div id="contentArea">
-        </div>
-    </main>
-  </div>
+    function renderDeliveries(){
+        removeMapIfExists();
+        if (dom.appContainer) dom.appContainer.style.display = 'grid';
+        if (dom.cameraView) dom.cameraView.style.display = 'none';
+        if (dom.contentArea) dom.contentArea.style.display = 'block';
 
-  <section id="cameraView">
-    <video id="videoElement" playsinline></video>
-    <div class="scan-overlay" aria-hidden="true"></div>
+        const html = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>📋 Lista de Entregas</h2></div>
+            <div class="card">
+              <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px">
+                <input id="searchDelivery" placeholder="Buscar por rastreio/endereço/cliente" style="padding:8px;border-radius:8px;border:1px solid #ddd;flex:1"/>
+                <button class="btn-primary" id="btnNewManual">+ Novo (Manual)</button>
+              </div>
+              <div id="deliveriesList" class="list-deliveries">
+                ${scanRecords.map((r, i) => `
+                  <div class="delivery-item" data-tracking="${r.tracking}">
+                    <div style="width:40px;text-align:center"><div class="badge">${i+1}</div></div>
+                    <div class="grow">
+                      <div class="title">${r.tracking} <span class="small-muted"> — ${r.cliente || 'Sem Nome'}</span></div>
+                      <div class="meta">${r.type} • ${new Date(r.date).toLocaleString()}</div>
+                      <div class="small-muted">${r.endereco || ''}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
+                      <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            <div id="deliveryDetailArea"></div>
+        `;
+        dom.contentArea.innerHTML = html;
 
-    <div class="camera-controls">
-      <div class="left">
-        <button class="icon" id="btnCloseCamera" title="Fechar">✕</button>
-      </div>
+        const btnNewManual = document.getElementById('btnNewManual');
+        if (btnNewManual) btnNewManual.addEventListener('click', ()=> {
+            const code = prompt('Digite rastreio (ex: BR123456789):');
+            if (code) { handleScannedTracking(code.trim()); renderDeliveries(); }
+        });
 
-      <div class="right">
-        <select id="cameraSelect" class="hidden"></select>
-        <button class="icon" id="btnTorch" title="Flash">💡</button>
-        <button class="icon" id="btnManual" title="Inserir rastreio manual">✏️</button>
-      </div>
-    </div>
+        const searchInput = document.getElementById('searchDelivery');
+        if (searchInput) searchInput.addEventListener('input', () => {
+            const q = searchInput.value.trim().toLowerCase();
+            const nodes = document.querySelectorAll('#deliveriesList .delivery-item');
+            nodes.forEach(node => {
+                const t = node.dataset.tracking.toLowerCase();
+                const idx = scanRecords.find(r=>r.tracking===node.dataset.tracking);
+                const text = `${t} ${idx.endereco || ''} ${idx.cliente || ''}`.toLowerCase();
+                node.style.display = text.includes(q) ? 'flex' : 'none';
+            });
+        });
+    }
 
-    <div id="feedbackMsg" role="status" aria-live="polite"></div>
-  </section>
-
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
-    <div class="modal-pegazus" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <h3 id="modalTitle">Inserir rastreio manual</h3>
-      <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button id="manualCancel" class="btn-secondary">Cancelar</button>
-        <button id="manualSave" class="btn-primary">Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="cameraModal" class="modal-backdrop">
-      <div class="modal-pegazus">
-          <div class="modal-header">
-              <h2>câmera Modal</h2>
-              <span class="close-btn" id="btnCloseCameraModal">✕</span>
+    window.viewDeliveryDetail = (tracking) => {
+        const record = scanRecords.find(r => r.tracking === tracking);
+        if (!record) return alert('Registro não encontrado.');
+        const html = `
+          <div class="card" style="margin-top:12px; position:relative">
+            <button class="close-x" onclick="document.getElementById('deliveryDetailArea').innerHTML = ''">✕</button>
+            <h3>${record.tracking} <small class="small-muted">(${record.type})</small></h3>
+            <p><strong>Cliente:</strong> ${record.cliente || '—'}</p>
+            <p><strong>Endereço:</strong> ${record.endereco || '—'}</p>
+            <p><strong>Telefone:</strong> ${record.telefone || '—'}</p>
+            <p><strong>Usuário:</strong> ${record.user}</p>
+            <p><strong>Data:</strong> ${new Date(record.date).toLocaleString()}</p>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="btn-primary" onclick="window.editShipment('${record.tracking}')">Editar Dados</button>
+              <button class="btn-secondary" onclick="centerMapToRecord('${record.tracking}')">Mostrar no Mapa</button>
+            </div>
           </div>
+        `;
+        const area = document.getElementById('deliveryDetailArea');
+        area.innerHTML = html;
+        area.scrollIntoView({ behavior:'smooth' });
+    };
 
-          <div class="modal-body">
-              <div class="modal-field-group">
-                  <label for="modal-status">Filtros: Status</label>
-                  <select id="modal-status">
-                      <option>Todos</option>
-                      <option>Pendentes</option>
-                      <option>Entregues</option>
-                  </select>
-              </div>
+    function renderUsers(){
+        removeMapIfExists();
+        if (!dom.contentArea) return;
+        dom.contentArea.innerHTML = `<h2>👥 Gerenciamento de Usuários</h2>
+          <div class="card">
+            <button class="btn-primary" onclick="window.editUser(null)">+ Novo Usuário</button>
+            <div id="userList" style="margin-top:12px">${users.map(u => `
+              <div class="delivery-item" style="align-items:center">
+                <div style="width:40px;text-align:center">${u.username[0].toUpperCase()}</div>
+                <div class="grow"><div style="font-weight:700">${u.username}</div><div class="small-muted">${u.role}</div></div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn-secondary" onclick="window.editUser('${u.id}')">Editar</button>
+                  ${u.id !== currentUser.id ? `<button class="btn-secondary" onclick="window.deleteUser('${u.id}')">Excluir</button>` : ''}
+                </div>
+              </div>`).join('')}</div>
+          </div>`;
+    }
 
-              <div class="modal-field-group">
-                  <label for="modal-fatus">Fatus:</label>
-                  <select id="modal-fatus">
-                      <option>Em Rota</option>
-                      <option>No CD</option>
-                      <option>Em Separação</option>
-                  </select>
-              </div>
+    function renderRoutes(){
+        removeMapIfExists();
+        if (!dom.contentArea) return;
+        dom.contentArea.innerHTML = `<h2>🧭 Otimizar Rotas</h2><div class="card"><p class="small-muted">Gerando uma simulação com seus últimos pontos...</p><div id="routeMapObj" class="map-wrapper"></div></div>`;
+        setTimeout(() => {
+            const deliveryPoints = scanRecords.map(r=>({lat: r.lat||CD_LOCATION.lat, lon: r.lon||CD_LOCATION.lon, id: r.tracking}));
+            if (deliveryPoints.length < 2) { const el = document.getElementById('routeMapObj'); if (el) el.innerHTML = '<p class="small-muted">Escaneie ao menos 2 entregas para simular rota.</p>'; return; }
+            const route = deliveryPoints.slice(0,10).sort(()=>Math.random()-0.5);
+            // create map
+            removeMapIfExists();
+            mapInstance = L.map('routeMapObj').setView([route[0].lat, route[0].lon], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
+            // Ensure map container z-index stays behind sidebar
+            try { mapInstance.getContainer().style.zIndex = '1'; } catch(e){}
+            const routePoints = route.map((p,i) => {
+                const marker = L.marker([p.lat,p.lon]).addTo(mapInstance).bindPopup(`<b>Ponto ${i+1}</b><br>${p.id}`);
+                return [p.lat,p.lon];
+            });
+            if (routePoints.length>1) {
+                L.polyline(routePoints,{color:'#22c55e', weight:5}).addTo(mapInstance);
+                mapInstance.fitBounds(L.polyline(routePoints).getBounds());
+            }
+        },120);
+    }
 
-              <div class="modal-field-group">
-                  <label for="modal-potra">Potra:</label>
-                  <select id="modal-potra">
-                      <option>Entregue</option>
-                      <option>Não Entregue</option>
-                  </select>
-              </div>
+    function renderMap(){
+        // When opening map ensure previous map removed to avoid "stuck" map
+        removeMapIfExists();
+        if (!dom.contentArea) return;
+        dom.contentArea.style.display = 'block';
+        if (dom.cameraView) dom.cameraView.style.display = 'none';
+        if (dom.appContainer) dom.appContainer.style.display = 'grid';
 
-              <div class="modal-field-group">
-                  <label for="modal-data">Data:</label>
-                  <input type="text" id="modal-data" placeholder="Data">
-              </div>
+        dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()">✕</button><h2>🗺️ Mapa de Entregas</h2></div>
+            <div class="card"><p class="small-muted">Você está aqui: <span id="currentLoc">Carregando...</span></p><div id="mapObj" class="map-wrapper"></div></div>`;
 
-              <div class="modal-button-group" style="margin-top: 15px;">
-                  <button id="abrirCameraParaComprovante">abrir Camera Para Comprovante (id)</button>
-              </div>
-          </div>
-      </div>
-  </div>
+        setTimeout(() => {
+            const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
+            const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
+            mapInstance = L.map('mapObj').setView([initialLat, initialLon], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
+            // Ensure map container z-index stays behind sidebar
+            try {
+                mapInstance.getContainer().style.zIndex = '1';
+                // also make sure leaflet panes aren't interfering
+                const panes = mapInstance.getPanes && mapInstance.getPanes();
+                if (panes && panes.tilePane) panes.tilePane.style.zIndex = '1';
+            } catch(e){ console.warn('z-index patch error', e); }
 
-</body>
-</html>
+            scanRecords.forEach(r => {
+                // if record has endereco we won't convert — we just put marker at CD_LOCATION fallback
+                const lat = r.lat || CD_LOCATION.lat;
+                const lon = r.lon || CD_LOCATION.lon;
+                L.marker([lat,lon]).addTo(mapInstance).bindPopup(`<b>${r.tracking}</b><br>${r.cliente || ''}<br>${r.endereco || ''}`);
+            });
+
+            updateMapLocation();
+        },120);
+    }
+
+    function removeMapIfExists(){
+        if (mapInstance) {
+            try { mapInstance.remove(); } catch(e){ console.warn(e); }
+            mapInstance = null;
+            locationMarker = null;
+            const el = document.getElementById('mapObj');
+            if (el) el.innerHTML = '';
+            const rEl = document.getElementById('routeMapObj');
+            if (rEl) rEl.innerHTML = '';
+        }
+    }
+
+    function updateMapLocation(){
+        if (!mapInstance) return;
+        const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
+        const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
+        const currentLocEl = document.getElementById('currentLoc');
+        if (currentLocEl) currentLocEl.textContent = `(${initialLat.toFixed(6)}, ${initialLon.toFixed(6)})`;
+        if (locationMarker) locationMarker.setLatLng([initialLat, initialLon]);
+        else {
+            locationMarker = L.marker([initialLat, initialLon], {
+                icon: L.divIcon({ className:'current-location-marker', html:'<div style="background:#ef4444;border:3px solid white;border-radius:50%;width:18px;height:18px"></div>' })
+            }).addTo(mapInstance).bindPopup('Sua Localização Atual');
+        }
+    }
+
+    window.centerMapToRecord = (tracking) => {
+        // opens map and centers on first matching record (if possible)
+        const rec = scanRecords.find(r => r.tracking === tracking);
+        if (!rec) return alert('Registro não encontrado');
+        renderMap();
+        setTimeout(() => {
+            try {
+                const lat = rec.lat || CD_LOCATION.lat;
+                const lon = rec.lon || CD_LOCATION.lon;
+                if (mapInstance) mapInstance.setView([lat, lon], 15);
+            } catch(e){ console.warn(e) }
+        },200);
+    };
+
+    /* --- CSV Export (agora usando endereço no lugar de lat/lon) --- */
+    function generateCSV(period='all', userFilter=''){
+        let filtered = [];
+        const today = new Date(); today.setHours(0,0,0,0);
+        if (period === 'daily') filtered = scanRecords.filter(r => new Date(r.date) >= today);
+        else if (period === 'weekly') { const oneWeek = new Date(today); oneWeek.setDate(today.getDate()-7); filtered = scanRecords.filter(r => new Date(r.date) >= oneWeek); }
+        else if (period === 'monthly') { const oneMonth = new Date(today); oneMonth.setMonth(today.getMonth()-1); filtered = scanRecords.filter(r => new Date(r.date) >= oneMonth); }
+        else filtered = scanRecords.slice();
+
+        if (userFilter) filtered = filtered.filter(r => r.user === userFilter);
+
+        if (!filtered.length) { return alert('Nenhum dado encontrado para o filtro.'); }
+
+        // CSV columns: DATA,HORA,USUARIO,RASTREAMENTO,CLIENTE,ENDERECO,TELEFONE,TYPE,RAW
+        let csv = 'DATA,HORA,USUARIO,RASTREAMENTO,CLIENTE,ENDERECO,TELEFONE,TIPO,RAW\n';
+        filtered.forEach(r => {
+            const d = new Date(r.date);
+            const dateStr = d.toLocaleDateString('pt-BR');
+            const timeStr = d.toLocaleTimeString('pt-BR');
+            const safe = s => `"${(s||'').toString().replace(/"/g,'""')}"`;
+            csv += `${dateStr},${timeStr},${r.user},${r.tracking},${safe(r.cliente)},${safe(r.endereco)},${safe(r.telefone)},${r.type},${safe(r.raw)}\n`;
+        });
+
+        const filename = `relatorio_pegazus_${period}_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.csv`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+        if (dom.exportOptions) dom.exportOptions.style.display = 'none';
+    }
+
+    /* --- User CRUD helpers kept in global scope (as in original) --- */
+    window.editUser = (userId) => {
+        const userToEdit = userId ? users.find(u => u.id === userId) : null;
+        if (userToEdit && userToEdit.id !== currentUser.id && currentUser.role !== 'admin' && (currentUser.role !== 'gestor' || userToEdit.role !== 'colaborador' || userToEdit.creatorId !== currentUser.id)) {
+            return alert('Você não tem permissão para editar este usuário.');
+        }
+        const isAdmin = currentUser.role === 'admin';
+        const isSelf = userToEdit && userToEdit.id === currentUser.id;
+        const username = userToEdit ? userToEdit.username : prompt('Usuário:');
+        if (username === null) return;
+        const password = prompt('Senha (deixe em branco para manter):') || (userToEdit ? userToEdit.password : '');
+        const role = isAdmin || isSelf ? prompt('Papel (colaborador/gestor/admin):', (userToEdit?userToEdit.role:'colaborador')) : (userToEdit?userToEdit.role:'colaborador');
+        if (!userId) {
+            const newUser = { id:'u'+Date.now(), username, password, role: (currentUser.role==='gestor' && role!=='colaborador') ? 'colaborador' : role, creatorId: currentUser.id };
+            users.push(newUser);
+        } else {
+            const idx = users.findIndex(u=>u.id===userId);
+            if (idx>=0){ users[idx].password = password || users[idx].password; if (isAdmin || isSelf) users[idx].role = role; }
+        }
+        saveUsers(); renderUsers();
+    };
+    window.deleteUser = (userId) => {
+        if (userId === currentUser.id) return alert('Você não pode excluir seu próprio perfil enquanto logado.');
+        if (!confirm('Excluir usuário?')) return;
+        users = users.filter(u => u.id !== userId); saveUsers(); renderUsers();
+    };
+
+    /* --- Inicialização final --- */
+    enumerateDevices();
+    // show empty dashboard by default (if logged in)
+    if (currentUser) renderDashboard();
+
+    // Exports for some helper functions to global scope for buttons from HTML
+    window.renderDashboard = renderDashboard;
+    window.renderDeliveries = renderDeliveries;
+    window.renderMap = renderMap;
+    window.renderRoutes = renderRoutes;
+    window.renderUsers = renderUsers;
+    window.generateCSV = generateCSV;
+    window.lookupShipment = lookupShipment;
+});
