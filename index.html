@@ -9,17 +9,15 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
+  <!-- app.js (separado) -->
   <script src="app.js" defer></script>
 
   <style>
-    /* --- Estilos Existentes --- */
+    /* --- (mantive e expandi seu CSS) --- */
     :root{
       --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
       --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
       --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
-      /* ADICIONADOS PARA ESTILOS DO MODAL */
-      --warning: #f39c12; 
-      --primary: #3498db; 
       --radius:25px;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
@@ -30,27 +28,16 @@
       min-height:100vh; display:flex; justify-content:center; align-items:center;
       font-size:14px;
     }
-    
-    .hidden { display: none !important; }
-
-    /* --------------------- Ajustes de Layout e Sidebar --------------------- */
 
     .app{
-      /* O layout volta a ter a sidebar (392px) e o main content */
-      display:grid; grid-template-columns:392px 1fr;
-      width:100vw; height:100vh; background:var(--content-bg-light);
+      display:grid; grid-template-columns:392px 1fr; width:100vw; height:100vh; background:var(--content-bg-light);
       max-width:100%; max-height:100%; overflow:hidden;
     }
 
     .sidebar{
       background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
-      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; 
+      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; /* increased z-index to sit above map */
     }
-    
-    .main{ 
-      padding:24px; overflow-y:auto; height:100%; position:relative; 
-    }
-    
     .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
     .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
     .menu-item:hover{ background:rgba(56,189,248,0.08); color:var(--accent);}
@@ -60,60 +47,13 @@
     .user-info{ font-size:14px; color:var(--muted); }
     .user-info strong{ color:var(--text); font-weight:600; }
 
+    .main{ padding:24px; overflow-y:auto; height:100%; position:relative; }
     .main h2{ margin-top:0; color:var(--content-text-dark); }
     .user-form-card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
 
     .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
     .btn-primary:hover{ background:var(--accent-dark); }
     .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
-    
-    /* MODAL STYLES (INCLUINDO NOVOS) */
-    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
-    
-    .modal-pegazus { 
-        background:white; 
-        padding:16px; 
-        border-radius:12px; 
-        width:90%; 
-        max-width:420px; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
-    }
-    .modal-pegazus h3{ margin:0 0 8px 0; }
-    .modal-pegazus input, .modal-pegazus select { width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
-    
-    /* Estilos específicos da Câmera Modal */
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background-color: var(--primary);
-        color: white;
-        margin: -16px -16px 15px -16px;
-        padding: 15px 16px;
-        border-top-left-radius: 12px;
-        border-top-right-radius: 12px;
-    }
-    .modal-button-group button {
-        display: block;
-        width: 100%;
-        padding: 12px;
-        margin-bottom: 8px;
-        border: none;
-        border-radius: 8px;
-        color: white;
-        font-weight: bold;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-    .modal-button-group button:hover { opacity: 0.8; }
-
-    #abrirCameraParaComprovante { background-color: var(--primary); }
-    #AptsaischanComprovante { background-color: var(--success); }
-    #AfssranRota { background-color: #2196F3; } /* Azul */
-    #MesranRota { background-color: #673AB7; } /* Roxo */
-    #CararIagas { background-color: var(--warning); }
-    /* Fim dos estilos específicos da Modal */
-
 
     /* camera view */
     #cameraView{ position:fixed; inset:0; background:black; display:none; justify-content:center; align-items:center; z-index:1000; }
@@ -141,10 +81,8 @@
     .view-header{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
     .close-btn{ background:transparent; border:none; font-size:20px; cursor:pointer; padding:6px; }
 
-    /* modal manual input (Reaproveitado, mas usa .modal) */
-    .modal-backdrop#modalBackdrop { 
-        display: none; /* Hide by default */
-    }
+    /* modal manual input */
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; z-index:2000; justify-content:center; align-items:center; }
     .modal{ background:white; padding:16px; border-radius:12px; width:90%; max-width:420px; }
     .modal h3{ margin:0 0 8px 0; }
     .modal input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #ddd; }
@@ -164,7 +102,7 @@
   </style>
 </head>
 <body>
-  
+
   <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
   <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
@@ -191,7 +129,6 @@
         <div id="adminMenuOptions" style="margin-top:12px;">
             <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
             <div id="btnUsers" class="menu-item">👥 Usuários</div>
-            <div id="btnComar" class="menu-item">📸 Comãr (Filtros)</div>
 
             <div class="export-container menu-item" style="align-items:flex-start;">
                 <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
@@ -221,10 +158,12 @@
 
     <main class="main">
       <div id="contentArea">
-        </div>
+        <!-- Conteúdo dinâmico é injetado aqui -->
+      </div>
     </main>
   </div>
 
+  <!-- Camera / Scanner view -->
   <section id="cameraView">
     <video id="videoElement" playsinline></video>
     <div class="scan-overlay" aria-hidden="true"></div>
@@ -244,6 +183,7 @@
     <div id="feedbackMsg" role="status" aria-live="polite"></div>
   </section>
 
+  <!-- Modal para inserção manual -->
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h3 id="modalTitle">Inserir rastreio manual</h3>
@@ -253,30 +193,6 @@
         <button id="manualSave" class="btn-primary">Salvar</button>
       </div>
     </div>
-  </div>
-
-  <div id="cameraModal" class="modal-backdrop">
-      <div class="modal-pegazus">
-          <div class="modal-header">
-              <h2>câmera Modal</h2>
-              <span class="close-btn" id="btnCloseCameraModal">✕</span>
-          </div>
-
-          <div class="modal-body">
-              <div class="modal-field-group">
-                  <label for="modal-data">Data:</label>
-                  <input type="text" id="modal-data" placeholder="Data">
-              </div>
-
-              <div class="modal-button-group" style="margin-top: 15px;">
-                  <button id="abrirCameraParaComprovante">abrir Camera Para Comprovante (id)</button>
-                  <button id="AptsaischanComprovante">Aptsaischan Comprovante (id)</button>
-                  <button id="AfssranRota">Afssran Rota (F28e77 / 32.5)</button>
-                  <button id="MesranRota">Mesran Rota (007bi ff (Bf 5)</button>
-                  <button id="CararIagas">Carar Iagas (sians)</button>
-              </div>
-          </div>
-      </div>
   </div>
 
 </body>
