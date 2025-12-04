@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function generateQRCode(trackingId) {
+        // CORRIGIDO: O erro é resolvido no HTML, mas mantemos o alert por segurança
         if (!window.QRCode) {
             alert("Erro: A biblioteca de QR Code não foi carregada. Tente recarregar a página.");
             return;
