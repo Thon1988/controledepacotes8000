@@ -38,9 +38,22 @@
       max-width:100%; max-height:100%; overflow:hidden;
     }
 
+    /* NOVO: Estilo para Mapa em Tela Cheia */
+    .app.fullscreen-map-active {
+        grid-template-columns: 0 1fr; /* Esconde a sidebar no desktop */
+    }
+
     .sidebar{
       background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
       box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; 
+      transition: transform 0.25s ease, opacity 0.25s ease, width 0.25s ease;
+    }
+
+    .app.fullscreen-map-active .sidebar {
+        transform: translateX(-392px); /* Esconde a sidebar no desktop */
+        opacity: 0;
+        pointer-events: none;
+        width: 0;
     }
     
     .main{ 
@@ -99,10 +112,8 @@
 
     .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
     .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
-    /* O botão fechar (X) do scanner já existe e usa o ícone '✕' vermelho */
     .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
-    #btnCloseCamera{ background:var(--danger) !important; color:white !important; } /* Garante o X vermelho no scanner */
-
+    #btnCloseCamera{ background:var(--danger) !important; color:white !important; }
 
     #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
 
@@ -119,6 +130,18 @@
 
     /* ensure map wrapper stays behind sidebar */
     .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
+
+    /* Estilos do Modal Manual */
+    .modal-backdrop{
+        position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; justify-content:center; align-items:center; z-index:1000;
+    }
+    .modal{
+        background:var(--content-card-bg); padding:25px; border-radius:12px; width:90%; max-width:400px;
+        box-shadow:0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal input{
+        width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:15px; margin-top:10px;
+    }
 
     /* responsive adjustments */
     @media(max-width:900px){
@@ -156,10 +179,12 @@
         <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
         <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
         <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
-
+        <div id="btnManualSearch" class="menu-item">🔍 Pesquisar Rast. (Manual)</div>
         <div id="adminMenuOptions" style="margin-top:12px;" class="hidden">
             <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
             <div id="btnUsers" class="menu-item">👥 Usuários</div>
+            
+
             <div class="export-container menu-item" style="align-items:flex-start;">
                 <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
                     ⬇️ Exportar Dados
@@ -213,8 +238,8 @@
 
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <h3 id="modalTitle">Inserir rastreio manual</h3>
-      <input id="manualInput" placeholder="Cole ou digite o código do QR / rastreio" />
+      <h3 id="modalTitle">Inserir Rastreio Manual</h3>
+      <input id="manualInput" placeholder="Cole o ID do rastreio (Ex: BR123456789)" />
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button id="manualCancel" class="btn-secondary">Cancelar</button>
         <button id="manualSave" class="btn-primary">Salvar</button>
@@ -222,5 +247,5 @@
     </div>
   </div>
 
-  </body>
+</body>
 </html>
