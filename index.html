@@ -8,11 +8,12 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.3/qrcode.min.js" defer></script>
 
   <script src="app.js" defer></script>
 
   <style>
-    /* --- Estilos Originais --- */
+    /* --- Estilos Originais (ROOT) --- */
     :root{
       --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
       --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
@@ -30,6 +31,83 @@
     
     .hidden { display: none !important; }
 
+    /* --------------------- Estilos Modernos da Tela de Login --------------------- */
+    
+    /* Chaveamento para a animação de entrada */
+    @keyframes fadeInSlideUp {
+        from { opacity: 0; transform: translateY(20px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .login-container {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center; /* Centraliza verticalmente */
+        justify-content: center; /* Centraliza horizontalmente */
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    .login-card {
+        background: var(--panel);
+        padding: 30px 40px;
+        border-radius: var(--radius);
+        width: 90%;
+        max-width: 360px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+        text-align: center;
+        opacity: 0; /* Começa invisível para a animação */
+        animation: fadeInSlideUp 0.6s ease-out 0.1s forwards; /* Aplica a animação com delay */
+    }
+
+    .login-logo {
+        font-size: 32px;
+        font-weight: 800;
+        color: var(--accent);
+        margin: 0 0 25px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .login-logo .logo-icon {
+        font-size: 40px;
+        color: var(--accent);
+        margin: 0 8px;
+        line-height: 1;
+    }
+
+    .login-form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .login-card input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        background: #1e293b;
+        color: var(--text);
+        font-size: 16px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .login-card input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.3);
+    }
+
+    .login-error-msg {
+        margin-top: 10px;
+        color: var(--danger);
+        font-size: 14px;
+        font-weight: 600;
+    }
+
     /* --------------------- Ajustes de Layout e Sidebar --------------------- */
 
     .app{
@@ -40,7 +118,7 @@
 
     /* NOVO: Estilo para Mapa em Tela Cheia */
     .app.fullscreen-map-active {
-        grid-template-columns: 0 1fr; /* Esconde a sidebar no desktop */
+        grid-template-columns: 0 1fr;
     }
 
     .sidebar{
@@ -50,7 +128,7 @@
     }
 
     .app.fullscreen-map-active .sidebar {
-        transform: translateX(-392px); /* Esconde a sidebar no desktop */
+        transform: translateX(-392px);
         opacity: 0;
         pointer-events: none;
         width: 0;
@@ -72,8 +150,11 @@
     .main h2{ margin-top:0; color:var(--content-text-dark); }
     .card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
 
-    .btn-primary{ background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; }
-    .btn-primary:hover{ background:var(--accent-dark); }
+    .btn-primary{ 
+        background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; 
+        transition: background 0.2s ease, transform 0.1s ease; /* Transição para o botão */
+    }
+    .btn-primary:hover{ background:var(--accent-dark); transform: translateY(-1px); }
     .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
     
     /* Botão X para fechar vistas (Mapa/Lista) */
@@ -81,7 +162,7 @@
         position: absolute;
         top: 0;
         right: 0;
-        background: var(--danger); /* Vermelho, conforme solicitado */
+        background: var(--danger);
         color: white;
         border: none;
         border-radius: 50%;
@@ -131,7 +212,7 @@
     /* ensure map wrapper stays behind sidebar */
     .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
 
-    /* Estilos do Modal Manual */
+    /* Estilos do Modal Manual/QR */
     .modal-backdrop{
         position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; justify-content:center; align-items:center; z-index:1000;
     }
@@ -140,7 +221,14 @@
         box-shadow:0 10px 25px rgba(0,0,0,0.2);
     }
     .modal input{
-        width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:15px; margin-top:10px;
+        width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:5px; margin-top:10px;
+    }
+    #qrcodeContainer {
+        /* Garante que o QR code fique centralizado e ocupe o espaço */
+        flex-direction: column; 
+        align-items: center;
+        text-align: center;
+        min-height: 140px; /* Previne que o modal encolha antes de gerar o QR */
     }
 
     /* responsive adjustments */
@@ -159,16 +247,22 @@
   
   <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
-  <section id="loginSection" class="login-container" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;">
-    <div class="login-card" style="width:92%;max-width:420px;">
-      <h1 style="margin:0 0 18px 0; color:var(--accent)">PegazusLog</h1>
-      <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
-      <input type="password" id="loginPass" placeholder="Senha" value="882010" />
-      <button id="btnLogin" class="btn-primary" style="width:100%; margin-top:8px;">Entrar</button>
-      <p id="loginError" style="margin-top:8px;color:var(--danger)"></p>
+  <section id="loginSection" class="login-container">
+    <div class="login-card">
+        <h1 class="login-logo">
+            <span class="logo-text">Pegazus</span>
+            <span class="logo-icon">⚡</span>
+            <span class="logo-text">Log</span>
+        </h1>
+        
+        <div class="login-form-group">
+            <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
+            <input type="password" id="loginPass" placeholder="Senha" value="882010" />
+            <button id="btnLogin" class="btn-primary" style="width:100%;">Entrar</button>
+            <p id="loginError" class="login-error-msg"></p>
+        </div>
     </div>
   </section>
-
   <div class="app hidden">
     <aside id="sidebar" class="sidebar" aria-hidden="false">
       <div class="logo">📦 <span style="margin-left:6px">PegazusLog</span></div>
@@ -179,7 +273,8 @@
         <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
         <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
         <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
-        <div id="btnManualSearch" class="menu-item">🔍 Pesquisar Rast. (Manual)</div>
+        <div id="btnManualSearch" class="menu-item">🔍 Pesquisar QRcode de entrega</div>
+
         <div id="adminMenuOptions" style="margin-top:12px;" class="hidden">
             <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
             <div id="btnUsers" class="menu-item">👥 Usuários</div>
@@ -227,7 +322,7 @@
       </div>
 
       <div class="right">
-        <select id="cameraSelect" class="hidden"></select>
+        <select id="cameraSelect"></select>
         <button class="icon" id="btnTorch" title="Flash">💡</button>
         <button class="icon" id="btnManual" title="Inserir rastreio manual">✏️</button>
       </div>
@@ -238,11 +333,15 @@
 
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true" style="display:none;">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <h3 id="modalTitle">Inserir Rastreio Manual</h3>
-      <input id="manualInput" placeholder="Cole o ID do rastreio (Ex: BR123456789)" />
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button id="manualCancel" class="btn-secondary">Cancelar</button>
-        <button id="manualSave" class="btn-primary">Salvar</button>
+      <h3 id="modalTitle">Pesquisar e Gerar QR Code de Entrega</h3>
+      <input id="manualInput" placeholder="Digite o ID do rastreio (Ex: BR123456789)" />
+      
+      <div id="qrcodeContainer" style="display:flex; justify-content:center; padding-top:15px; border-top:1px solid #eee; margin-top:10px;">
+        </div>
+      
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:15px;">
+        <button id="manualCancel" class="btn-secondary">Fechar</button>
+        <button id="manualSave" class="btn-primary">Salvar e Gerar QR</button>
       </div>
     </div>
   </div>
