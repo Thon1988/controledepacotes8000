@@ -3,349 +3,220 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>PegazusLog — Scanner Integrado</title>
+  <title>PegazusLog — Sistema Inteligente</title>
 
+  <!-- JSQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-  
+
+  <!-- Marker Cluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css">
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+  <!-- Heatmap -->
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+  <!-- SweetAlert -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- QR Generator -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.3/qrcode.min.js"></script>
 
   <style>
-    /* --- Estilos Originais (ROOT) --- */
     :root{
       --bg:#0f172a; --panel:rgba(30,41,59,0.95); --text:#f1f5f9; --muted:#94a3b8;
       --content-bg-light:#f4f6f8; --content-card-bg:#fff; --content-text-dark:#1f2937;
       --accent:#38bdf8; --accent-dark:#0ea5e9; --success:#22c55e; --danger:#ef4444;
       --radius:25px;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family:'Inter',sans-serif;
     }
 
-    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     body{
-      margin:0; background:linear-gradient(180deg,var(--bg) 0%, #000 100%); color:var(--content-text-dark);
-      min-height:100vh; display:flex; justify-content:center; align-items:center;
-      font-size:14px;
-    }
-    
-    .hidden { display: none !important; }
-
-    /* --------------------- Estilos Modernos da Tela de Login --------------------- */
-    
-    /* Chaveamento para a animação de entrada */
-    @keyframes fadeInSlideUp {
-        from { opacity: 0; transform: translateY(20px) scale(0.98); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
+      margin:0; background:#0f172a;
+      min-height:100vh;
+      display:flex; justify-content:center; align-items:center;
+      color:var(--text);
     }
 
-    .login-container {
-        width: 100vw;
-        height: 100vh;
-        display: flex;
-        align-items: center; /* Centraliza verticalmente */
-        justify-content: center; /* Centraliza horizontalmente */
-        background: var(--bg);
-        color: var(--text);
+    .hidden{display:none!important;}
+
+    /* -------- LOGIN -------- */
+    .login-container{
+      width:100vw;height:100vh;display:flex;justify-content:center;align-items:center;background:#0f172a;
+    }
+    .login-card{
+      background:var(--panel);
+      padding:35px;
+      width:90%;max-width:380px;
+      border-radius:var(--radius);
+      box-shadow:0 10px 25px rgba(0,0,0,0.5);
+    }
+    .login-logo{
+      font-size:32px;font-weight:800;color:var(--accent);
+      display:flex;justify-content:center;align-items:center;
+      gap:8px;margin-bottom:25px;
+    }
+    .login-card input{
+      width:100%;padding:12px;border-radius:8px;background:#1e293b;border:1px solid #334155;
+      color:white;margin-bottom:12px;font-size:16px;
+    }
+    .login-card button{
+      width:100%;padding:12px;background:var(--accent);border:none;border-radius:10px;font-weight:bold;
+      cursor:pointer;
     }
 
-    .login-card {
-        background: var(--panel);
-        padding: 30px 40px;
-        border-radius: var(--radius);
-        width: 90%;
-        max-width: 360px;
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
-        text-align: center;
-        opacity: 0; /* Começa invisível para a animação */
-        animation: fadeInSlideUp 0.6s ease-out 0.1s forwards; /* Aplica a animação com delay */
-    }
-
-    .login-logo {
-        font-size: 32px;
-        font-weight: 800;
-        color: var(--accent);
-        margin: 0 0 25px 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .login-logo .logo-icon {
-        font-size: 60px; /* AUMENTADO EM 50% */
-        color: var(--accent);
-        margin: 0 8px;
-        line-height: 1;
-    }
-
-    .login-form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .login-card input {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        background: #1e293b;
-        color: var(--text);
-        font-size: 16px;
-        transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    .login-card input:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.3);
-    }
-
-    .login-error-msg {
-        margin-top: 10px;
-        color: var(--danger);
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    /* --------------------- Ajustes de Layout e Sidebar --------------------- */
-
+    /* -------- LAYOUT -------- */
     .app{
-      display:grid; grid-template-columns:392px 1fr;
-      width:100vw; height:100vh; background:var(--content-bg-light);
-      max-width:100%; max-height:100%; overflow:hidden;
+      display:grid;grid-template-columns:340px 1fr;
+      width:100vw;height:100vh;background:var(--content-bg-light);
     }
-
-    /* NOVO: Estilo para Mapa em Tela Cheia */
-    .app.fullscreen-map-active {
-        grid-template-columns: 0 1fr;
-    }
-
     .sidebar{
-      background:var(--panel); color:var(--text); padding:20px; display:flex; flex-direction:column;
-      box-shadow:4px 0 10px rgba(0,0,0,0.2); position:relative; z-index:40; 
-      transition: transform 0.25s ease, opacity 0.25s ease, width 0.25s ease;
+      background:var(--panel);color:white;padding:20px;display:flex;flex-direction:column;box-shadow:4px 0 15px rgba(0,0,0,0.2);
+      transition:.3s;
     }
 
-    .app.fullscreen-map-active .sidebar {
-        transform: translateX(-392px);
-        opacity: 0;
-        pointer-events: none;
-        width: 0;
-    }
-    
-    .main{ 
-      padding:24px; overflow-y:auto; height:100%; position:relative; 
-    }
-    
-    .logo{font-size:24px; font-weight:700; color:var(--accent); margin-bottom:18px; display:flex; gap:10px; align-items:center;}
-    .menu-item{ padding:12px 15px; margin-bottom:8px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:10px;}
-    .menu-item:hover{ background:rgba(56,189,248,0.08); color:var(--accent);}
-    .menu-item.active{ background:var(--accent); color:var(--panel); font-weight:700;}
-
-    .sidebar-footer{ margin-top:auto; padding-top:15px; border-top:1px solid rgba(255,255,255,0.06); }
-    .user-info{ font-size:14px; color:var(--muted); }
-    .user-info strong{ color:var(--text); font-weight:600; }
-
-    .main h2{ margin-top:0; color:var(--content-text-dark); }
-    .card{ background:var(--content-card-bg); padding:15px; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.05); margin-bottom:10px; }
-
-    .btn-primary{ 
-        background:var(--accent); color:var(--content-text-dark); padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:700; 
-        transition: background 0.2s ease, transform 0.1s ease; /* Transição para o botão */
-    }
-    .btn-primary:hover{ background:var(--accent-dark); transform: translateY(-1px); }
-    .btn-secondary{ background:rgba(255,255,255,0.08); color:var(--text); padding:10px 12px; border:none; border-radius:8px; cursor:pointer; }
-    
-    /* Botão X para fechar vistas (Mapa/Lista) */
-    .close-x {
-        position: absolute;
-        top: 0;
-        right: 0;
-        background: var(--danger);
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        font-size: 16px;
-        cursor: pointer;
-        line-height: 1;
-        z-index: 10;
-        padding: 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    }
-    .badge {
-        background: var(--accent);
-        color: var(--panel);
-        border-radius: 6px;
-        padding: 4px 8px;
-        font-weight: 700;
-        font-size: 11px;
+    /* Fullscreen map hides sidebar */
+    .app.fullscreen-map-active .sidebar{
+      transform:translateX(-100%);
+      opacity:0;pointer-events:none;
     }
 
+    .menu-item{
+      padding:12px 14px;border-radius:10px;margin-bottom:8px;background:none;cursor:pointer;color:#e2e8f0;
+    }
+    .menu-item:hover{background:rgba(255,255,255,0.06);}
+    .menu-item.active{background:var(--accent);color:#0f172a;font-weight:800;}
 
-    /* camera view */
-    #cameraView{ position:fixed; inset:0; background:black; display:none; justify-content:center; align-items:center; z-index:1000; }
-    #videoElement{ width:100%; height:100%; object-fit:cover; }
-    .scan-overlay{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:90vmin; height:90vmin; max-width:420px; max-height:420px; border:4px solid rgba(255,255,255,0.5); border-radius:15px; z-index:1001; transition:border-color .3s; }
-    #feedbackMsg{ position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--content-text-dark); padding:10px 20px; border-radius:10px; z-index:1002; opacity:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .main{
+      padding:24px;overflow:auto;background:var(--content-bg-light);
+    }
 
-    .camera-controls{ position:absolute; top:10px; width:100%; display:flex; justify-content:space-between; padding:0 12px; z-index:1002; }
-    .camera-controls .left, .camera-controls .right{ display:flex; gap:8px; align-items:center; }
-    .camera-controls button.icon{ background:rgba(0,0,0,0.45); color:white; border:none; padding:10px; border-radius:50%; width:44px; height:44px; cursor:pointer; font-size:18px; display:flex; justify-content:center; align-items:center; }
-    #btnCloseCamera{ background:var(--danger) !important; color:white !important; }
+    /* -------- CAMERA -------- */
+    #cameraView{
+      position:fixed;inset:0;background:black;display:none;justify-content:center;align-items:center;z-index:999;
+    }
+    #videoElement{width:100%;height:100%;object-fit:cover;}
+    .scan-overlay{
+      position:absolute;width:80vmin;height:80vmin;border:4px solid rgba(255,255,255,0.5);border-radius:14px;
+      top:50%;left:50%;transform:translate(-50%,-50%);
+    }
+    #feedbackMsg{
+      position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+      background:var(--accent);color:#000;padding:10px 20px;border-radius:10px;
+      opacity:0;
+    }
+    .camera-controls{
+      position:absolute;top:10px;width:100%;display:flex;justify-content:space-between;padding:0 12px;
+    }
+    .camera-controls button{
+      background:rgba(0,0,0,0.5);color:white;border:none;border-radius:50%;width:44px;height:44px;font-size:20px;
+    }
 
-    #cameraSelect{ background:rgba(0,0,0,0.45); color:white; border:none; padding:8px 12px; border-radius:8px; appearance:none; }
-
-    /* export options */
-    #exportOptions{ position:absolute; right:0; top:100%; background:var(--content-card-bg); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,0.12); padding:12px; display:none; gap:8px; z-index:60; min-width:220px; }
-    #exportOptions input, #exportOptions select{ width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-bottom:6px; }
-
-    /* deliveries list */
-    .list-deliveries{ display:flex; flex-direction:column; gap:8px; max-height:70vh; overflow:auto; padding-right:6px; }
-    .delivery-item{ display:flex; gap:12px; align-items:flex-start; background:var(--content-card-bg); padding:12px; border-radius:10px; border-left:4px solid var(--accent); }
-    .delivery-item .title{ font-weight:700; }
-    .delivery-item .meta{ font-size:12px; color:#6b7280; margin-top:6px; }
-    .grow{ flex-grow:1; }
-
-    /* ensure map wrapper stays behind sidebar */
-    .map-wrapper { position: relative; z-index: 1; min-height: 320px; }
-
-    /* Estilos do Modal Manual/QR */
+    /* -------- MODAL (Manual/QR) -------- */
     .modal-backdrop{
-        position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; justify-content:center; align-items:center; z-index:1000;
+      position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:1000;
     }
     .modal{
-        background:var(--content-card-bg); padding:25px; border-radius:12px; width:90%; max-width:400px;
-        box-shadow:0 10px 25px rgba(0,0,0,0.2);
-    }
-    .modal input{
-        width:100%; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:5px; margin-top:10px;
-    }
-    #qrcodeContainer {
-        /* Garante que o QR code fique centralizado e ocupe o espaço */
-        flex-direction: column; 
-        align-items: center;
-        text-align: center;
-        min-height: 140px; /* Previne que o modal encolha antes de gerar o QR */
+      background:white;color:#1f2937;width:90%;max-width:420px;padding:22px;border-radius:14px;
     }
 
-    /* responsive adjustments */
-    @media(max-width:900px){
-      .app{ grid-template-columns:1fr; }
-      .sidebar{ position:fixed; left:0; top:0; width:300px; height:100%; transform:translateX(-300px); transition:transform .25s ease; z-index:60; }
-      .sidebar.active{ transform:translateX(0); }
-      .main{ padding:16px; }
-      .scan-overlay{ width:78vmin; height:78vmin; max-width:360px; max-height:360px; }
-      .camera-controls .left{ gap:6px; }
-      #mobileMenuBtn{ position:fixed; top:10px; left:10px; z-index:70; background:var(--accent); color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:20px; display:flex; justify-content:center; align-items:center; }
+    /* QR code container */
+    #qrcodeContainer{
+      display:flex;justify-content:center;padding:20px 0;
+      border-top:1px solid #ddd;margin-top:10px;
     }
+
   </style>
 </head>
+
 <body>
-  
-  <button id="mobileMenuBtn" class="hidden" onclick="window.toggleSidebar()">☰</button>
 
-  <section id="loginSection" class="login-container">
-    <div class="login-card">
-        <h1 class="login-logo">
-            <span class="logo-text">Pegazus</span>
-            <span class="logo-icon">⚡</span>
-            <span class="logo-text">Log</span>
-        </h1>
-        
-        <div class="login-form-group">
-            <input type="text" id="loginUser" placeholder="Usuário" value="thon" />
-            <input type="password" id="loginPass" placeholder="Senha" value="882010" />
-            <button id="btnLogin" class="btn-primary" style="width:100%;">Entrar</button>
-            <p id="loginError" class="login-error-msg"></p>
-        </div>
+<!-- ---------------- LOGIN ---------------- -->
+<section id="loginSection" class="login-container">
+  <div class="login-card">
+    <div class="login-logo">⚡ PegazusLog</div>
+
+    <input id="loginUser" placeholder="Usuário" value="thon">
+    <input id="loginPass" type="password" placeholder="Senha" value="882010">
+
+    <button id="btnLogin">Entrar</button>
+
+    <p id="loginError" style="color:#f87171;margin-top:10px;"></p>
+  </div>
+</section>
+
+<!-- ---------------- APP ---------------- -->
+<div id="app" class="app hidden">
+
+  <aside id="sidebar" class="sidebar">
+    <div class="menu-item active" id="btnDashboard">🏠 Dashboard</div>
+    <div class="menu-item" id="btnScanMode">📷 Scanner</div>
+    <div class="menu-item" id="btnDeliveries">📃 Lista de Entregas</div>
+    <div class="menu-item" id="btnMap">🗺️ Mapa</div>
+    <div class="menu-item" id="btnRoutes">🧭 Rotas</div>
+    <div class="menu-item" id="btnManualSearch">🔍 Pesquisar QR</div>
+
+    <hr style="border-color:rgba(255,255,255,0.1);margin:12px 0;">
+
+    <div id="adminMenu" class="">
+      <div class="menu-item" id="btnUsers">👥 Usuários</div>
+
+      <div class="menu-item" id="btnExport">⬇️ Exportar CSV</div>
     </div>
-  </section>
-  <div class="app hidden">
-    <aside id="sidebar" class="sidebar" aria-hidden="false">
-      <div class="logo">📦 <span style="margin-left:6px">PegazusLog</span></div>
 
-      <div id="menuSection">
-        <div id="btnDashboard" class="menu-item active">🏠 Dashboard</div>
-        <div id="btnScanMode" class="menu-item">📷 Iniciar Scanner</div>
-        <div id="btnDeliveries" class="menu-item">📃 Lista de Entregas</div>
-        <div id="btnMap" class="menu-item">🗺️ Mapa de Entregas</div>
-        <div id="btnRoutes" class="menu-item">🧭 Otimizar Rotas</div>
-        <div id="btnManualSearch" class="menu-item">🔍 Pesquisar QRcode de entrega</div>
+    <div style="margin-top:auto;font-size:14px;color:#94a3b8;">
+      Logado como: <strong id="displayUser">?</strong>
+    </div>
+    <button id="btnLogout" style="margin-top:12px;padding:10px;border-radius:10px;border:none;background:#ef4444;color:white;">Sair</button>
+  </aside>
 
-        <div id="adminMenuOptions" style="margin-top:12px;" class="hidden">
-            <hr style="border-color:rgba(255,255,255,0.06); margin:12px 0;">
-            <div id="btnUsers" class="menu-item">👥 Usuários</div>
-            
+  <main class="main">
+    <div id="contentArea"></div>
+  </main>
 
-            <div class="export-container menu-item" style="align-items:flex-start;">
-                <button id="btnExport" style="background:none; border:none; color:inherit; font:inherit; padding:0; display:flex; align-items:center; gap:10px; cursor:pointer;">
-                    ⬇️ Exportar Dados
-                </button>
-                <div id="exportOptions" aria-hidden="true">
-                    <label style="font-size:13px;margin-bottom:6px">Buscar por usuário (login)</label>
-                    <input id="exportUserFilter" placeholder="Digite o login (opcional)"/>
-                    <label style="font-size:13px;margin-bottom:6px">Período</label>
-                    <select id="exportPeriod">
-                      <option value="daily">Últimas 24h</option>
-                      <option value="weekly">Últimos 7 dias</option>
-                      <option value="monthly">Últimos 30 dias</option>
-                      <option value="all">Todos os Dados</option>
-                    </select>
-                    <button id="btnGenerateCSV" class="btn-primary" style="width:100%;">Gerar CSV</button>
-                </div>
-            </div>
-        </div>
-      </div>
+</div>
 
-      <div class="sidebar-footer">
-        <div class="user-info">Logado como: <strong id="displayUser"></strong></div>
-        <button id="btnLogout" class="btn-secondary" style="margin-top:10px; width: 100%">Sair</button>
-      </div>
-    </aside>
 
-    <main class="main">
-      <div id="contentArea">
-        </div>
-    </main>
+<!-- ---------------- CAMERA VIEW ---------------- -->
+<section id="cameraView">
+  <video id="videoElement" playsinline></video>
+  <div class="scan-overlay"></div>
+
+  <div class="camera-controls">
+    <button id="btnCloseCamera">✕</button>
+
+    <div style="display:flex;gap:8px;">
+      <select id="cameraSelect"></select>
+      <button id="btnTorch">💡</button>
+      <button id="btnManual">✏️</button>
+    </div>
   </div>
 
-  <section id="cameraView">
-    <video id="videoElement" playsinline></video>
-    <div class="scan-overlay" aria-hidden="true"></div>
+  <div id="feedbackMsg"></div>
+</section>
 
-    <div class="camera-controls">
-      <div class="left">
-        <button class="icon" id="btnCloseCamera" title="Fechar">✕</button>
-      </div>
 
-      <div class="right">
-        <select id="cameraSelect"></select>
-        <button class="icon" id="btnTorch" title="Flash">💡</button>
-        <button class="icon" id="btnManual" title="Inserir rastreio manual">✏️</button>
-      </div>
-    </div>
+<!-- ---------------- MODAL ---------------- -->
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal">
+    <h3>Gerar / Pesquisar QR Code</h3>
 
-    <div id="feedbackMsg" role="status" aria-live="polite"></div>
-  </section>
+    <input id="manualInput" placeholder="BR123456789">
 
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true" style="display:none;">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <h3 id="modalTitle">Pesquisar e Gerar QR Code de Entrega</h3>
-      <input id="manualInput" placeholder="Digite o ID do rastreio (Ex: BR123456789)" />
-      
-      <div id="qrcodeContainer" style="display:flex; justify-content:center; padding-top:15px; border-top:1px solid #eee; margin-top:10px;">
-        </div>
-      
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:15px;">
-        <button id="manualCancel" class="btn-secondary">Fechar</button>
-        <button id="manualSave" class="btn-primary">Gerar QRcode</button>
-      </div>
+    <div id="qrcodeContainer"></div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:15px;">
+      <button id="manualCancel">Fechar</button>
+      <button id="manualSave" class="btn-primary">Gerar QR</button>
     </div>
   </div>
-  
-  <script src="app.js"></script>
+</div>
 
+<script src="app.js"></script>
 </body>
 </html>
