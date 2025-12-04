@@ -1,10 +1,10 @@
-/* app.js — Versão Atualizada com Mapa Tela Cheia e Pesquisa Manual (Modal) */
+/* app.js — Versão Corrigida: Seletor de Câmera, Fechamento de Modal Manual e Geração de QR Code */
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- KEYS e Estado --- */
     const STORAGE_KEY_USERS = 'pegazus_users_v4';
     const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
-    const STORAGE_KEY_SHIPMENTS = 'pegazus_shipments_v1'; // DB local de rastreios -> cliente/endereço/telefone
+    const STORAGE_KEY_SHIPMENTS = 'pegazus_shipments_v1';
     const DEFAULT_USERS = [
         { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
         { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentUser = null;
     let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-    let shipments = JSON.parse(localStorage.getItem(STORAGE_KEY_SHIPMENTS) || '{}'); // mapa tracking -> details
+    let shipments = JSON.parse(localStorage.getItem(STORAGE_KEY_SHIPMENTS) || '{}');
     let users = loadUsers();
 
     let videoStream = null, isScanning = false, videoTrack = null;
@@ -41,12 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
         exportPeriod: document.getElementById('exportPeriod'),
         exportUserFilter: document.getElementById('exportUserFilter'),
         btnGenerateCSV: document.getElementById('btnGenerateCSV'),
-        // NOVO DOM PARA O MODAL MANUAL
         modalBackdrop: document.getElementById('modalBackdrop'),
         manualInput: document.getElementById('manualInput'),
         manualCancel: document.getElementById('manualCancel'),
         manualSave: document.getElementById('manualSave'),
-        btnManualSearch: document.getElementById('btnManualSearch'), // NOVO BOTÃO DA SIDEBAR
+        btnManualSearch: document.getElementById('btnManualSearch'),
+        // NOVO: Container para o QR Code
+        qrcodeContainer: document.getElementById('qrcodeContainer'), 
     };
 
     /* --- Inicialização --- */
@@ -87,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
             dom.loginSection.classList.add('hidden');
             dom.appContainer.classList.remove('hidden');
-            if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.remove('hidden'); // Alterado para 900px
+            if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.remove('hidden');
             if (currentUser.role === 'admin' || currentUser.role === 'gestor') dom.adminMenuOptions.classList.remove('hidden');
             else dom.adminMenuOptions.classList.add('hidden');
             renderDashboard();
@@ -107,35 +108,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- NOVO HELPER PARA FECHAR SIDEBAR EM MODO MOBILE --- */
     function closeSidebarIfOpen() {
-        // Verifica se a largura é <= 900px (modo mobile) E se a sidebar está aberta
         if (dom.sidebar && window.innerWidth <= 900 && dom.sidebar.classList.contains('active')) {
             dom.sidebar.classList.remove('active');
         }
     }
     
-    /* --- LÓGICA DO MODAL MANUAL --- */
+    /* --- LÓGICA DO MODAL MANUAL E QR CODE --- */
     function openManualModal() {
         if (dom.modalBackdrop) {
-            // Garante que o input manual esteja limpo e o modal visível
             dom.manualInput.value = '';
             dom.modalBackdrop.style.display = 'flex';
             dom.manualInput.focus();
+            // Limpa o QR code antigo e reverte o texto do botão
+            dom.qrcodeContainer.innerHTML = ''; 
+            dom.manualSave.textContent = 'Salvar e Gerar QR';
         }
     }
+    
     function closeManualModal() {
         if (dom.modalBackdrop) dom.modalBackdrop.style.display = 'none';
+        // Limpar o QR code ao fechar
+        if (dom.qrcodeContainer) dom.qrcodeContainer.innerHTML = '';
+        dom.manualSave.textContent = 'Salvar e Gerar QR';
     }
 
+    function generateQRCode(trackingId) {
+        if (!window.QRCode) {
+            alert("Erro: A biblioteca de QR Code não foi carregada. Tente recarregar a página.");
+            return;
+        }
+        
+        // Limpa o conteúdo anterior
+        dom.qrcodeContainer.innerHTML = ''; 
+        dom.qrcodeContainer.style.display = 'flex';
+
+        // Cria o elemento para o QR code
+        const qrcodeDiv = document.createElement('div');
+        dom.qrcodeContainer.appendChild(qrcodeDiv);
+
+        // Usa a biblioteca QRCode para gerar o QR no container
+        new QRCode(qrcodeDiv, {
+            text: trackingId,
+            width: 128,
+            height: 128,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+        
+        // Adiciona um texto descritivo
+        const textElement = document.createElement('p');
+        textElement.style.marginTop = '10px';
+        textElement.style.fontSize = '12px';
+        textElement.style.color = '#334155'; /* Cor escura para contraste no modal claro */
+        textElement.textContent = `QR Code gerado para o ID: ${trackingId}`;
+        dom.qrcodeContainer.appendChild(textElement);
+    }
+
+
     if (dom.manualCancel) dom.manualCancel.addEventListener('click', closeManualModal);
+    
+    // MODIFICADO: Salva, gera QR e mantém modal aberto
     if (dom.manualSave) dom.manualSave.addEventListener('click', () => {
         const code = dom.manualInput.value.trim();
         if (code) {
+            // 1. Processa o rastreio
             handleScannedTracking(code);
-            closeManualModal();
-            renderDeliveries(); // Atualiza a lista após a inserção
-            alert(`Rastreio "${code}" inserido manualmente.`);
+            
+            // 2. NOVO: Gera e exibe o QR Code
+            generateQRCode(code);
+
+            // 3. Atualiza a lista, se estiver na view de entregas
+            const isDeliveriesActive = document.getElementById('btnDeliveries').classList.contains('active');
+            if (isDeliveriesActive) renderDeliveries();
+            
+            // 4. Feedback visual no botão
+            dom.manualSave.textContent = 'Gerado com Sucesso! ✅';
+            setTimeout(() => { dom.manualSave.textContent = 'Salvar e Gerar QR'; }, 2000);
+            
         } else {
-            alert('Por favor, insira o código de rastreio.');
+            alert('Erro: Por favor, insira um código de rastreio válido para salvar.');
         }
     });
 
@@ -150,14 +202,12 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Navegação --- */
     window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
     
-    // Adicionando removeMapFullscreenClass() a todas as navegações, exceto Mapa, para garantir o retorno ao layout normal.
     document.getElementById('btnDashboard').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
     document.getElementById('btnScanMode').addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
     document.getElementById('btnDeliveries').addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); closeSidebarIfOpen(); }); // A função renderMap cuidará da tela cheia
+    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); closeSidebarIfOpen(); });
     document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
     document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    // NOVO: Ação para o botão de Pesquisa Manual
     if (dom.btnManualSearch) dom.btnManualSearch.addEventListener('click', () => { setActiveMenu('btnManualSearch'); openManualModal(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
 
     document.getElementById('btnExport').addEventListener('click', () => {
@@ -166,13 +216,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dom.btnGenerateCSV) dom.btnGenerateCSV.addEventListener('click', () => generateCSV(dom.exportPeriod.value, dom.exportUserFilter.value.trim()));
 
     const btnCloseCamera = document.getElementById('btnCloseCamera');
-    // A lógica de fechar scanner e voltar ao dashboard já existe e usa o 'X' vermelho (CSS .close-x)
     if (btnCloseCamera) btnCloseCamera.addEventListener('click', () => { stopScanner(); closeCameraView(); renderDashboard(); });
 
     const btnTorch = document.getElementById('btnTorch');
     const btnManual = document.getElementById('btnManual');
-    if (btnTorch) { /* ... (torch logic) ... */ }
-    // O botão manual da tela da câmera agora também abre o modal:
+    if (btnTorch) { 
+        btnTorch.addEventListener('click', () => {
+            if (videoTrack && 'torch' in videoTrack.getSettings()) {
+                const isTorchOn = videoTrack.getSettings().torch;
+                videoTrack.applyConstraints({ advanced: [{ torch: !isTorchOn }] })
+                    .then(() => btnTorch.textContent = !isTorchOn ? '🔆' : '💡')
+                    .catch(e => console.error("Erro ao controlar lanterna:", e));
+            } else {
+                alert('Lanterna não suportada.');
+            }
+        });
+    }
     if (btnManual) btnManual.addEventListener('click', () => { openManualModal(); });
 
     function setActiveMenu(id){
@@ -182,10 +241,103 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* --- Camera / Scanner --- */
-    // ... (enumerateDevices, startScanner, stopScanner, tick - unchanged) ...
+    function enumerateDevices() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        navigator.mediaDevices.enumerateDevices().then(devices => {
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+            dom.cameraSelect.innerHTML = '';
+            
+            if (videoDevices.length > 1) {
+                videoDevices.forEach((device, i) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${i + 1}`;
+                    dom.cameraSelect.appendChild(option);
+                });
+                // Torna o seletor visível
+                dom.cameraSelect.classList.remove('hidden'); 
+            } else {
+                // Mantém o seletor oculto
+                dom.cameraSelect.classList.add('hidden'); 
+            }
+        }).catch(err => console.error("Erro ao enumerar dispositivos:", err));
+    }
+    
+    function startScanner(deviceId) {
+        stopScanner();
+        const constraints = {
+            video: {
+                facingMode: 'environment',
+                deviceId: deviceId ? { exact: deviceId } : undefined
+            }
+        };
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then(stream => {
+                videoStream = stream;
+                videoTrack = stream.getVideoTracks()[0];
+                dom.video.srcObject = stream;
+                dom.video.play();
+                isScanning = true;
+                requestAnimationFrame(tick);
+                // Atualiza o seletor para a câmera ativa
+                if (videoTrack) {
+                    const currentDeviceId = videoTrack.getSettings().deviceId;
+                    const activeOption = Array.from(dom.cameraSelect.options).find(opt => opt.value === currentDeviceId);
+                    if (activeOption) activeOption.selected = true;
+                }
+            })
+            .catch(err => {
+                console.error("Erro ao acessar a câmera:", err);
+                dom.feedback.textContent = 'Erro ao iniciar câmera. Permissão negada ou não suportada.';
+                dom.feedback.style.opacity = '1';
+                setTimeout(()=> dom.feedback.style.opacity = '0', 4000);
+            });
+    }
 
+    if (dom.cameraSelect) {
+        dom.cameraSelect.addEventListener('change', () => {
+            startScanner(dom.cameraSelect.value);
+        });
+    }
+
+    function stopScanner() {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+        }
+        isScanning = false;
+        videoTrack = null;
+    }
+    
+    function tick() {
+        if (!isScanning) return;
+        if (dom.video.readyState !== dom.video.HAVE_ENOUGH_DATA) {
+            requestAnimationFrame(tick);
+            return;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = dom.video.videoWidth;
+        canvas.height = dom.video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(dom.video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+        });
+
+        if (code) {
+            const now = Date.now();
+            if (code.data !== lastScanCode || now > lastScanTime + SCAN_DELAY) {
+                lastScanCode = code.data;
+                lastScanTime = now;
+                handleScannedTracking(code.data);
+                // O scanner continua rodando, mas só registra novamente após SCAN_DELAY
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+    
     function openCameraView(){
-        // Fecha mapa (se houver) antes de abrir câmera
         removeMapIfExists();
         removeMapFullscreenClass();
         if (dom.contentArea) dom.contentArea.style.display = 'none';
@@ -201,10 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Quando um rastreio é detectado (manual ou scanner) --- */
     function handleScannedTracking(raw){
-        // No Formato 4 o raw é algo como BR123456789 (apenas tracking)
-        // Normaliza
         const tracking = raw.split(/\s/)[0];
-        // Lookup local
         const details = lookupShipment(tracking);
         const now = new Date().toISOString();
         const record = {
@@ -218,7 +367,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cliente: details.name || '',
             raw: raw
         };
-        // adiciona ao topo e salva
         scanRecords.unshift(record);
         saveScans();
         showScanFeedback(record);
@@ -226,14 +374,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Shipment lookup / edição local --- */
     function lookupShipment(tracking){
-        // ... (unchanged) ...
         if (shipments[tracking]) return shipments[tracking];
         shipments[tracking] = { tracking, name: '', address: 'Endereço desconhecido', phone: '', carrier: '' };
         saveShipments();
         return shipments[tracking];
     }
     window.editShipment = (tracking) => {
-        // ... (unchanged) ...
         const s = lookupShipment(tracking);
         const name = prompt('Nome do cliente:', s.name || '');
         if (name === null) return;
@@ -251,15 +397,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- Feedback/UI --- */
     function showScanFeedback(record){
-        dom.feedback.textContent = `Leitura: ${record.tracking} — ${record.cliente || record.endereco || ''}`;
+        dom.feedback.textContent = `Leitura: ${record.tracking} — ${record.cliente || record.endereco || 'Dados Desconhecidos'}`;
         dom.feedback.style.opacity = '1';
+        // Se estiver na tela do scanner, pisca a borda
+        const scanOverlay = document.querySelector('.scan-overlay');
+        if (dom.cameraView && dom.cameraView.style.display === 'flex') {
+            scanOverlay.style.borderColor = 'var(--success)';
+            setTimeout(() => scanOverlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
+        }
         setTimeout(()=> dom.feedback.style.opacity = '0', 2200);
     }
 
     /* --- RENDERERS --- */
     function renderDashboard(){
         removeMapIfExists();
-        removeMapFullscreenClass(); // Garante o layout normal
+        removeMapFullscreenClass();
         if (dom.appContainer) dom.appContainer.style.display = 'grid';
         if (dom.cameraView) dom.cameraView.style.display = 'none';
         if (dom.contentArea) dom.contentArea.style.display = 'block';
@@ -297,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderDeliveries(){
         removeMapIfExists();
-        removeMapFullscreenClass(); // Garante o layout normal
+        removeMapFullscreenClass();
         if (dom.appContainer) dom.appContainer.style.display = 'grid';
         if (dom.cameraView) dom.cameraView.style.display = 'none';
         if (dom.contentArea) dom.contentArea.style.display = 'block';
@@ -330,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.contentArea.innerHTML = html;
 
         const btnNewManual = document.getElementById('btnNewManual');
-        if (btnNewManual) btnNewManual.addEventListener('click', ()=> { openManualModal(); }); // Abre o modal
+        if (btnNewManual) btnNewManual.addEventListener('click', ()=> { openManualModal(); });
 
         const searchInput = document.getElementById('searchDelivery');
         if (searchInput) searchInput.addEventListener('input', () => {
@@ -346,14 +498,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.viewDeliveryDetail = (tracking) => {
-        // ... (unchanged) ...
+        const record = scanRecords.find(r => r.tracking === tracking);
+        const detailArea = document.getElementById('deliveryDetailArea');
+        if (!record || !detailArea) return;
+        
+        detailArea.innerHTML = `
+            <div class="card" style="margin-top:15px; border-left-color:var(--success)">
+                <h3 style="margin-top:0">${record.tracking}</h3>
+                <p><strong>Cliente:</strong> ${record.cliente || 'Não informado'}</p>
+                <p><strong>Endereço:</strong> ${record.endereco || 'Não informado'}</p>
+                <p><strong>Telefone:</strong> ${record.telefone || 'Não informado'}</p>
+                <p><strong>Tipo:</strong> ${record.type}</p>
+                <p><strong>Registrado por:</strong> ${record.user}</p>
+                <p><strong>Data:</strong> ${new Date(record.date).toLocaleString()}</p>
+                <button class="btn-primary" onclick="window.editShipment('${tracking}')">Editar Dados</button>
+            </div>
+        `;
+        detailArea.scrollIntoView({ behavior: 'smooth' });
     };
 
     function renderUsers(){
         removeMapIfExists();
         removeMapFullscreenClass();
         if (!dom.contentArea) return;
-        // ... (rest of renderUsers - unchanged) ...
+        const isAdmin = currentUser && currentUser.role === 'admin';
+        if (!isAdmin && currentUser.role !== 'gestor') {
+            dom.contentArea.innerHTML = `<h2>Acesso Negado</h2><p>Você não tem permissão para gerenciar usuários.</p>`;
+            return;
+        }
+
         dom.contentArea.innerHTML = `<h2>👥 Gerenciamento de Usuários</h2>
           <div class="card">
             <button class="btn-primary" onclick="window.editUser(null)">+ Novo Usuário</button>
@@ -373,7 +546,6 @@ document.addEventListener('DOMContentLoaded', () => {
         removeMapIfExists();
         removeMapFullscreenClass();
         if (!dom.contentArea) return;
-        // ... (rest of renderRoutes - unchanged) ...
         dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()">✕</button><h2>🧭 Otimizar Rotas</h2></div>
           <div class="card"><p class="small-muted">Gerando uma simulação com seus últimos pontos...</p><div id="routeMapObj" class="map-wrapper"></div></div>`;
         setTimeout(() => {
@@ -396,9 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMap(){
-        // When opening map ensure previous map removed to avoid "stuck" map
         removeMapIfExists();
-        // A classe de tela cheia é adicionada aqui
         addMapFullscreenClass(); 
 
         if (!dom.contentArea) return;
@@ -406,9 +576,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dom.cameraView) dom.cameraView.style.display = 'none';
         if (dom.appContainer) dom.appContainer.style.display = 'grid';
 
-        // Ajuste no HTML para permitir que o mapa ocupe toda a área do .main (que agora é full screen)
         dom.contentArea.innerHTML = `<div style="position:relative;height:100%;"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>🗺️ Mapa de Entregas</h2>
-            <div class="card" style="height:calc(100vh - 60px); padding:0;"><p class="small-muted" style="padding:10px 15px; margin-bottom:0;">Você está aqui: <span id="currentLoc">Carregando...</span></p>
+            <div class="card" style="height:calc(100vh - 60px); padding:0;">
+                <p class="small-muted" style="padding:10px 15px; margin-bottom:0;">Você está aqui: <span id="currentLoc">Carregando...</span></p>
                 <div id="mapObj" class="map-wrapper" style="height:calc(100% - 35px);"></div>
             </div>
         </div>`;
@@ -419,7 +589,6 @@ document.addEventListener('DOMContentLoaded', () => {
             mapInstance = L.map('mapObj').setView([initialLat, initialLon], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
             
-            // Força a atualização do tamanho do mapa após o layout mudar (essencial para Leaflet)
             mapInstance.invalidateSize();
 
             try {
@@ -439,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function removeMapIfExists(){
-        removeMapFullscreenClass(); // Remove a classe de tela cheia ao fechar
+        removeMapFullscreenClass();
         if (mapInstance) {
             try { mapInstance.remove(); } catch(e){ console.warn(e); }
             mapInstance = null;
@@ -452,7 +621,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateMapLocation(){
-        // ... (unchanged) ...
         if (!mapInstance) return;
         const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
         const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
@@ -467,25 +635,117 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.centerMapToRecord = (tracking) => {
-        // ... (unchanged) ...
+        const record = scanRecords.find(r => r.tracking === tracking);
+        if (record && mapInstance) {
+            mapInstance.setView([record.lat || CD_LOCATION.lat, record.lon || CD_LOCATION.lon], 15, { animate: true });
+        }
     };
 
-    /* --- CSV Export (agora usando endereço no lugar de lat/lon) --- */
+    /* --- CSV Export --- */
     function generateCSV(period='all', userFilter=''){
-        // ... (unchanged) ...
+        const now = new Date();
+        let filteredRecords = scanRecords;
+
+        if (period !== 'all') {
+            const days = { 'daily': 1, 'weekly': 7, 'monthly': 30 }[period];
+            const cutoffDate = new Date(now);
+            cutoffDate.setDate(now.getDate() - days);
+            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= cutoffDate);
+        }
+
+        if (userFilter) {
+            filteredRecords = filteredRecords.filter(r => r.user.toLowerCase().includes(userFilter.toLowerCase()));
+        }
+
+        if (filteredRecords.length === 0) {
+            alert('Nenhum registro encontrado para os filtros selecionados.');
+            return;
+        }
+
+        const headers = ["tracking", "cliente", "endereco", "telefone", "data", "usuario", "tipo", "raw_data"];
+        let csv = headers.join(";") + "\n";
+        
+        filteredRecords.forEach(r => {
+            const row = [
+                r.tracking,
+                r.cliente,
+                r.endereco,
+                r.telefone,
+                new Date(r.date).toLocaleString('pt-BR'),
+                r.user,
+                r.type,
+                r.raw.replace(/\"/g, '""') // Escape quotes for CSV
+            ].map(d => `"${d}"`).join(";");
+            csv += row + "\n";
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `pegazus_export_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert(`Exportação de ${filteredRecords.length} registros concluída.`);
+        }
+        dom.exportOptions.style.display = 'none';
     }
 
     /* --- User CRUD helpers kept in global scope (as in original) --- */
     window.editUser = (userId) => {
-        // ... (unchanged) ...
+        const userToEdit = userId ? users.find(u => u.id === userId) : null;
+        const isNew = !userId;
+        const isAdmin = currentUser.role === 'admin';
+        const isSelf = currentUser.id === userId;
+
+        const username = prompt('Nome de Usuário:', userToEdit ? userToEdit.username : '');
+        if (!username) return;
+
+        const password = prompt('Nova Senha (deixe em branco para manter a antiga):', '');
+        
+        let role = userToEdit ? userToEdit.role : 'colaborador';
+        if (isAdmin || isSelf) {
+            const inputRole = prompt(`Papel (${isAdmin?'admin/gestor/colaborador':'colaborador'}):`, userToEdit ? userToEdit.role : 'colaborador');
+            if (inputRole) {
+                const lowerRole = inputRole.toLowerCase();
+                if (isAdmin) {
+                    if (['admin', 'gestor', 'colaborador'].includes(lowerRole)) role = lowerRole;
+                } else if (isSelf) {
+                    if (['colaborador'].includes(lowerRole)) role = lowerRole;
+                }
+            }
+        }
+
+        if (!userId) {
+            const newUser = { 
+                id:'u'+Date.now(), 
+                username, 
+                password, 
+                role: (currentUser.role==='gestor' && role==='admin') ? 'gestor' : role, // Gestor não pode criar Admin
+                creatorId: currentUser.id 
+            };
+            users.push(newUser);
+        } else {
+            const idx = users.findIndex(u=>u.id===userId);
+            if (idx>=0){ 
+                users[idx].username = username;
+                if (password) users[idx].password = password; 
+                if (isAdmin || isSelf) users[idx].role = role; 
+            }
+        }
+        saveUsers(); renderUsers();
     };
     window.deleteUser = (userId) => {
-        // ... (unchanged) ...
+        if (userId === currentUser.id) return alert('Você não pode excluir seu próprio perfil enquanto logado.');
+        if (!confirm('Excluir usuário?')) return;
+        users = users.filter(u => u.id !== userId); saveUsers(); renderUsers();
     };
 
     /* --- Inicialização final --- */
     enumerateDevices();
-    // show empty dashboard by default (if logged in)
     if (currentUser) renderDashboard();
 
     // Exports for some helper functions to global scope for buttons from HTML
@@ -496,5 +756,5 @@ document.addEventListener('DOMContentLoaded', () => {
     window.renderUsers = renderUsers;
     window.generateCSV = generateCSV;
     window.lookupShipment = lookupShipment;
-    window.openManualModal = openManualModal; // Exporta para uso em outros botões se necessário
+    window.openManualModal = openManualModal;
 });
