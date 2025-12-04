@@ -1,4 +1,4 @@
-/* app.js — Versão Corrigida: Seletor de Câmera, Fechamento de Modal Manual e Geração de QR Code */
+/* app.js — Versão Corrigida: Correção de Carregamento e Foco na Geração de QR Code */
 document.addEventListener('DOMContentLoaded', () => {
 
     /* --- KEYS e Estado --- */
@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
         manualCancel: document.getElementById('manualCancel'),
         manualSave: document.getElementById('manualSave'),
         btnManualSearch: document.getElementById('btnManualSearch'),
-        // NOVO: Container para o QR Code
         qrcodeContainer: document.getElementById('qrcodeContainer'), 
     };
 
@@ -121,7 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.manualInput.focus();
             // Limpa o QR code antigo e reverte o texto do botão
             dom.qrcodeContainer.innerHTML = ''; 
-            dom.manualSave.textContent = 'Salvar e Gerar QR';
+            // CORRIGIDO: Nome do botão
+            dom.manualSave.textContent = 'Gerar QRcode'; 
         }
     }
     
@@ -129,13 +129,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dom.modalBackdrop) dom.modalBackdrop.style.display = 'none';
         // Limpar o QR code ao fechar
         if (dom.qrcodeContainer) dom.qrcodeContainer.innerHTML = '';
-        dom.manualSave.textContent = 'Salvar e Gerar QR';
+        // CORRIGIDO: Nome do botão
+        dom.manualSave.textContent = 'Gerar QRcode';
     }
 
     function generateQRCode(trackingId) {
-        // CORRIGIDO: O erro é resolvido no HTML, mas mantemos o alert por segurança
+        // Correção de Erro: Verifica se a biblioteca foi carregada (embora a correção de ordem deva resolver)
         if (!window.QRCode) {
-            alert("Erro: A biblioteca de QR Code não foi carregada. Tente recarregar a página.");
+            // Se o erro de carregamento persistir, tenta notificar o usuário para limpar o cache.
+            alert("Erro: A biblioteca de QR Code não foi carregada. Por favor, tente limpar o cache do seu navegador (Ctrl+Shift+R) e recarregar.");
             return;
         }
         
@@ -169,14 +171,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (dom.manualCancel) dom.manualCancel.addEventListener('click', closeManualModal);
     
-    // MODIFICADO: Salva, gera QR e mantém modal aberto
+    // MODIFICADO: Remove "Salvar", foca em "Gerar QRcode"
     if (dom.manualSave) dom.manualSave.addEventListener('click', () => {
         const code = dom.manualInput.value.trim();
         if (code) {
-            // 1. Processa o rastreio
+            // 1. Processa o rastreio (mantido para registrar o evento de rastreio)
             handleScannedTracking(code);
             
-            // 2. NOVO: Gera e exibe o QR Code
+            // 2. Gera e exibe o QR Code
             generateQRCode(code);
 
             // 3. Atualiza a lista, se estiver na view de entregas
@@ -184,11 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDeliveriesActive) renderDeliveries();
             
             // 4. Feedback visual no botão
-            dom.manualSave.textContent = 'Gerado com Sucesso! ✅';
-            setTimeout(() => { dom.manualSave.textContent = 'Salvar e Gerar QR'; }, 2000);
+            dom.manualSave.textContent = 'QR Code Gerado! ✅';
+            setTimeout(() => { dom.manualSave.textContent = 'Gerar QRcode'; }, 2000);
             
         } else {
-            alert('Erro: Por favor, insira um código de rastreio válido para salvar.');
+            alert('Erro: Por favor, insira um código de rastreio válido para gerar o QR Code.');
         }
     });
 
