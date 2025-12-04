@@ -1,763 +1,892 @@
-/* app.js — Versão Corrigida: Correção de Carregamento e Foco na Geração de QR Code */
+/* app.js - Versão completa integrada
+   Coloque este arquivo lado a lado com o index.html fornecido anteriormente.
+*/
+
 document.addEventListener('DOMContentLoaded', () => {
+  /* -------------------------
+     Constantes & Estado
+     ------------------------- */
+  const STORAGE_KEY_USERS = 'pegazus_users_v4';
+  const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
+  const STORAGE_KEY_SHIPMENTS = 'pegazus_shipments_v1';
+  const DEFAULT_USERS = [
+    { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
+    { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
+    { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
+  ];
+  const CD_LOCATION = { lat: -23.5505, lon: -46.6333 }; // Depósito / fallback
+  const SCAN_DELAY = 1200; // ms (debounce)
 
-    /* --- KEYS e Estado --- */
-    const STORAGE_KEY_USERS = 'pegazus_users_v4';
-    const STORAGE_KEY_SCANS = 'pegazus_scans_v4';
-    const STORAGE_KEY_SHIPMENTS = 'pegazus_shipments_v1';
-    const DEFAULT_USERS = [
-        { id: 'u1', username: 'thon', password: '882010', role: 'admin', creatorId: 'system' },
-        { id: 'u2', username: 'maria', password: '123', role: 'gestor', creatorId: 'system' },
-        { id: 'u3', username: 'joao', password: '123', role: 'colaborador', creatorId: 'u2' }
-    ];
-    const CD_LOCATION = { lat: -23.5505, lon: -46.6333 };
+  let currentUser = null;
+  let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
+  let shipments = JSON.parse(localStorage.getItem(STORAGE_KEY_SHIPMENTS) || '{}');
+  let users = loadUsers();
 
-    let currentUser = null;
-    let scanRecords = JSON.parse(localStorage.getItem(STORAGE_KEY_SCANS) || '[]');
-    let shipments = JSON.parse(localStorage.getItem(STORAGE_KEY_SHIPMENTS) || '{}');
-    let users = loadUsers();
+  // camera / scanning
+  let videoStream = null;
+  let videoTrack = null;
+  let isScanning = false;
+  let lastScanCode = '';
+  let lastScanTime = 0;
 
-    let videoStream = null, isScanning = false, videoTrack = null;
-    const SCAN_DELAY = 1000;
-    let lastScanCode = '', lastScanTime = 0;
-    let userLocation = null;
-    let mapInstance = null;
-    let locationMarker = null;
+  // map
+  let mapInstance = null;
+  let clusterGroup = null;
+  let heatLayer = null;
+  let routeLayer = null;
+  let locationMarker = null;
 
-    /* --- DOM --- */
-    const dom = {
-        loginSection: document.getElementById('loginSection'),
-        menuSection: document.getElementById('menuSection'),
-        appContainer: document.querySelector('.app'),
-        contentArea: document.getElementById('contentArea'),
-        cameraView: document.getElementById('cameraView'),
-        video: document.getElementById('videoElement'),
-        sidebar: document.getElementById('sidebar'),
-        mobileMenuBtn: document.getElementById('mobileMenuBtn'),
-        feedback: document.getElementById('feedbackMsg'),
-        cameraSelect: document.getElementById('cameraSelect'),
-        exportOptions: document.getElementById('exportOptions'),
-        adminMenuOptions: document.getElementById('adminMenuOptions'),
-        exportPeriod: document.getElementById('exportPeriod'),
-        exportUserFilter: document.getElementById('exportUserFilter'),
-        btnGenerateCSV: document.getElementById('btnGenerateCSV'),
-        modalBackdrop: document.getElementById('modalBackdrop'),
-        manualInput: document.getElementById('manualInput'),
-        manualCancel: document.getElementById('manualCancel'),
-        manualSave: document.getElementById('manualSave'),
-        btnManualSearch: document.getElementById('btnManualSearch'),
-        qrcodeContainer: document.getElementById('qrcodeContainer'), 
-    };
+  // DOM
+  const dom = {
+    loginSection: document.getElementById('loginSection'),
+    loginUser: document.getElementById('loginUser'),
+    loginPass: document.getElementById('loginPass'),
+    btnLogin: document.getElementById('btnLogin'),
+    loginError: document.getElementById('loginError'),
 
-    /* --- Inicialização --- */
-    function loadUsers() {
-        const raw = localStorage.getItem(STORAGE_KEY_USERS);
-        if(!raw) { localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS)); return DEFAULT_USERS; }
-        const existingUsers = JSON.parse(raw);
-        const thonExists = existingUsers.some(u => u.username === 'thon');
-        if (!thonExists) existingUsers.push(DEFAULT_USERS[0]);
-        else {
-            const thonIndex = existingUsers.findIndex(u => u.username === 'thon');
-            existingUsers[thonIndex].password = DEFAULT_USERS[0].password;
-            existingUsers[thonIndex].role = DEFAULT_USERS[0].role;
-        }
-        return existingUsers;
+    app: document.getElementById('app'),
+    sidebar: document.getElementById('sidebar'),
+    displayUser: document.getElementById('displayUser'),
+    btnLogout: document.getElementById('btnLogout'),
+
+    btnDashboard: document.getElementById('btnDashboard'),
+    btnScanMode: document.getElementById('btnScanMode'),
+    btnDeliveries: document.getElementById('btnDeliveries'),
+    btnMap: document.getElementById('btnMap'),
+    btnRoutes: document.getElementById('btnRoutes'),
+    btnManualSearch: document.getElementById('btnManualSearch'),
+    btnUsers: document.getElementById('btnUsers'),
+    btnExport: document.getElementById('btnExport'),
+
+    contentArea: document.getElementById('contentArea'),
+
+    cameraView: document.getElementById('cameraView'),
+    video: document.getElementById('videoElement'),
+    cameraSelect: document.getElementById('cameraSelect'),
+    btnCloseCamera: document.getElementById('btnCloseCamera'),
+    btnTorch: document.getElementById('btnTorch'),
+    btnManual: document.getElementById('btnManual'),
+    feedback: document.getElementById('feedbackMsg'),
+
+    modalBackdrop: document.getElementById('modalBackdrop'),
+    manualInput: document.getElementById('manualInput'),
+    qrcodeContainer: document.getElementById('qrcodeContainer'),
+    manualCancel: document.getElementById('manualCancel'),
+    manualSave: document.getElementById('manualSave'),
+  };
+
+  /* -------------------------
+     Helpers de storage & init
+     ------------------------- */
+  function loadUsers() {
+    const raw = localStorage.getItem(STORAGE_KEY_USERS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
+      return DEFAULT_USERS.slice();
     }
-    function saveUsers(){ localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users)); }
-    function saveScans(){ localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords)); }
-    function saveShipments(){ localStorage.setItem(STORAGE_KEY_SHIPMENTS, JSON.stringify(shipments)); }
-
-    /* --- Geolocation (opcional) --- */
-    function startGeolocation(){
-        if ("geolocation" in navigator){
-            navigator.geolocation.watchPosition(pos => {
-                userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                if (mapInstance) updateMapLocation();
-            }, err => { console.warn('Geolocation error', err.message); userLocation = null; }, { enableHighAccuracy:true, timeout:5000, maximumAge:0 });
-        }
+    try {
+      const existing = JSON.parse(raw);
+      // ensure 'thon' exists with default password
+      const thon = existing.find(u => u.username === 'thon');
+      if (!thon) existing.push(DEFAULT_USERS[0]);
+      return existing;
+    } catch (e) {
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(DEFAULT_USERS));
+      return DEFAULT_USERS.slice();
     }
+  }
+  function saveUsers() { localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users)); }
+  function saveScans() { localStorage.setItem(STORAGE_KEY_SCANS, JSON.stringify(scanRecords)); }
+  function saveShipments() { localStorage.setItem(STORAGE_KEY_SHIPMENTS, JSON.stringify(shipments)); }
 
-    /* --- Login / Logout --- */
-    document.getElementById('btnLogin').addEventListener('click', () => {
-        const u = document.getElementById('loginUser').value.trim();
-        const p = document.getElementById('loginPass').value.trim();
-        const user = users.find(x => x.username === u && x.password === p);
-        if (user) {
-            currentUser = user;
-            document.getElementById('displayUser').textContent = user.username + ` (${user.role})`;
-            dom.loginSection.classList.add('hidden');
-            dom.appContainer.classList.remove('hidden');
-            if(window.innerWidth <= 900) dom.mobileMenuBtn.classList.remove('hidden');
-            if (currentUser.role === 'admin' || currentUser.role === 'gestor') dom.adminMenuOptions.classList.remove('hidden');
-            else dom.adminMenuOptions.classList.add('hidden');
-            renderDashboard();
-            document.getElementById('loginError').textContent = '';
-            startGeolocation();
-        } else {
-            document.getElementById('loginError').textContent = 'Credenciais inválidas';
-        }
+  /* -------------------------
+     Audio feedback (beep)
+     ------------------------- */
+  function playBeep(success = true) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = success ? 1000 : 300;
+      g.gain.value = 0.02;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      setTimeout(() => {
+        o.stop();
+        ctx.close();
+      }, 120);
+    } catch (e) { /* ignore */ }
+  }
+
+  /* -------------------------
+     Login / Logout
+     ------------------------- */
+  dom.btnLogin && dom.btnLogin.addEventListener('click', () => {
+    const u = dom.loginUser.value.trim();
+    const p = dom.loginPass.value.trim();
+    const found = users.find(x => x.username === u && x.password === p);
+    if (found) {
+      currentUser = found;
+      dom.displayUser.textContent = `${found.username} (${found.role})`;
+      dom.loginSection.classList.add('hidden');
+      dom.app.classList.remove('hidden');
+      setActiveMenu('btnDashboard');
+      renderDashboard();
+      startGeolocation();
+    } else {
+      dom.loginError.textContent = 'Credenciais inválidas';
+      setTimeout(() => dom.loginError.textContent = '', 3000);
+    }
+  });
+
+  dom.btnLogout && dom.btnLogout.addEventListener('click', () => {
+    stopScanner();
+    currentUser = null;
+    dom.app.classList.add('hidden');
+    dom.loginSection.classList.remove('hidden');
+    dom.contentArea.innerHTML = '';
+  });
+
+  function setActiveMenu(id) {
+    Array.from(document.querySelectorAll('.menu-item')).forEach(el => el.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
+  }
+
+  /* -------------------------
+     Camera / Scanner
+     ------------------------- */
+  async function enumerateDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      dom.cameraSelect.innerHTML = '';
+      if (videoDevices.length === 0) {
+        dom.cameraSelect.classList.add('hidden');
+        return;
+      }
+      videoDevices.forEach((d, i) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.innerText = d.label || `Camera ${i+1}`;
+        dom.cameraSelect.appendChild(opt);
+      });
+      if (videoDevices.length > 1) dom.cameraSelect.classList.remove('hidden');
+    } catch (e) {
+      console.warn('enumerateDevices failed', e);
+    }
+  }
+
+  function startScanner(deviceId) {
+    stopScanner();
+    const constraints = deviceId ? { video: { deviceId: { exact: deviceId } } } : { video: { facingMode: 'environment' } };
+    navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+      videoStream = stream;
+      videoTrack = stream.getVideoTracks()[0];
+      dom.video.srcObject = stream;
+      dom.video.play().catch(() => { /* autoplay restrictions */ });
+      isScanning = true;
+      requestAnimationFrame(scanLoop);
+      // select active option
+      try {
+        const device = videoTrack.getSettings().deviceId;
+        Array.from(dom.cameraSelect.options).forEach(o => o.selected = (o.value === device));
+      } catch (e) { /* ignore */ }
+    }).catch(err => {
+      console.error('getUserMedia failed', err);
+      dom.feedback.textContent = 'Erro ao acessar câmera';
+      dom.feedback.style.opacity = '1';
+      setTimeout(() => dom.feedback.style.opacity = '0', 3000);
     });
+  }
 
-    document.getElementById('btnLogout').addEventListener('click', () => {
-        currentUser = null; stopScanner();
-        dom.appContainer.classList.add('hidden'); dom.loginSection.classList.remove('hidden');
-        dom.mobileMenuBtn.classList.add('hidden');
-        dom.contentArea.innerHTML = `<div style="text-align:center;margin-top:20vh;opacity:0.5"><h2>Até logo</h2></div>`;
-    });
-
-    /* --- NOVO HELPER PARA FECHAR SIDEBAR EM MODO MOBILE --- */
-    function closeSidebarIfOpen() {
-        if (dom.sidebar && window.innerWidth <= 900 && dom.sidebar.classList.contains('active')) {
-            dom.sidebar.classList.remove('active');
-        }
+  function stopScanner() {
+    isScanning = false;
+    if (videoStream) {
+      videoStream.getTracks().forEach(t => t.stop());
+      videoStream = null;
+      videoTrack = null;
     }
-    
-    /* --- LÓGICA DO MODAL MANUAL E QR CODE --- */
-    function openManualModal() {
-        if (dom.modalBackdrop) {
-            dom.manualInput.value = '';
-            dom.modalBackdrop.style.display = 'flex';
-            dom.manualInput.focus();
-            // Limpa o QR code antigo e reverte o texto do botão
-            dom.qrcodeContainer.innerHTML = ''; 
-            // CORRIGIDO: Nome do botão
-            dom.manualSave.textContent = 'Gerar QRcode'; 
-        }
-    }
-    
-    function closeManualModal() {
-        if (dom.modalBackdrop) dom.modalBackdrop.style.display = 'none';
-        // Limpar o QR code ao fechar
-        if (dom.qrcodeContainer) dom.qrcodeContainer.innerHTML = '';
-        // CORRIGIDO: Nome do botão
-        dom.manualSave.textContent = 'Gerar QRcode';
-    }
+    if (dom.video) { dom.video.srcObject = null; }
+  }
 
-    function generateQRCode(trackingId) {
-        // Correção de Erro: Verifica se a biblioteca foi carregada (embora a correção de ordem deva resolver)
-        if (!window.QRCode) {
-            // Se o erro de carregamento persistir, tenta notificar o usuário para limpar o cache.
-            alert("Erro: A biblioteca de QR Code não foi carregada. Por favor, tente limpar o cache do seu navegador (Ctrl+Shift+R) e recarregar.");
-            return;
-        }
-        
-        // Limpa o conteúdo anterior
-        dom.qrcodeContainer.innerHTML = ''; 
-        dom.qrcodeContainer.style.display = 'flex';
-
-        // Cria o elemento para o QR code
-        const qrcodeDiv = document.createElement('div');
-        dom.qrcodeContainer.appendChild(qrcodeDiv);
-
-        // Usa a biblioteca QRCode para gerar o QR no container
-        new QRCode(qrcodeDiv, {
-            text: trackingId,
-            width: 128,
-            height: 128,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
-        });
-        
-        // Adiciona um texto descritivo
-        const textElement = document.createElement('p');
-        textElement.style.marginTop = '10px';
-        textElement.style.fontSize = '12px';
-        textElement.style.color = '#334155'; /* Cor escura para contraste no modal claro */
-        textElement.textContent = `QR Code gerado para o ID: ${trackingId}`;
-        dom.qrcodeContainer.appendChild(textElement);
-    }
-
-
-    if (dom.manualCancel) dom.manualCancel.addEventListener('click', closeManualModal);
-    
-    // MODIFICADO: Remove "Salvar", foca em "Gerar QRcode"
-    if (dom.manualSave) dom.manualSave.addEventListener('click', () => {
-        const code = dom.manualInput.value.trim();
-        if (code) {
-            // 1. Processa o rastreio (mantido para registrar o evento de rastreio)
-            handleScannedTracking(code);
-            
-            // 2. Gera e exibe o QR Code
-            generateQRCode(code);
-
-            // 3. Atualiza a lista, se estiver na view de entregas
-            const isDeliveriesActive = document.getElementById('btnDeliveries').classList.contains('active');
-            if (isDeliveriesActive) renderDeliveries();
-            
-            // 4. Feedback visual no botão
-            dom.manualSave.textContent = 'QR Code Gerado! ✅';
-            setTimeout(() => { dom.manualSave.textContent = 'Gerar QRcode'; }, 2000);
-            
-        } else {
-            alert('Erro: Por favor, insira um código de rastreio válido para gerar o QR Code.');
-        }
-    });
-
-    /* --- HELPER DE TELA CHEIA DO MAPA --- */
-    function addMapFullscreenClass() {
-        if (dom.appContainer) dom.appContainer.classList.add('fullscreen-map-active');
-    }
-    function removeMapFullscreenClass() {
-        if (dom.appContainer) dom.appContainer.classList.remove('fullscreen-map-active');
-    }
-
-    /* --- Navegação --- */
-    window.toggleSidebar = () => dom.sidebar.classList.toggle('active');
-    
-    document.getElementById('btnDashboard').addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    document.getElementById('btnScanMode').addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    document.getElementById('btnDeliveries').addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    document.getElementById('btnMap').addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); closeSidebarIfOpen(); });
-    document.getElementById('btnRoutes').addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    document.getElementById('btnUsers').addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-    if (dom.btnManualSearch) dom.btnManualSearch.addEventListener('click', () => { setActiveMenu('btnManualSearch'); openManualModal(); closeSidebarIfOpen(); removeMapFullscreenClass(); });
-
-    document.getElementById('btnExport').addEventListener('click', () => {
-        if (dom.exportOptions) dom.exportOptions.style.display = dom.exportOptions.style.display === 'block' ? 'none' : 'block';
-    });
-    if (dom.btnGenerateCSV) dom.btnGenerateCSV.addEventListener('click', () => generateCSV(dom.exportPeriod.value, dom.exportUserFilter.value.trim()));
-
-    const btnCloseCamera = document.getElementById('btnCloseCamera');
-    if (btnCloseCamera) btnCloseCamera.addEventListener('click', () => { stopScanner(); closeCameraView(); renderDashboard(); });
-
-    const btnTorch = document.getElementById('btnTorch');
-    const btnManual = document.getElementById('btnManual');
-    if (btnTorch) { 
-        btnTorch.addEventListener('click', () => {
-            if (videoTrack && 'torch' in videoTrack.getSettings()) {
-                const isTorchOn = videoTrack.getSettings().torch;
-                videoTrack.applyConstraints({ advanced: [{ torch: !isTorchOn }] })
-                    .then(() => btnTorch.textContent = !isTorchOn ? '🔆' : '💡')
-                    .catch(e => console.error("Erro ao controlar lanterna:", e));
-            } else {
-                alert('Lanterna não suportada.');
-            }
-        });
-    }
-    if (btnManual) btnManual.addEventListener('click', () => { openManualModal(); });
-
-    function setActiveMenu(id){
-        Array.from(document.querySelectorAll('.menu-item')).forEach(el => el.classList.remove('active'));
-        const el = document.getElementById(id);
-        if (el) el.classList.add('active');
-    }
-
-    /* --- Camera / Scanner --- */
-    function enumerateDevices() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-        navigator.mediaDevices.enumerateDevices().then(devices => {
-            const videoDevices = devices.filter(d => d.kind === 'videoinput');
-            dom.cameraSelect.innerHTML = '';
-            
-            if (videoDevices.length > 1) {
-                videoDevices.forEach((device, i) => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.text = device.label || `Camera ${i + 1}`;
-                    dom.cameraSelect.appendChild(option);
-                });
-                // Torna o seletor visível
-                dom.cameraSelect.classList.remove('hidden'); 
-            } else {
-                // Mantém o seletor oculto
-                dom.cameraSelect.classList.add('hidden'); 
-            }
-        }).catch(err => console.error("Erro ao enumerar dispositivos:", err));
-    }
-    
-    function startScanner(deviceId) {
-        stopScanner();
-        const constraints = {
-            video: {
-                facingMode: 'environment',
-                deviceId: deviceId ? { exact: deviceId } : undefined
-            }
-        };
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                videoStream = stream;
-                videoTrack = stream.getVideoTracks()[0];
-                dom.video.srcObject = stream;
-                dom.video.play();
-                isScanning = true;
-                requestAnimationFrame(tick);
-                // Atualiza o seletor para a câmera ativa
-                if (videoTrack) {
-                    const currentDeviceId = videoTrack.getSettings().deviceId;
-                    const activeOption = Array.from(dom.cameraSelect.options).find(opt => opt.value === currentDeviceId);
-                    if (activeOption) activeOption.selected = true;
-                }
-            })
-            .catch(err => {
-                console.error("Erro ao acessar a câmera:", err);
-                dom.feedback.textContent = 'Erro ao iniciar câmera. Permissão negada ou não suportada.';
-                dom.feedback.style.opacity = '1';
-                setTimeout(()=> dom.feedback.style.opacity = '0', 4000);
-            });
-    }
-
-    if (dom.cameraSelect) {
-        dom.cameraSelect.addEventListener('change', () => {
-            startScanner(dom.cameraSelect.value);
-        });
-    }
-
-    function stopScanner() {
-        if (videoStream) {
-            videoStream.getTracks().forEach(track => track.stop());
-            videoStream = null;
-        }
-        isScanning = false;
-        videoTrack = null;
-    }
-    
-    function tick() {
-        if (!isScanning) return;
-        if (dom.video.readyState !== dom.video.HAVE_ENOUGH_DATA) {
-            requestAnimationFrame(tick);
-            return;
-        }
+  async function scanLoop() {
+    if (!isScanning || !dom.video) return;
+    if (dom.video.readyState === dom.video.HAVE_ENOUGH_DATA) {
+      const w = dom.video.videoWidth;
+      const h = dom.video.videoHeight;
+      if (w > 0 && h > 0) {
         const canvas = document.createElement('canvas');
-        canvas.width = dom.video.videoWidth;
-        canvas.height = dom.video.videoHeight;
+        canvas.width = w;
+        canvas.height = h;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(dom.video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
-        });
-
-        if (code) {
+        ctx.drawImage(dom.video, 0, 0, w, h);
+        try {
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+          if (code && code.data) {
             const now = Date.now();
             if (code.data !== lastScanCode || now > lastScanTime + SCAN_DELAY) {
-                lastScanCode = code.data;
-                lastScanTime = now;
-                handleScannedTracking(code.data);
-                // O scanner continua rodando, mas só registra novamente após SCAN_DELAY
+              lastScanCode = code.data;
+              lastScanTime = now;
+              handleScannedTracking(code.data.trim());
             }
+          }
+        } catch (e) {
+          // Cross-origin or other canvas error (silently ignore)
+          // console.warn('scanLoop getImageData error', e);
         }
-        requestAnimationFrame(tick);
+      }
     }
-    
-    function openCameraView(){
-        removeMapIfExists();
-        removeMapFullscreenClass();
-        if (dom.contentArea) dom.contentArea.style.display = 'none';
-        if (dom.cameraView) dom.cameraView.style.display = 'flex';
-        if (dom.appContainer) dom.appContainer.style.display = 'none';
-        startScanner();
-    }
-    function closeCameraView(){
-        if (dom.cameraView) dom.cameraView.style.display = 'none';
-        if (dom.appContainer) dom.appContainer.style.display = 'grid';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-    }
+    requestAnimationFrame(scanLoop);
+  }
 
-    /* --- Quando um rastreio é detectado (manual ou scanner) --- */
-    function handleScannedTracking(raw){
-        const tracking = raw.split(/\s/)[0];
-        const details = lookupShipment(tracking);
-        const now = new Date().toISOString();
-        const record = {
-            id: tracking,
-            tracking,
-            date: now,
-            user: currentUser ? currentUser.username : 'unknown',
-            type: details.carrier || 'Genérico',
-            endereco: details.address || '',
-            telefone: details.phone || '',
-            cliente: details.name || '',
-            raw: raw
-        };
-        scanRecords.unshift(record);
-        saveScans();
-        showScanFeedback(record);
-    }
+  // camera controls
+  dom.cameraSelect && dom.cameraSelect.addEventListener('change', () => {
+    if (dom.cameraSelect.value) startScanner(dom.cameraSelect.value);
+  });
+  dom.btnCloseCamera && dom.btnCloseCamera.addEventListener('click', () => {
+    stopScanner();
+    dom.cameraView.style.display = 'none';
+    dom.app.style.display = 'grid';
+    renderDashboard();
+  });
+  dom.btnTorch && dom.btnTorch.addEventListener('click', async () => {
+    if (!videoTrack) return alert('Câmera não ativa');
+    const caps = videoTrack.getCapabilities && videoTrack.getCapabilities();
+    if (!caps || !caps.torch) return alert('Lanterna não suportada');
+    try {
+      const settings = videoTrack.getSettings();
+      await videoTrack.applyConstraints({ advanced: [{ torch: !settings.torch }] });
+    } catch (e) { console.warn('torch toggle failed', e); }
+  });
+  dom.btnManual && dom.btnManual.addEventListener('click', () => openManualModal());
 
-    /* --- Shipment lookup / edição local --- */
-    function lookupShipment(tracking){
-        if (shipments[tracking]) return shipments[tracking];
-        shipments[tracking] = { tracking, name: '', address: 'Endereço desconhecido', phone: '', carrier: '' };
-        saveShipments();
-        return shipments[tracking];
+  /* -------------------------
+     Manual modal & QR generation
+     ------------------------- */
+  function openManualModal() {
+    dom.manualInput.value = '';
+    dom.qrcodeContainer.innerHTML = '';
+    dom.modalBackdrop.style.display = 'flex';
+    dom.manualInput.focus();
+  }
+  function closeManualModal() {
+    dom.modalBackdrop.style.display = 'none';
+    dom.qrcodeContainer.innerHTML = '';
+  }
+  dom.manualCancel && dom.manualCancel.addEventListener('click', closeManualModal);
+
+  dom.manualSave && dom.manualSave.addEventListener('click', () => {
+    const id = (dom.manualInput.value || '').trim();
+    if (!id) return alert('Insira um ID de rastreio válido');
+    // If exists in scans, show popup that it was already scanned
+    const existing = scanRecords.find(r => r.tracking === id);
+    if (existing) {
+      Swal.fire({
+        title: `Já foi escaneado`,
+        html: `<b>${id}</b><br>${existing.cliente || ''}<br><small>Registrado por ${existing.user} em ${new Date(existing.date).toLocaleString()}</small>`,
+        icon: 'info'
+      });
     }
-    window.editShipment = (tracking) => {
-        const s = lookupShipment(tracking);
-        const name = prompt('Nome do cliente:', s.name || '');
-        if (name === null) return;
-        const address = prompt('Endereço completo:', s.address || '');
-        if (address === null) return;
-        const phone = prompt('Telefone:', s.phone || '');
-        if (phone === null) return;
-        s.name = name; s.address = address; s.phone = phone;
-        shipments[tracking] = s; saveShipments();
-        scanRecords = scanRecords.map(r => r.tracking === tracking ? ({ ...r, cliente: s.name, endereco: s.address, telefone: s.phone }) : r);
-        saveScans();
-        renderDeliveries(); // refresh
-        alert('Dados do rastreio atualizados.');
+    // generate QR
+    dom.qrcodeContainer.innerHTML = '';
+    const qrDiv = document.createElement('div');
+    dom.qrcodeContainer.appendChild(qrDiv);
+    try {
+      new QRCode(qrDiv, {
+        text: id,
+        width: 160,
+        height: 160,
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } catch (e) {
+      console.error('QRCode generation error', e);
+      dom.qrcodeContainer.innerText = 'Erro ao gerar QR';
+    }
+    // register scan as "generated" event optionally (do not auto-scan)
+  });
+
+  /* -------------------------
+     Scanned tracking handling
+     ------------------------- */
+  function handleScannedTracking(raw) {
+    const tracking = raw.split(/\s/)[0];
+    const details = lookupShipment(tracking);
+    const now = new Date().toISOString();
+    const record = {
+      id: tracking,
+      tracking,
+      date: now,
+      user: currentUser ? currentUser.username : 'unknown',
+      type: details.carrier || 'Genérico',
+      endereco: details.address || '',
+      telefone: details.phone || '',
+      cliente: details.name || '',
+      raw: raw,
+      lat: userLocation ? userLocation.lat : undefined,
+      lon: userLocation ? userLocation.lon : undefined
     };
 
-    /* --- Feedback/UI --- */
-    function showScanFeedback(record){
-        dom.feedback.textContent = `Leitura: ${record.tracking} — ${record.cliente || record.endereco || 'Dados Desconhecidos'}`;
-        dom.feedback.style.opacity = '1';
-        // Se estiver na tela do scanner, pisca a borda
-        const scanOverlay = document.querySelector('.scan-overlay');
-        if (dom.cameraView && dom.cameraView.style.display === 'flex') {
-            scanOverlay.style.borderColor = 'var(--success)';
-            setTimeout(() => scanOverlay.style.borderColor = 'rgba(255,255,255,0.5)', 300);
-        }
-        setTimeout(()=> dom.feedback.style.opacity = '0', 2200);
+    // add to head
+    scanRecords.unshift(record);
+    saveScans();
+
+    // feedback
+    dom.feedback.textContent = `Leu: ${record.tracking} — ${record.cliente || record.endereco || '—'}`;
+    dom.feedback.style.opacity = '1';
+    setTimeout(() => dom.feedback.style.opacity = '0', 2000);
+    playBeep(true);
+
+    // update map if open
+    if (mapInstance) {
+      addMarkerForRecord(record);
+      refreshHeatAndClusters();
     }
 
-    /* --- RENDERERS --- */
-    function renderDashboard(){
-        removeMapIfExists();
-        removeMapFullscreenClass();
-        if (dom.appContainer) dom.appContainer.style.display = 'grid';
-        if (dom.cameraView) dom.cameraView.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
-        const html = `
-            <h2>📦 Entregas Realizadas</h2>
-            <p class="small-muted">Total de registros: ${scanRecords.length}</p>
-            <div style="margin-top:12px" class="card">
-              <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
-                <button class="btn-primary" onclick="window.openCameraProgramatic()">Iniciar Scanner</button>
-                <button class="btn-secondary" onclick="renderDeliveries()">Ver Lista</button>
-                <div style="margin-left:auto" class="small-muted">Usuário: ${currentUser ? currentUser.username : '-'}</div>
-              </div>
-              <div class="list-deliveries">
-                ${scanRecords.slice(0,8).map((r, idx) => `
-                  <div class="delivery-item">
-                    <div style="width:40px;text-align:center"><div class="badge">${idx+1}</div></div>
-                    <div class="grow">
-                      <div class="title">${r.tracking}</div>
-                      <div class="meta">${r.type} • ${new Date(r.date).toLocaleString()}</div>
-                      <div class="small-muted">${r.endereco || ''}</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:6px">
-                      <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
-                      <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-        `;
-        dom.contentArea.innerHTML = html;
+    // when manual modal is open, show QR (already handled in manual)
+  }
+
+  /* -------------------------
+     Shipments lookup / edit
+     ------------------------- */
+  function lookupShipment(tracking) {
+    if (shipments[tracking]) return shipments[tracking];
+    shipments[tracking] = {
+      tracking,
+      name: '',
+      address: 'Endereço desconhecido',
+      phone: '',
+      carrier: ''
+    };
+    saveShipments();
+    return shipments[tracking];
+  }
+  window.editShipment = (tracking) => {
+    const s = lookupShipment(tracking);
+    const name = prompt('Nome do cliente:', s.name || '');
+    if (name === null) return;
+    const address = prompt('Endereço completo:', s.address || '');
+    if (address === null) return;
+    const phone = prompt('Telefone:', s.phone || '');
+    if (phone === null) return;
+    s.name = name; s.address = address; s.phone = phone;
+    shipments[tracking] = s; saveShipments();
+    // update existing records
+    scanRecords = scanRecords.map(r => r.tracking === tracking ? ({ ...r, cliente: s.name, endereco: s.address, telefone: s.phone }) : r);
+    saveScans();
+    renderDeliveries();
+    alert('Dados do rastreio atualizados.');
+  };
+
+  /* -------------------------
+     Geolocation
+     ------------------------- */
+  let userLocation = null;
+  function startGeolocation() {
+    if (!('geolocation' in navigator)) return;
+    navigator.geolocation.watchPosition(pos => {
+      userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      if (mapInstance) updateMapLocation();
+    }, err => {
+      console.warn('geolocation error', err && err.message);
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 7000 });
+  }
+
+  /* -------------------------
+     Map & helpers (Leaflet + clustering + heat)
+     ------------------------- */
+  function initMap(containerId = 'mapObj') {
+    // destroy previous
+    if (mapInstance) {
+      try { mapInstance.remove(); } catch (e) { console.warn(e); }
+      mapInstance = null;
     }
 
-    window.openCameraProgramatic = () => { setActiveMenu('btnScanMode'); openCameraView(); closeSidebarIfOpen(); }
+    const el = document.getElementById(containerId);
+    if (!el) return null;
+    mapInstance = L.map(containerId).setView([CD_LOCATION.lat, CD_LOCATION.lon], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
 
-    function renderDeliveries(){
-        removeMapIfExists();
-        removeMapFullscreenClass();
-        if (dom.appContainer) dom.appContainer.style.display = 'grid';
-        if (dom.cameraView) dom.cameraView.style.display = 'none';
-        if (dom.contentArea) dom.contentArea.style.display = 'block';
+    // marker cluster
+    clusterGroup = L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 60 });
+    clusterGroup.addTo(mapInstance);
 
-        const html = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>📋 Lista de Entregas</h2></div>
-            <div class="card">
-              <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px">
-                <input id="searchDelivery" placeholder="Buscar por rastreio/endereço/cliente" style="padding:8px;border-radius:8px;border:1px solid #ddd;flex:1"/>
-                <button class="btn-primary" id="btnNewManual">+ Novo (Manual)</button>
-              </div>
-              <div id="deliveriesList" class="list-deliveries">
-                ${scanRecords.map((r, i) => `
-                  <div class="delivery-item" data-tracking="${r.tracking}">
-                    <div style="width:40px;text-align:center"><div class="badge">${i+1}</div></div>
-                    <div class="grow">
-                      <div class="title">${r.tracking} <span class="small-muted"> — ${r.cliente || 'Sem Nome'}</span></div>
-                      <div class="meta">${r.type} • ${new Date(r.date).toLocaleString()}</div>
-                      <div class="small-muted">${r.endereco || ''}</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:6px">
-                      <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
-                      <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-            <div id="deliveryDetailArea"></div>
-        `;
-        dom.contentArea.innerHTML = html;
+    // heat
+    heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 17 }).addTo(mapInstance);
 
-        const btnNewManual = document.getElementById('btnNewManual');
-        if (btnNewManual) btnNewManual.addEventListener('click', ()=> { openManualModal(); });
+    // route layer group
+    routeLayer = L.layerGroup().addTo(mapInstance);
 
-        const searchInput = document.getElementById('searchDelivery');
-        if (searchInput) searchInput.addEventListener('input', () => {
-            const q = searchInput.value.trim().toLowerCase();
-            const nodes = document.querySelectorAll('#deliveriesList .delivery-item');
-            nodes.forEach(node => {
-                const t = node.dataset.tracking.toLowerCase();
-                const idx = scanRecords.find(r=>r.tracking===node.dataset.tracking);
-                const text = `${t} ${idx.endereco || ''} ${idx.cliente || ''}`.toLowerCase();
-                node.style.display = text.includes(q) ? 'flex' : 'none';
-            });
+    // add current location mark if available
+    if (userLocation) {
+      if (locationMarker) locationMarker.setLatLng([userLocation.lat, userLocation.lon]);
+      else {
+        locationMarker = L.circleMarker([userLocation.lat, userLocation.lon], { radius: 7, color: '#ef4444', weight: 2, fillColor: '#ef4444' })
+          .addTo(mapInstance).bindPopup('Você está aqui');
+      }
+    }
+
+    // return mapInstance
+    return mapInstance;
+  }
+
+  function addMarkerForRecord(r) {
+    if (!mapInstance || !clusterGroup) return;
+    const lat = r.lat || CD_LOCATION.lat;
+    const lon = r.lon || CD_LOCATION.lon;
+    const icon = iconForStatus(r.type); // we use type as status in this local version
+    const marker = L.marker([lat, lon], { icon });
+    marker.bindPopup(`<b>${r.tracking}</b><br>${r.cliente || ''}<br>${r.endereco || ''}<br>
+      <button onclick="(function(){ window.viewDeliveryDetail && window.viewDeliveryDetail('${r.tracking}'); })()">Detalhes</button>
+      <button onclick="(function(){ window.desenharRota && window.desenharRota(${lat}, ${lon}); })()">Rota</button>
+    `);
+    clusterGroup.addLayer(marker);
+  }
+
+  function refreshHeatAndClusters() {
+    if (!clusterGroup || !heatLayer) return;
+    clusterGroup.clearLayers();
+    const heatPoints = [];
+    scanRecords.forEach(r => {
+      const lat = r.lat || CD_LOCATION.lat;
+      const lon = r.lon || CD_LOCATION.lon;
+      const icon = iconForStatus(r.type);
+      const marker = L.marker([lat, lon], { icon }).bindPopup(`<b>${r.tracking}</b><br>${r.cliente || ''}`);
+      clusterGroup.addLayer(marker);
+      heatPoints.push([lat, lon, 0.6]);
+    });
+    heatLayer.setLatLngs(heatPoints);
+  }
+
+  function iconForStatus(status) {
+    // simple colored markers using leaflet-color-markers (external URL)
+    // fallback to default icon
+    const base = 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-';
+    const color = {
+      'Entregue': 'green',
+      'Em Rota': 'blue',
+      'Pendente': 'red',
+      'Genérico': 'orange',
+    }[status] || 'orange';
+    return L.icon({
+      iconUrl: `${base}${color}.png`,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      shadowSize: [41, 41]
+    });
+  }
+
+  /* -------------------------
+     Routing (OSRM) - fetch route and draw polyline
+     ------------------------- */
+  async function desenharRota(lat, lng) {
+    if (!mapInstance) return;
+    if (routeLayer) routeLayer.clearLayers();
+    const start = `${CD_LOCATION.lon},${CD_LOCATION.lat}`;
+    const end = `${lng},${lat}`;
+    const url = `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson&alternatives=false`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('OSRM failure');
+      const data = await res.json();
+      if (!data.routes || data.routes.length === 0) throw new Error('No route found');
+      const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      const poly = L.polyline(coords, { color: '#007bff', weight: 5, opacity: 0.9 }).addTo(routeLayer);
+      mapInstance.fitBounds(poly.getBounds(), { padding: [40, 40] });
+    } catch (e) {
+      console.warn('desenharRota error', e);
+      Swal.fire('Erro', 'Não foi possível traçar a rota (OSRM).', 'error');
+    }
+  }
+  window.desenharRota = desenharRota; // expose for popup buttons
+
+  /* -------------------------
+     Renderers: Dashboard / Deliveries / Map / Routes / Users
+     ------------------------- */
+  function renderDashboard() {
+    // exit fullscreen map class
+    document.querySelector('.app') && document.querySelector('.app').classList.remove('fullscreen-map-active');
+    dom.contentArea.innerHTML = `
+      <h2>📦 Dashboard do Entregador</h2>
+      <div class="card" style="display:flex;gap:12px;">
+        <div style="flex:1">
+          <h3>Entregas Pendentes</h3>
+          <p style="font-size:28px; margin:6px 0">${scanRecords.filter(r=>!r.delivered).length}</p>
+        </div>
+        <div style="flex:1">
+          <h3>Coletas de Hoje</h3>
+          <p style="font-size:28px; margin:6px 0">${scanRecords.filter(r => (new Date(r.date)).toDateString() === (new Date()).toDateString()).length}</p>
+        </div>
+        <div style="flex:1">
+          <h3>Total Concluído</h3>
+          <p style="font-size:28px; margin:6px 0">${scanRecords.filter(r=>r.delivered).length}</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h4>Próximas Entregas (amostra)</h4>
+        <div id="nextSamples"></div>
+      </div>
+    `;
+
+    const nextEl = document.getElementById('nextSamples');
+    const next = scanRecords.filter(r => !r.delivered).slice(0, 5);
+    if (!next.length) nextEl.innerHTML = '<p class="small-muted">Sem entregas pendentes.</p>';
+    else {
+      nextEl.innerHTML = next.map(r => `<div style="padding:8px;border-bottom:1px solid #eee"><b>${r.tracking}</b> — ${r.endereco || '—'}<div style="font-size:12px;color:#666">${r.cliente || ''}</div></div>`).join('');
+    }
+  }
+
+  window.openCameraProgramatic = () => {
+    setActiveMenu('btnScanMode');
+    openCameraView();
+  };
+
+  function renderDeliveries() {
+    document.querySelector('.app') && document.querySelector('.app').classList.remove('fullscreen-map-active');
+    let html = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>📋 Lista de Entregas</h2></div>
+    <div class="card"><div style="display:flex;gap:8px;margin-bottom:12px"><input id="searchDelivery" placeholder="Buscar..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #ddd" /><button id="btnNewManual" class="btn-primary">+ Novo (Manual)</button></div>
+    <div id="deliveriesList" class="list-deliveries">
+    ${scanRecords.map((r,i)=>`
+      <div class="delivery-item" data-tracking="${r.tracking}">
+        <div style="width:40px;text-align:center"><div class="badge">${i+1}</div></div>
+        <div class="grow">
+          <div class="title">${r.tracking} <span style="font-weight:400;color:#6b7280">— ${r.cliente || 'Sem nome'}</span></div>
+          <div class="meta">${r.type} • ${new Date(r.date).toLocaleString()}</div>
+          <div class="small-muted">${r.endereco || ''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="btn-secondary" onclick="viewDeliveryDetail('${r.tracking}')">Ver</button>
+          <button class="btn-secondary" onclick="window.editShipment('${r.tracking}')">Editar</button>
+        </div>
+      </div>
+    `).join('')}
+    </div></div><div id="deliveryDetailArea"></div>`;
+    dom.contentArea.innerHTML = html;
+
+    document.getElementById('btnNewManual').addEventListener('click', openManualModal);
+    const si = document.getElementById('searchDelivery');
+    si && si.addEventListener('input', () => {
+      const q = si.value.trim().toLowerCase();
+      document.querySelectorAll('#deliveriesList .delivery-item').forEach(node => {
+        const t = node.dataset.tracking.toLowerCase();
+        const rec = scanRecords.find(r => r.tracking === node.dataset.tracking);
+        const text = `${t} ${rec.endereco || ''} ${rec.cliente || ''}`.toLowerCase();
+        node.style.display = text.includes(q) ? 'flex' : 'none';
+      });
+    });
+  }
+
+  window.viewDeliveryDetail = (tracking) => {
+    const rec = scanRecords.find(r => r.tracking === tracking);
+    const area = document.getElementById('deliveryDetailArea');
+    if (!rec || !area) return alert('Registro não encontrado');
+    area.innerHTML = `<div class="card" style="margin-top:12px"><button class="close-x" onclick="document.getElementById('deliveryDetailArea').innerHTML='';">✕</button>
+      <h3>${rec.tracking}</h3>
+      <p><strong>Cliente:</strong> ${rec.cliente || '—'}</p>
+      <p><strong>Endereço:</strong> ${rec.endereco || '—'}</p>
+      <p><strong>Telefone:</strong> ${rec.telefone || '—'}</p>
+      <p><strong>Usuário:</strong> ${rec.user}</p>
+      <p><strong>Data:</strong> ${new Date(rec.date).toLocaleString()}</p>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn-primary" onclick="window.editShipment('${rec.tracking}')">Editar Dados</button>
+        <button class="btn-secondary" onclick="centerMapToRecord('${rec.tracking}')">Mostrar no Mapa</button>
+      </div>
+    </div>`;
+    area.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  function renderMap() {
+    // full screen map behavior
+    document.querySelector('.app') && document.querySelector('.app').classList.add('fullscreen-map-active');
+
+    dom.contentArea.innerHTML = `<div style="position:relative;height:100%"><button class="close-x" onclick="closeMapView()" title="Fechar">✕</button><h2>🗺️ Mapa de Entregas</h2>
+      <div class="card" style="height:calc(100vh - 90px);padding:0">
+        <p style="padding:8px;margin:0">Você está aqui: <span id="currentLoc">Carregando...</span></p>
+        <div id="mapObj" class="map-wrapper" style="height:calc(100% - 40px)"></div>
+      </div>
+    </div>`;
+
+    setTimeout(() => {
+      initMap('mapObj');
+      refreshHeatAndClusters();
+      updateMapLocation();
+      // ensure map tiles render correctly
+      try { mapInstance.invalidateSize(); } catch (e) { /* ignore */ }
+    }, 80);
+  }
+
+  function closeMapView() {
+    // destroy map and restore UI
+    if (mapInstance) {
+      try { mapInstance.remove(); } catch (e) { /* ignore */ }
+      mapInstance = null;
+      clusterGroup = null;
+      heatLayer = null;
+    }
+    document.querySelector('.app') && document.querySelector('.app').classList.remove('fullscreen-map-active');
+    renderDashboard();
+  }
+  window.closeMapView = closeMapView;
+
+  function renderRoutes() {
+    document.querySelector('.app') && document.querySelector('.app').classList.remove('fullscreen-map-active');
+    dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>🧭 Rotas</h2></div>
+      <div class="card"><p class="small-muted">Gerando rota simulada (heurística nearest neighbor)...</p>
+      <div id="routeMapObj" style="height:420px"></div></div>`;
+    setTimeout(() => {
+      const pts = scanRecords.filter(r => r.lat && r.lon).slice(0, 20).map(r => ({ lat: r.lat, lon: r.lon, id: r.tracking }));
+      if (pts.length < 2) {
+        document.getElementById('routeMapObj').innerHTML = '<p class="small-muted">Escaneie ao menos 2 entregas com posição para simular rota.</p>';
+        return;
+      }
+      initMap('routeMapObj');
+      // simple nearest neighbor
+      let remaining = pts.slice();
+      const route = [];
+      let current = { lat: CD_LOCATION.lat, lon: CD_LOCATION.lon };
+      while (remaining.length) {
+        let nearestIndex = 0;
+        let bestDist = Infinity;
+        remaining.forEach((p, i) => {
+          const d = Math.hypot(current.lat - p.lat, current.lon - p.lon);
+          if (d < bestDist) { bestDist = d; nearestIndex = i; }
         });
+        route.push(remaining.splice(nearestIndex, 1)[0]);
+        current = route[route.length - 1];
+      }
+      const coords = route.map(p => [p.lat, p.lon]);
+      const poly = L.polyline([[CD_LOCATION.lat, CD_LOCATION.lon], ...coords], { color: '#22c55e', weight: 4 }).addTo(mapInstance);
+      mapInstance.fitBounds(poly.getBounds(), { padding: [40, 40] });
+      // numbered markers
+      route.forEach((p, i) => {
+        L.marker([p.lat, p.lon], { icon: iconForStatus('Em Rota') }).addTo(mapInstance).bindPopup(`<b>Ponto ${i+1}</b><br>${p.id}`);
+      });
+    }, 80);
+  }
+
+  function renderUsers() {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'gestor')) {
+      dom.contentArea.innerHTML = `<h2>Acesso negado</h2><p>Somente admin/gestor.</p>`;
+      return;
     }
+    dom.contentArea.innerHTML = `<h2>👥 Usuários</h2><div class="card"><button id="btnNewUser" class="btn-primary">+ Novo Usuário</button>
+      <div id="userList" style="margin-top:12px">${users.map(u => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee">
+          <div><strong>${u.username}</strong><div style="font-size:12px;color:#666">${u.role}</div></div>
+          <div>
+            <button class="btn-secondary" onclick="editUser('${u.id}')">Editar</button>
+            ${u.id !== currentUser.id ? `<button class="btn-secondary" onclick="deleteUser('${u.id}')">Excluir</button>` : ''}
+          </div>
+        </div>`).join('')}</div></div>`;
+    document.getElementById('btnNewUser').addEventListener('click', () => editUser(null));
+  }
 
-    window.viewDeliveryDetail = (tracking) => {
-        const record = scanRecords.find(r => r.tracking === tracking);
-        const detailArea = document.getElementById('deliveryDetailArea');
-        if (!record || !detailArea) return;
-        
-        detailArea.innerHTML = `
-            <div class="card" style="margin-top:15px; border-left-color:var(--success)">
-                <h3 style="margin-top:0">${record.tracking}</h3>
-                <p><strong>Cliente:</strong> ${record.cliente || 'Não informado'}</p>
-                <p><strong>Endereço:</strong> ${record.endereco || 'Não informado'}</p>
-                <p><strong>Telefone:</strong> ${record.telefone || 'Não informado'}</p>
-                <p><strong>Tipo:</strong> ${record.type}</p>
-                <p><strong>Registrado por:</strong> ${record.user}</p>
-                <p><strong>Data:</strong> ${new Date(record.date).toLocaleString()}</p>
-                <button class="btn-primary" onclick="window.editShipment('${tracking}')">Editar Dados</button>
-            </div>
-        `;
-        detailArea.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    function renderUsers(){
-        removeMapIfExists();
-        removeMapFullscreenClass();
-        if (!dom.contentArea) return;
-        const isAdmin = currentUser && currentUser.role === 'admin';
-        if (!isAdmin && currentUser.role !== 'gestor') {
-            dom.contentArea.innerHTML = `<h2>Acesso Negado</h2><p>Você não tem permissão para gerenciar usuários.</p>`;
-            return;
-        }
-
-        dom.contentArea.innerHTML = `<h2>👥 Gerenciamento de Usuários</h2>
-          <div class="card">
-            <button class="btn-primary" onclick="window.editUser(null)">+ Novo Usuário</button>
-            <div id="userList" style="margin-top:12px">${users.map(u => `
-              <div class="delivery-item" style="align-items:center">
-                <div style="width:40px;text-align:center">${u.username[0].toUpperCase()}</div>
-                <div class="grow"><div style="font-weight:700">${u.username}</div><div class="small-muted">${u.role}</div></div>
-                <div style="display:flex;gap:8px">
-                  <button class="btn-secondary" onclick="window.editUser('${u.id}')">Editar</button>
-                  ${u.id !== currentUser.id ? `<button class="btn-secondary" onclick="window.deleteUser('${u.id}')">Excluir</button>` : ''}
-                </div>
-              </div>`).join('')}</div>
-          </div>`;
+  /* -------------------------
+     Map helpers
+     ------------------------- */
+  function updateMapLocation() {
+    if (!mapInstance) return;
+    const lat = userLocation ? userLocation.lat : CD_LOCATION.lat;
+    const lon = userLocation ? userLocation.lon : CD_LOCATION.lon;
+    const el = document.getElementById('currentLoc');
+    if (el) el.textContent = `(${lat.toFixed(6)}, ${lon.toFixed(6)})`;
+    if (locationMarker && mapInstance) locationMarker.setLatLng([lat, lon]);
+    else if (mapInstance) {
+      locationMarker = L.circleMarker([lat, lon], { radius: 6, fillColor: '#ef4444', color: '#fff', weight: 2 }).addTo(mapInstance).bindPopup('Você');
     }
+  }
+  window.centerMapToRecord = (tracking) => {
+    const rec = scanRecords.find(r => r.tracking === tracking);
+    if (!rec) return alert('Registro não encontrado');
+    renderMap();
+    setTimeout(() => {
+      if (mapInstance) mapInstance.setView([rec.lat || CD_LOCATION.lat, rec.lon || CD_LOCATION.lon], 15, { animate: true });
+    }, 200);
+  };
 
-    function renderRoutes(){
-        removeMapIfExists();
-        removeMapFullscreenClass();
-        if (!dom.contentArea) return;
-        dom.contentArea.innerHTML = `<div style="position:relative"><button class="close-x" onclick="renderDashboard()">✕</button><h2>🧭 Otimizar Rotas</h2></div>
-          <div class="card"><p class="small-muted">Gerando uma simulação com seus últimos pontos...</p><div id="routeMapObj" class="map-wrapper"></div></div>`;
-        setTimeout(() => {
-            const deliveryPoints = scanRecords.map(r=>({lat: r.lat||CD_LOCATION.lat, lon: r.lon||CD_LOCATION.lon, id: r.tracking}));
-            if (deliveryPoints.length < 2) { const el = document.getElementById('routeMapObj'); if (el) el.innerHTML = '<p class="small-muted">Escaneie ao menos 2 entregas para simular rota.</p>'; return; }
-            const route = deliveryPoints.slice(0,10).sort(()=>Math.random()-0.5);
-            removeMapIfExists();
-            mapInstance = L.map('routeMapObj').setView([route[0].lat, route[0].lon], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
-            try { mapInstance.getContainer().style.zIndex = '1'; } catch(e){}
-            const routePoints = route.map((p,i) => {
-                const marker = L.marker([p.lat,p.lon]).addTo(mapInstance).bindPopup(`<b>Ponto ${i+1}</b><br>${p.id}`);
-                return [p.lat,p.lon];
-            });
-            if (routePoints.length>1) {
-                L.polyline(routePoints,{color:'#22c55e', weight:5}).addTo(mapInstance);
-                mapInstance.fitBounds(L.polyline(routePoints).getBounds());
-            }
-        },120);
+  /* -------------------------
+     Generate CSV
+     ------------------------- */
+  function generateCSV(period = 'all', userFilter = '') {
+    const now = new Date();
+    let filtered = scanRecords.slice();
+    if (period !== 'all') {
+      const days = { daily: 1, weekly: 7, monthly: 30 }[period] || 0;
+      if (days > 0) {
+        const cutoff = new Date(now);
+        cutoff.setDate(now.getDate() - days);
+        filtered = filtered.filter(r => new Date(r.date) >= cutoff);
+      }
     }
+    if (userFilter) filtered = filtered.filter(r => r.user && r.user.toLowerCase().includes(userFilter.toLowerCase()));
+    if (!filtered.length) return alert('Nenhum dado encontrado para o filtro.');
+    const headers = ['DATA','HORA','USUARIO','RASTREAMENTO','CLIENTE','ENDERECO','TELEFONE','TIPO','RAW'];
+    let csv = headers.join(',') + '\n';
+    filtered.forEach(r => {
+      const d = new Date(r.date);
+      const row = [
+        d.toLocaleDateString('pt-BR'),
+        d.toLocaleTimeString('pt-BR'),
+        r.user || '',
+        r.tracking || '',
+        (r.cliente || '').replace(/"/g,'""'),
+        (r.endereco || '').replace(/"/g,'""'),
+        (r.telefone || '').replace(/"/g,'""'),
+        r.type || '',
+        (r.raw || '').replace(/"/g,'""')
+      ].map(v => `"${v}"`).join(',');
+      csv += row + '\n';
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pegazus_export_${(new Date()).toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+  window.generateCSV = generateCSV;
 
-    function renderMap(){
-        removeMapIfExists();
-        addMapFullscreenClass(); 
-
-        if (!dom.contentArea) return;
-        dom.contentArea.style.display = 'block';
-        if (dom.cameraView) dom.cameraView.style.display = 'none';
-        if (dom.appContainer) dom.appContainer.style.display = 'grid';
-
-        dom.contentArea.innerHTML = `<div style="position:relative;height:100%;"><button class="close-x" onclick="renderDashboard()" title="Fechar">✕</button><h2>🗺️ Mapa de Entregas</h2>
-            <div class="card" style="height:calc(100vh - 60px); padding:0;">
-                <p class="small-muted" style="padding:10px 15px; margin-bottom:0;">Você está aqui: <span id="currentLoc">Carregando...</span></p>
-                <div id="mapObj" class="map-wrapper" style="height:calc(100% - 35px);"></div>
-            </div>
-        </div>`;
-
-        setTimeout(() => {
-            const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
-            const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
-            mapInstance = L.map('mapObj').setView([initialLat, initialLon], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OSM' }).addTo(mapInstance);
-            
-            mapInstance.invalidateSize();
-
-            try {
-                mapInstance.getContainer().style.zIndex = '1';
-                const panes = mapInstance.getPanes && mapInstance.getPanes();
-                if (panes && panes.tilePane) panes.tilePane.style.zIndex = '1';
-            } catch(e){ console.warn('z-index patch error', e); }
-
-            scanRecords.forEach(r => {
-                const lat = r.lat || CD_LOCATION.lat;
-                const lon = r.lon || CD_LOCATION.lon;
-                L.marker([lat,lon]).addTo(mapInstance).bindPopup(`<b>${r.tracking}</b><br>${r.cliente || ''}<br>${r.endereco || ''}`);
-            });
-
-            updateMapLocation();
-        },120);
+  /* -------------------------
+     User CRUD (global access)
+     ------------------------- */
+  window.editUser = (userId) => {
+    const userToEdit = userId ? users.find(u => u.id === userId) : null;
+    const username = prompt('Usuário:', userToEdit ? userToEdit.username : '');
+    if (!username) return;
+    const password = prompt('Senha (deixe em branco para manter):', userToEdit ? userToEdit.password : '');
+    const role = prompt('Papel (admin/gestor/colaborador):', userToEdit ? userToEdit.role : 'colaborador') || 'colaborador';
+    if (!userId) {
+      users.push({ id: 'u' + Date.now(), username, password, role, creatorId: currentUser.id });
+    } else {
+      const idx = users.findIndex(u => u.id === userId);
+      if (idx >= 0) {
+        users[idx].username = username;
+        if (password) users[idx].password = password;
+        users[idx].role = role;
+      }
     }
+    saveUsers();
+    renderUsers();
+  };
+  window.deleteUser = (userId) => {
+    if (!confirm('Excluir usuário?')) return;
+    users = users.filter(u => u.id !== userId);
+    saveUsers();
+    renderUsers();
+  };
 
-    function removeMapIfExists(){
-        removeMapFullscreenClass();
-        if (mapInstance) {
-            try { mapInstance.remove(); } catch(e){ console.warn(e); }
-            mapInstance = null;
-            locationMarker = null;
-            const el = document.getElementById('mapObj');
-            if (el) el.innerHTML = '';
-            const rEl = document.getElementById('routeMapObj');
-            if (rEl) rEl.innerHTML = '';
-        }
-    }
+  /* -------------------------
+     Utility: add marker for all records (used in map init)
+     ------------------------- */
+  function populateMapFromRecords() {
+    if (!mapInstance || !clusterGroup) return;
+    clusterGroup.clearLayers();
+    const heat = [];
+    scanRecords.forEach(r => {
+      const lat = r.lat || CD_LOCATION.lat;
+      const lon = r.lon || CD_LOCATION.lon;
+      const marker = L.marker([lat, lon], { icon: iconForStatus(r.type) }).bindPopup(`<b>${r.tracking}</b><br>${r.cliente || ''}<br>${r.endereco || ''}`);
+      clusterGroup.addLayer(marker);
+      heat.push([lat, lon, 0.6]);
+    });
+    if (heatLayer) heatLayer.setLatLngs(heat);
+  }
 
-    function updateMapLocation(){
-        if (!mapInstance) return;
-        const initialLat = userLocation ? userLocation.lat : CD_LOCATION.lat;
-        const initialLon = userLocation ? userLocation.lon : CD_LOCATION.lon;
-        const currentLocEl = document.getElementById('currentLoc');
-        if (currentLocEl) currentLocEl.textContent = `(${initialLat.toFixed(6)}, ${initialLon.toFixed(6)})`;
-        if (locationMarker) locationMarker.setLatLng([initialLat, initialLon]);
-        else {
-            locationMarker = L.marker([initialLat, initialLon], {
-                icon: L.divIcon({ className:'current-location-marker', html:'<div style="background:#ef4444;border:3px solid white;border-radius:50%;width:18px;height:18px"></div>' })
-            }).addTo(mapInstance).bindPopup('Sua Localização Atual');
-        }
-    }
-
-    window.centerMapToRecord = (tracking) => {
-        const record = scanRecords.find(r => r.tracking === tracking);
-        if (record && mapInstance) {
-            mapInstance.setView([record.lat || CD_LOCATION.lat, record.lon || CD_LOCATION.lon], 15, { animate: true });
-        }
-    };
-
-    /* --- CSV Export --- */
-    function generateCSV(period='all', userFilter=''){
-        const now = new Date();
-        let filteredRecords = scanRecords;
-
-        if (period !== 'all') {
-            const days = { 'daily': 1, 'weekly': 7, 'monthly': 30 }[period];
-            const cutoffDate = new Date(now);
-            cutoffDate.setDate(now.getDate() - days);
-            filteredRecords = filteredRecords.filter(r => new Date(r.date) >= cutoffDate);
-        }
-
-        if (userFilter) {
-            filteredRecords = filteredRecords.filter(r => r.user.toLowerCase().includes(userFilter.toLowerCase()));
-        }
-
-        if (filteredRecords.length === 0) {
-            alert('Nenhum registro encontrado para os filtros selecionados.');
-            return;
-        }
-
-        const headers = ["tracking", "cliente", "endereco", "telefone", "data", "usuario", "tipo", "raw_data"];
-        let csv = headers.join(";") + "\n";
-        
-        filteredRecords.forEach(r => {
-            const row = [
-                r.tracking,
-                r.cliente,
-                r.endereco,
-                r.telefone,
-                new Date(r.date).toLocaleString('pt-BR'),
-                r.user,
-                r.type,
-                r.raw.replace(/\"/g, '""') // Escape quotes for CSV
-            ].map(d => `"${d}"`).join(";");
-            csv += row + "\n";
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        if (link.download !== undefined) {
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `pegazus_export_${new Date().toISOString().slice(0,10)}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            alert(`Exportação de ${filteredRecords.length} registros concluída.`);
-        }
-        dom.exportOptions.style.display = 'none';
-    }
-
-    /* --- User CRUD helpers kept in global scope (as in original) --- */
-    window.editUser = (userId) => {
-        const userToEdit = userId ? users.find(u => u.id === userId) : null;
-        const isNew = !userId;
-        const isAdmin = currentUser.role === 'admin';
-        const isSelf = currentUser.id === userId;
-
-        const username = prompt('Nome de Usuário:', userToEdit ? userToEdit.username : '');
-        if (!username) return;
-
-        const password = prompt('Nova Senha (deixe em branco para manter a antiga):', '');
-        
-        let role = userToEdit ? userToEdit.role : 'colaborador';
-        if (isAdmin || isSelf) {
-            const inputRole = prompt(`Papel (${isAdmin?'admin/gestor/colaborador':'colaborador'}):`, userToEdit ? userToEdit.role : 'colaborador');
-            if (inputRole) {
-                const lowerRole = inputRole.toLowerCase();
-                if (isAdmin) {
-                    if (['admin', 'gestor', 'colaborador'].includes(lowerRole)) role = lowerRole;
-                } else if (isSelf) {
-                    if (['colaborador'].includes(lowerRole)) role = lowerRole;
-                }
-            }
-        }
-
-        if (!userId) {
-            const newUser = { 
-                id:'u'+Date.now(), 
-                username, 
-                password, 
-                role: (currentUser.role==='gestor' && role==='admin') ? 'gestor' : role, // Gestor não pode criar Admin
-                creatorId: currentUser.id 
-            };
-            users.push(newUser);
-        } else {
-            const idx = users.findIndex(u=>u.id===userId);
-            if (idx>=0){ 
-                users[idx].username = username;
-                if (password) users[idx].password = password; 
-                if (isAdmin || isSelf) users[idx].role = role; 
-            }
-        }
-        saveUsers(); renderUsers();
-    };
-    window.deleteUser = (userId) => {
-        if (userId === currentUser.id) return alert('Você não pode excluir seu próprio perfil enquanto logado.');
-        if (!confirm('Excluir usuário?')) return;
-        users = users.filter(u => u.id !== userId); saveUsers(); renderUsers();
-    };
-
-    /* --- Inicialização final --- */
+  /* -------------------------
+     Small helpers
+     ------------------------- */
+  function openCameraView() {
+    // hide app, show camera region
+    dom.app.style.display = 'none';
+    dom.cameraView.style.display = 'flex';
     enumerateDevices();
-    if (currentUser) renderDashboard();
+    startScanner();
+  }
+  window.openCameraView = openCameraView;
 
-    // Exports for some helper functions to global scope for buttons from HTML
-    window.renderDashboard = renderDashboard;
-    window.renderDeliveries = renderDeliveries;
-    window.renderMap = renderMap;
-    window.renderRoutes = renderRoutes;
-    window.renderUsers = renderUsers;
-    window.generateCSV = generateCSV;
-    window.lookupShipment = lookupShipment;
-    window.openManualModal = openManualModal;
+  function closeCameraView() {
+    stopScanner();
+    dom.cameraView.style.display = 'none';
+    dom.app.style.display = 'grid';
+  }
+  window.closeCameraView = closeCameraView;
+
+  // Helper to add single record to map when scanning live
+  function addMarkerForRecord(record) {
+    if (!mapInstance) return;
+    const lat = record.lat || CD_LOCATION.lat;
+    const lon = record.lon || CD_LOCATION.lon;
+    const m = L.marker([lat, lon], { icon: iconForStatus(record.type) }).bindPopup(`<b>${record.tracking}</b><br>${record.cliente || ''}`);
+    clusterGroup && clusterGroup.addLayer(m);
+    // add to heat
+    if (heatLayer) {
+      const pts = heatLayer.getLatLngs ? heatLayer.getLatLngs() : [];
+      pts.push([lat, lon, 0.6]);
+      heatLayer.setLatLngs(pts);
+    }
+  }
+
+  /* -------------------------
+     Initial wiring of menu buttons
+     ------------------------- */
+  dom.btnDashboard && dom.btnDashboard.addEventListener('click', () => { setActiveMenu('btnDashboard'); renderDashboard(); });
+  dom.btnScanMode && dom.btnScanMode.addEventListener('click', () => { setActiveMenu('btnScanMode'); openCameraView(); });
+  dom.btnDeliveries && dom.btnDeliveries.addEventListener('click', () => { setActiveMenu('btnDeliveries'); renderDeliveries(); });
+  dom.btnMap && dom.btnMap.addEventListener('click', () => { setActiveMenu('btnMap'); renderMap(); });
+  dom.btnRoutes && dom.btnRoutes.addEventListener('click', () => { setActiveMenu('btnRoutes'); renderRoutes(); });
+  dom.btnManualSearch && dom.btnManualSearch.addEventListener('click', () => { setActiveMenu('btnManualSearch'); openManualModal(); });
+  dom.btnUsers && dom.btnUsers.addEventListener('click', () => { setActiveMenu('btnUsers'); renderUsers(); });
+
+  dom.btnExport && dom.btnExport.addEventListener('click', () => {
+    // quick export modal
+    Swal.fire({
+      title: 'Exportar CSV',
+      html: `<select id="swPeriod" style="width:100%;padding:8px;margin-bottom:8px;">
+              <option value="daily">Últimas 24h</option>
+              <option value="weekly">Últimos 7 dias</option>
+              <option value="monthly">Últimos 30 dias</option>
+              <option value="all" selected>Todos</option>
+            </select>
+            <input id="swUserFilter" placeholder="Filtrar por usuário (opcional)" style="width:100%;padding:8px" />`,
+      showCancelButton: true,
+      confirmButtonText: 'Exportar',
+      preConfirm: () => {
+        const period = document.getElementById('swPeriod').value;
+        const uf = document.getElementById('swUserFilter').value.trim();
+        return { period, uf };
+      }
+    }).then(res => {
+      if (res.isConfirmed) {
+        generateCSV(res.value.period, res.value.uf);
+      }
+    });
+  });
+
+  /* -------------------------
+     Initial setup
+     ------------------------- */
+  enumerateDevices();
+  // If already logged in (rare), show dashboard
+  if (currentUser) {
+    dom.loginSection && dom.loginSection.classList.add('hidden');
+    dom.app && dom.app.classList.remove('hidden');
+    renderDashboard();
+  }
+
+  // Expose some functions to global scope used by HTML buttons/popups
+  window.renderDashboard = renderDashboard;
+  window.renderDeliveries = renderDeliveries;
+  window.renderMap = renderMap;
+  window.renderRoutes = renderRoutes;
+  window.renderUsers = renderUsers;
+  window.generateCSV = generateCSV;
+  window.lookupShipment = lookupShipment;
+  window.openManualModal = openManualModal;
+  window.startScanner = startScanner;
 });
