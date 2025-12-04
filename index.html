@@ -8,9 +8,8 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.0.3/qrcode.min.js"></script>
-
-  <script src="app.js"></script>
 
   <style>
     /* --- Estilos Originais (ROOT) --- */
@@ -72,7 +71,7 @@
     }
 
     .login-logo .logo-icon {
-        font-size: 40px;
+        font-size: 60px; /* AUMENTADO EM 50% */
         color: var(--accent);
         margin: 0 8px;
         line-height: 1;
@@ -341,10 +340,12 @@
       
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:15px;">
         <button id="manualCancel" class="btn-secondary">Fechar</button>
-        <button id="manualSave" class="btn-primary">Salvar e Gerar QR</button>
+        <button id="manualSave" class="btn-primary">Gerar QRcode</button>
       </div>
     </div>
   </div>
+  
+  <script src="app.js"></script>
 
 </body>
 </html>
